@@ -96,8 +96,7 @@ NodeTreeDescriptor::NodeTreeDescriptor()
                 else {
                     return false;
                 }
-            })
-            .set_always_required(true));
+            }));
 
     register_node(
         NodeTypeInfo(NODE_GROUP_IN_IDENTIFIER)
