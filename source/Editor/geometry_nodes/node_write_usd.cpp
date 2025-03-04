@@ -196,8 +196,7 @@ NODE_EXECUTION_FUNCTION(write_usd)
 
             auto material =
                 material_component->define_material(stage, material_path);
-
-            //usdgeom.GetPrim().ApplyAPI(pxr::UsdShadeTokens->MaterialBindingAPI);
+            // usdgeom.GetPrim().ApplyAPI(pxr::UsdShadeTokens->MaterialBindingAPI);
             pxr::UsdShadeMaterialBindingAPI(usdgeom).Bind(material);
         }
         else {

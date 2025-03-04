@@ -7,14 +7,9 @@ pxr::UsdShadeMaterial MaterialComponent::define_material(
     pxr::UsdStageRefPtr stage,
     pxr::SdfPath path)
 {
+    auto material_path = get_material_path();
     auto texture_name = std::string(textures[0].c_str());
-    std::filesystem::path p =
-        std::filesystem::path(texture_name).replace_extension();
-    auto file_name = "texture" + p.filename().string();
 
-    auto material_path_root = pxr::SdfPath("/TexModel");
-    auto material_path =
-        material_path_root.AppendPath(pxr::SdfPath(file_name + "Mat"));
     auto material_shader_path =
         material_path.AppendPath(pxr::SdfPath("PBRShader"));
     auto material_stReader_path =
@@ -69,6 +64,18 @@ pxr::UsdShadeMaterial MaterialComponent::define_material(
         .ConnectToSource(stInput);
 
     return material;
+}
+
+pxr::SdfPath MaterialComponent::get_material_path()
+{
+    auto texture_name = std::string(textures[0].c_str());
+    std::filesystem::path p =
+        std::filesystem::path(texture_name).replace_extension();
+    auto file_name = "texture" + p.filename().string();
+    auto material_path_root = pxr::SdfPath("/TexModel");
+    auto material_path =
+        material_path_root.AppendPath(pxr::SdfPath(file_name + "Mat"));
+    return material_path;
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

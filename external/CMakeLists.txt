@@ -35,6 +35,7 @@ file(GLOB source
     "${imgui_SOURCE_DIR}/*.cpp"
     "${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.*"
     "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.*"
+    "${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.*"
     "${imgui_file_SOURCE_DIR}/*.h"
     "${imgui_file_SOURCE_DIR}/*.cpp"
 )
@@ -42,6 +43,7 @@ add_library(imgui SHARED ${source})
 target_include_directories(imgui
     PUBLIC "${imgui_SOURCE_DIR}"
     PUBLIC "${imgui_SOURCE_DIR}/backends"
+    PUBLIC "${imgui_SOURCE_DIR}/misc/cpp"
     PUBLIC "${imgui_file_SOURCE_DIR}"
 )
 target_include_directories(imgui PUBLIC  "${CMAKE_CURRENT_SOURCE_DIR}/user_imgui")

@@ -22,7 +22,7 @@
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
 #include "stb_image.h"
-#include "ui_imgui.hpp"
+#include "nodes/ui/ui_imgui.hpp"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 namespace ed = ax::NodeEditor;

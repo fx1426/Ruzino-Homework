@@ -37,14 +37,16 @@ struct GEOMETRY_API MaterialComponent : public GeometryComponent {
         pxr::UsdStageRefPtr stage,
         pxr::SdfPath path);
 
-    void set_material_path(pxr::SdfPath path)
+    void set_materialx_path(pxr::SdfPath path)
     {
-        material_path = path;
+        mtlx_material_path = path;
     }
+
+    pxr::SdfPath get_material_path();
 
     std::vector<std::string> textures;
 
-    pxr::SdfPath material_path;
+    pxr::SdfPath mtlx_material_path;
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

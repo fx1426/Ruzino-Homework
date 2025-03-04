@@ -7,7 +7,7 @@ NODE_DECLARATION_FUNCTION(set_material)
 {
     // Function content omitted
     b.add_input<Geometry>("Geometry");
-    b.add_input<Material>("Material");
+
     b.add_output<Geometry>("Geometry");
 }
 
