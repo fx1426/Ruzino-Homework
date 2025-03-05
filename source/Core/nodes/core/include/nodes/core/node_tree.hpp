@@ -106,6 +106,8 @@ class NODES_CORE_API NodeTree {
 
     std::vector<std::unique_ptr<NodeLink>> links;
     std::vector<std::unique_ptr<Node>> nodes;
+    std::vector<std::unique_ptr<NodeSocket>> sockets;
+
     bool has_available_link_cycle;
 
     unsigned input_socket_id(NodeSocket* socket);
@@ -163,11 +165,11 @@ class NODES_CORE_API NodeTree {
         SocketID endPinId,
         bool refresh_topology = true);
 
-    void delete_link(
+    virtual void delete_link(
         LinkId linkId,
         bool refresh_topology = true,
         bool remove_from_group = true);
-    void delete_link(
+    virtual void delete_link(
         NodeLink* link,
         bool refresh_topology = true,
         bool remove_from_group = true);
@@ -193,8 +195,6 @@ class NODES_CORE_API NodeTree {
     void set_ui_settings(const std::string& settings);
 
    private:
-    // No one directly edits these sockets.
-    std::vector<std::unique_ptr<NodeSocket>> sockets;
     const std::shared_ptr<NodeTreeDescriptor> descriptor_;
 
     void delete_socket(SocketID socketId, bool force_group_delete = true);

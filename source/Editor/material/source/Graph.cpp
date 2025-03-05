@@ -172,16 +172,6 @@ Graph::Graph(
     //}
 }
 
-mx::ElementPredicate Graph::getElementPredicate() const
-{
-    return [this](mx::ConstElementPtr elem) {
-        if (elem->hasSourceUri()) {
-            return (_xincludeFiles.count(elem->getSourceUri()) == 0);
-        }
-        return true;
-    };
-}
-
 void Graph::addExtraNodes()
 {
     if (!_graphDoc) {
@@ -349,7 +339,7 @@ float Graph::totalHeight(int level)
 {
     float total = 0.f;
     for (UiNodePtr node : _levelMap[level]) {
-        total += ed::GetNodeSize(node->getId()).y;
+        total += ed::GetNodeSize(node->ID).y;
     }
     return total;
 }
@@ -361,9 +351,9 @@ void Graph::setYSpacing(int level, float startingPos)
     // set the y spacing for each node
     float currPos = startingPos;
     for (UiNodePtr node : _levelMap[level]) {
-        ImVec2 oldPos = ed::GetNodePosition(node->getId());
-        ed::SetNodePosition(node->getId(), ImVec2(oldPos.x, currPos));
-        currPos += ed::GetNodeSize(node->getId()).y + 40;
+        ImVec2 oldPos = ed::GetNodePosition(node->ID);
+        ed::SetNodePosition(node->ID, ImVec2(oldPos.x, currPos));
+        currPos += ed::GetNodeSize(node->ID).y + 40;
     }
 }
 
@@ -374,8 +364,8 @@ float Graph::findAvgY(const std::vector<UiNodePtr>& nodes)
     float total = 0.f;
     int count = 0;
     for (UiNodePtr node : nodes) {
-        ImVec2 pos = ed::GetNodePosition(node->getId());
-        ImVec2 size = ed::GetNodeSize(node->getId());
+        ImVec2 pos = ed::GetNodePosition(node->ID);
+        ImVec2 size = ed::GetNodeSize(node->ID);
 
         total += ((size.y + pos.y) + pos.y) / 2;
         count++;
@@ -423,10 +413,9 @@ ImVec2 Graph::layoutPosition(
             if (node->getNodeGraph() != nullptr) {
                 std::vector<UiNodePtr> outputCon = node->getOutputConnections();
                 if (outputCon.size() > 0) {
-                    ImVec2 outputPos =
-                        ed::GetNodePosition(outputCon[0]->getId());
+                    ImVec2 outputPos = ed::GetNodePosition(outputCon[0]->ID);
                     ed::SetNodePosition(
-                        node->getId(), ImVec2(outputPos.x - 400, outputPos.y));
+                        node->ID, ImVec2(outputPos.x - 400, outputPos.y));
                     node->setPos(ImVec2(outputPos.x - 400, outputPos.y));
                 }
             }
@@ -443,7 +432,7 @@ ImVec2 Graph::layoutPosition(
                                 mx::Element::YPOS_ATTRIBUTE));
                             x *= DEFAULT_NODE_SIZE.x;
                             y *= DEFAULT_NODE_SIZE.y;
-                            ed::SetNodePosition(node->getId(), ImVec2(x, y));
+                            ed::SetNodePosition(node->ID, ImVec2(x, y));
                             node->setPos(ImVec2(x, y));
                         }
                     }
@@ -512,8 +501,7 @@ ImVec2 Graph::layoutPosition(
                             startingPos.x =
                                 (1200.f - ((layoutNode->_level) * 250)) *
                                 _fontScale;
-                            ed::SetNodePosition(
-                                layoutNode->getId(), startingPos);
+                            ed::SetNodePosition(layoutNode->ID, startingPos);
                             layoutNode->setPos(ImVec2(startingPos));
 
                             // Call layout position on upstream node with newPos
@@ -533,7 +521,7 @@ ImVec2 Graph::layoutPosition(
                 layoutNode->setPos(ImVec2(startingPos));
 
                 // Set current node position
-                ed::SetNodePosition(layoutNode->getId(), ImVec2(startingPos));
+                ed::SetNodePosition(layoutNode->ID, ImVec2(startingPos));
             }
         }
         return ImVec2(0.f, 0.f);
@@ -550,15 +538,15 @@ void Graph::layoutInputs()
             ++levelCount;
         }
         ImVec2 startingPos =
-            ed::GetNodePosition(_levelMap[levelCount].back()->getId());
+            ed::GetNodePosition(_levelMap[levelCount].back()->ID);
         startingPos.y +=
-            ed::GetNodeSize(_levelMap[levelCount].back()->getId()).y + 20;
+            ed::GetNodeSize(_levelMap[levelCount].back()->ID).y + 20;
 
         for (UiNodePtr uiNode : _graphNodes) {
             if (uiNode->getOutputConnections().size() == 0 &&
                 (uiNode->getInput() != nullptr)) {
-                ed::SetNodePosition(uiNode->getId(), ImVec2(startingPos));
-                startingPos.y += ed::GetNodeSize(uiNode->getId()).y;
+                ed::SetNodePosition(uiNode->ID, ImVec2(startingPos));
+                startingPos.y += ed::GetNodeSize(uiNode->ID).y;
                 startingPos.y += 23;
             }
             else if (
@@ -910,7 +898,7 @@ void Graph::positionPasteBin(ImVec2 pos)
 
     // Get average position of original nodes
     for (auto pasteNode : _copiedNodes) {
-        ImVec2 origPos = ed::GetNodePosition(pasteNode.first->getId());
+        ImVec2 origPos = ed::GetNodePosition(pasteNode.first->ID);
         totalPos.x += origPos.x;
         totalPos.y += origPos.y;
     }
@@ -926,9 +914,9 @@ void Graph::positionPasteBin(ImVec2 pos)
             continue;
         }
         ImVec2 newPos = ImVec2(0, 0);
-        newPos.x = ed::GetNodePosition(pasteNode.first->getId()).x + offset.x;
-        newPos.y = ed::GetNodePosition(pasteNode.first->getId()).y + offset.y;
-        ed::SetNodePosition(pasteNode.second->getId(), newPos);
+        newPos.x = ed::GetNodePosition(pasteNode.first->ID).x + offset.x;
+        newPos.y = ed::GetNodePosition(pasteNode.first->ID).y + offset.y;
+        ed::SetNodePosition(pasteNode.second->ID, newPos);
     }
 }
 
@@ -1124,7 +1112,7 @@ int Graph::getNodeId(SocketID pinId)
 {
     for (UiPinPtr pin : _currPins) {
         if (pin->_pinId == pinId) {
-            return findNode(pin->_pinNode->getId());
+            return findNode(pin->_pinNode->ID);
         }
     }
     return -1;
@@ -1170,8 +1158,8 @@ void Graph::buildGroupNode(UiNodePtr node)
     ed::PushStyleColor(ed::StyleColor_NodeBg, ImColor(255, 255, 255, 64));
     ed::PushStyleColor(ed::StyleColor_NodeBorder, ImColor(255, 255, 255, 64));
 
-    ed::BeginNode(node->getId());
-    ImGui::PushID(node->getId());
+    ed::BeginNode(node->ID);
+    ImGui::PushID(node->ID);
 
     std::string original = node->getMessage();
     std::string temp = original;
@@ -1185,14 +1173,14 @@ void Graph::buildGroupNode(UiNodePtr node)
     ed::EndNode();
     ed::PopStyleColor(2);
     ImGui::PopStyleVar();
-    if (ed::BeginGroupHint(node->getId())) {
+    if (ed::BeginGroupHint(node->ID)) {
         auto bgAlpha = static_cast<int>(ImGui::GetStyle().Alpha * 255);
         auto min = ed::GetGroupMin();
 
         ImGui::SetCursorScreenPos(
             min - ImVec2(-8, ImGui::GetTextLineHeightWithSpacing() + 4));
         ImGui::BeginGroup();
-        ImGui::PushID(node->getId() + 1000);
+        ImGui::PushID(node->ID + 1000);
         std::string tempName = node->getName();
         ImVec2 nameSize = ImGui::CalcTextSize(temp.c_str());
         ImGui::PushItemWidth(nameSize.x);
@@ -1298,14 +1286,14 @@ std::vector<int> Graph::createNodes(bool nodegraph)
             // Color for output pin
             std::string outputType;
             if (node->getNode() != nullptr) {
-                ed::BeginNode(node->getId());
-                ImGui::PushID(node->getId());
+                ed::BeginNode(node->ID);
+                ImGui::PushID(node->ID);
                 ImGui::SetWindowFontScale(1.2f * _fontScale);
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, -8.0),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(55, 55, 55, 255)),
                     12.f);
@@ -1313,7 +1301,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, 3),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(55, 55, 55, 255)),
                     0.f);
@@ -1362,7 +1350,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                     if (node->getOutputConnections().size() > 0) {
                         for (UiNodePtr outputCon :
                              node->getOutputConnections()) {
-                            outputNum.push_back(findNode(outputCon->getId()));
+                            outputNum.push_back(findNode(outputCon->ID));
                         }
                     }
                 }
@@ -1370,14 +1358,14 @@ std::vector<int> Graph::createNodes(bool nodegraph)
             else if (node->getInput() != nullptr) {
                 std::string longestInputLabel = node->getName();
 
-                ed::BeginNode(node->getId());
-                ImGui::PushID(node->getId());
+                ed::BeginNode(node->ID);
+                ImGui::PushID(node->ID);
                 ImGui::SetWindowFontScale(1.2f * _fontScale);
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0f, -8.0f),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(85, 85, 85, 255)),
                     12.f);
@@ -1385,7 +1373,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0f, 3.f),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(85, 85, 85, 255)),
                     0.f);
@@ -1443,14 +1431,14 @@ std::vector<int> Graph::createNodes(bool nodegraph)
             else if (node->getOutput() != nullptr) {
                 std::string longestInputLabel = node->getName();
 
-                ed::BeginNode(node->getId());
-                ImGui::PushID(node->getId());
+                ed::BeginNode(node->ID);
+                ImGui::PushID(node->ID);
                 ImGui::SetWindowFontScale(1.2f * _fontScale);
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, -8.0),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(35, 35, 35, 255)),
                     12.f);
@@ -1458,7 +1446,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, 3),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(35, 35, 35, 255)),
                     0);
@@ -1513,20 +1501,20 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                 }
                 drawOutputPins(node, longestInputLabel);
                 if (nodegraph) {
-                    outputNum.push_back(findNode(node->getId()));
+                    outputNum.push_back(findNode(node->ID));
                 }
             }
             else if (node->getNodeGraph() != nullptr) {
                 std::string longestInputLabel = node->getName();
 
-                ed::BeginNode(node->getId());
-                ImGui::PushID(node->getId());
+                ed::BeginNode(node->ID);
+                ImGui::PushID(node->ID);
                 ImGui::SetWindowFontScale(1.2f * _fontScale);
                 ImGui::GetWindowDrawList()->AddRectFilled(
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, -8.0),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(35, 35, 35, 255)),
                     12.f);
@@ -1534,7 +1522,7 @@ std::vector<int> Graph::createNodes(bool nodegraph)
                     ImGui::GetCursorScreenPos() + ImVec2(-7.0, 3),
                     ImGui::GetCursorScreenPos() +
                         ImVec2(
-                            ed::GetNodeSize(node->getId()).x - 9.f,
+                            ed::GetNodeSize(node->ID).x - 9.f,
                             ImGui::GetTextLineHeight() + 2.f),
                     ImColor(ImColor(35, 35, 35, 255)),
                     0);
@@ -1708,7 +1696,7 @@ void Graph::upNodeGraph()
         _initial = true;
         ed::NavigateToContent();
         if (_currUiNode) {
-            ed::DeselectNode(_currUiNode->getId());
+            ed::DeselectNode(_currUiNode->ID);
             _currUiNode = nullptr;
         }
         _prevUiNode = nullptr;
@@ -1729,7 +1717,7 @@ void Graph::clearGraph()
     _currGraphElem = _graphDoc;
 
     if (_currUiNode != nullptr) {
-        ed::DeselectNode(_currUiNode->getId());
+        ed::DeselectNode(_currUiNode->ID);
         _currUiNode = nullptr;
     }
     _prevUiNode = nullptr;
@@ -1745,7 +1733,7 @@ void Graph::loadGraphFromFile(bool prompt)
 {
     // Deselect node before loading new file
     if (_currUiNode) {
-        ed::DeselectNode(_currUiNode->getId());
+        ed::DeselectNode(_currUiNode->ID);
         _currUiNode = nullptr;
     }
 
@@ -2502,7 +2490,7 @@ void Graph::searchNodePopup(bool cursor)
                     if (ImGui::MenuItem(node->getName().c_str()) ||
                         (ImGui::IsItemFocused() &&
                          ImGui::IsKeyPressedMap(ImGuiKey_Enter))) {
-                        _searchNodeId = node->getId();
+                        _searchNodeId = node->ID;
                         memset(input, '\0', sizeof(input));
                     }
                 }
@@ -2722,7 +2710,7 @@ void Graph::drawGraph(ImVec2 mousePos)
                 positionPasteBin(canvasPos);
             }
             else if (!_graphNodes.empty()) {
-                ed::SetNodePosition(_graphNodes.back()->getId(), canvasPos);
+                ed::SetNodePosition(_graphNodes.back()->ID, canvasPos);
             }
             _copiedNodes.clear();
             _addNewNode = false;
@@ -2869,7 +2857,7 @@ void Graph::drawGraph(ImVec2 mousePos)
                     mx::NodeGraphPtr implGraph = impl->asA<mx::NodeGraph>();
                     _initial = true;
                     _graphNodes.clear();
-                    ed::DeselectNode(_currUiNode->getId());
+                    ed::DeselectNode(_currUiNode->ID);
                     _currUiNode = nullptr;
                     _currGraphElem = implGraph;
                     if (readOnly()) {
@@ -2895,7 +2883,7 @@ void Graph::drawGraph(ImVec2 mousePos)
                 _graphNodes.clear();
                 _isNodeGraph = true;
                 setRenderMaterial(_currUiNode);
-                ed::DeselectNode(_currUiNode->getId());
+                ed::DeselectNode(_currUiNode->ID);
                 _currUiNode = nullptr;
                 _currGraphElem = implGraph;
                 if (readOnly()) {
@@ -2915,8 +2903,8 @@ void Graph::drawGraph(ImVec2 mousePos)
 
     shaderPopup();
     if (ImGui::GetFrameCount() == (_frameCount + 2)) {
-        updateMaterials();
-        _renderer->setMaterialCompilation(false);
+        // updateMaterials();
+        //_renderer->setMaterialCompilation(false);
     }
 
     ed::Suspend();
@@ -2997,7 +2985,7 @@ void Graph::savePosition()
     for (UiNodePtr node : _graphNodes) {
         mx::ElementPtr elem = node->getElement();
         if (elem) {
-            ImVec2 pos = ed::GetNodePosition(node->getId());
+            ImVec2 pos = ed::GetNodePosition(node->ID);
             pos.x /= DEFAULT_NODE_SIZE.x;
             pos.y /= DEFAULT_NODE_SIZE.y;
             elem->setAttribute(

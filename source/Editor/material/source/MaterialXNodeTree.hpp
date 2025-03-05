@@ -73,13 +73,22 @@ class MaterialXNodeTree : public NodeTree {
 
     void addNodeGraphPins();
 
+    mx::ElementPredicate getElementPredicate() const;
+
     ~MaterialXNodeTree() override;
     Node* find_node(NodeId id) const override;
     Node* find_node(const char* identifier) const override;
     Node* add_node(const char* str) override;
     void delete_node(Node* nodeId, bool allow_repeat_delete) override;
     void delete_node(NodeId nodeId, bool allow_repeat_delete) override;
-
+    void delete_link(
+        LinkId linkId,
+        bool refresh_topology,
+        bool remove_from_group) override;
+    void delete_link(
+        NodeLink* link,
+        bool refresh_topology,
+        bool remove_from_group) override;
     mx::DocumentPtr get_mtlx_stdlib();
 
     // document and initializing information
