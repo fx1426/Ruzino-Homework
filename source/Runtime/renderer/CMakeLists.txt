@@ -19,7 +19,6 @@ target_compile_definitions(hd_USTC_CG PRIVATE HOST_CODE=1)
 target_include_directories(hd_USTC_CG PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/nodes/shaders/shaders)
 target_include_directories(hd_USTC_CG PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/source)
 
-target_link_libraries(hd_USTC_CG PUBLIC glints)
 
 add_nodes(
 	TARGET_NAME render_nodes 
