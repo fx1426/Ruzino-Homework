@@ -49,6 +49,7 @@ class NodeWidget : public NodeEditorWidgetBase {
     {
         if (tree_->GetDirty()) {
             system_->execute(true, node);
+            tree_->SetDirty(false);
         }
     }
 

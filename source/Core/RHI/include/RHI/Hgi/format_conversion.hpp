@@ -3,6 +3,7 @@
 #include <nvrhi/nvrhi.h>
 #include <pxr/imaging/hgi/hgi.h>
 #include <pxr/imaging/hgi/types.h>
+#include <pxr/imaging/hio/image.h>
 
 #include "RHI/api.h"
 
@@ -126,6 +127,60 @@ inline pxr::HdFormat ConvertToHdFormat(nvrhi::Format format)
         case nvrhi::Format::RGBA32_UINT: return HdFormatInt32Vec4;
         case nvrhi::Format::D32S8: return HdFormatFloat32UInt8;
         default: return HdFormatInvalid;
+    }
+}
+
+inline nvrhi::Format ConvertFromHioFormat(pxr::HioFormat format)
+{
+    switch (format) {
+        case pxr::HioFormatUNorm8: return nvrhi::Format::R8_UNORM;
+        case pxr::HioFormatUNorm8Vec2: return nvrhi::Format::RG8_UNORM;
+        case pxr::HioFormatUNorm8Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUNorm8Vec4: return nvrhi::Format::RGBA8_UNORM;
+        case pxr::HioFormatSNorm8: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatSNorm8Vec2: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatSNorm8Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatSNorm8Vec4: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatFloat16: return nvrhi::Format::R16_FLOAT;
+        case pxr::HioFormatFloat16Vec2: return nvrhi::Format::RG16_FLOAT;
+        case pxr::HioFormatFloat16Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatFloat16Vec4: return nvrhi::Format::RGBA16_FLOAT;
+        case pxr::HioFormatFloat32: return nvrhi::Format::R32_FLOAT;
+        case pxr::HioFormatFloat32Vec2: return nvrhi::Format::RG32_FLOAT;
+        case pxr::HioFormatFloat32Vec3: return nvrhi::Format::RGB32_FLOAT;
+        case pxr::HioFormatFloat32Vec4: return nvrhi::Format::RGBA32_FLOAT;
+        case pxr::HioFormatDouble64: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatDouble64Vec2: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatDouble64Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatDouble64Vec4: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt16: return nvrhi::Format::R16_UINT;
+        case pxr::HioFormatUInt16Vec2: return nvrhi::Format::RG16_UINT;
+        case pxr::HioFormatUInt16Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt16Vec4: return nvrhi::Format::RGBA16_UINT;
+        case pxr::HioFormatInt16: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatInt16Vec2: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatInt16Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatInt16Vec4: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt32: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt32Vec2: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt32Vec3: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatUInt32Vec4: return nvrhi::Format::UNKNOWN;
+        case pxr::HioFormatInt32: return nvrhi::Format::R32_UINT;
+        case pxr::HioFormatInt32Vec2: return nvrhi::Format::RG32_UINT;
+        case pxr::HioFormatInt32Vec3: return nvrhi::Format::RGB32_UINT;
+        case pxr::HioFormatInt32Vec4: return nvrhi::Format::RGBA32_UINT;
+        case pxr::HioFormatUNorm8srgb: return nvrhi::Format::SRGBA8_UNORM;
+        case pxr::HioFormatUNorm8Vec2srgb: return nvrhi::Format::SRGBA8_UNORM;
+        case pxr::HioFormatUNorm8Vec3srgb: return nvrhi::Format::SRGBA8_UNORM;
+        case pxr::HioFormatUNorm8Vec4srgb: return nvrhi::Format::SRGBA8_UNORM;
+        case pxr::HioFormatBC6FloatVec3: return nvrhi::Format::BC6H_SFLOAT;
+        case pxr::HioFormatBC6UFloatVec3: return nvrhi::Format::BC6H_UFLOAT;
+        case pxr::HioFormatBC7UNorm8Vec4: return nvrhi::Format::BC7_UNORM;
+        case pxr::HioFormatBC7UNorm8Vec4srgb:
+            return nvrhi::Format::BC7_UNORM_SRGB;
+        case pxr::HioFormatBC1UNorm8Vec4: return nvrhi::Format::BC1_UNORM;
+        case pxr::HioFormatBC3UNorm8Vec4: return nvrhi::Format::BC3_UNORM;
+        default: return nvrhi::Format::UNKNOWN;
     }
 }
 
