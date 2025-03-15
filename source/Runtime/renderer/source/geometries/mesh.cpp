@@ -148,19 +148,6 @@ void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(
                 _primvarSourceMap[pv.name] = {
                     GetPrimvar(sceneDelegate, pv.name), interp
                 };
-
-                if (pv.name == pxr::TfToken("UVMap") ||
-                    pv.name == pxr::TfToken("st")
-
-                ) {
-                    texcoordBuffer =
-                        static_cast<Hd_USTC_CG_RenderParam*>(param)
-                            ->InstanceCollection->vertex_pool.allocate(
-                                points.size() * 2);
-                    texcoordBuffer->write_data(_primvarSourceMap[pv.name]
-                                                   .data.Get<VtVec2fArray>()
-                                                   .data());
-                }
             }
         }
     }
@@ -182,9 +169,9 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     indexBuffer->write_data(triangulatedIndices.data());
 
     normalBuffer = render_param->InstanceCollection->vertex_pool.allocate(
-        computedNormals.size() * 3);
+        normals.size() * 3);
 
-    normalBuffer->write_data(computedNormals.data());
+    normalBuffer->write_data(normals.data());
     {
         std::lock_guard lock(execution_launch_mutex);
         nvrhi::rt::AccelStructDesc blas_desc;
@@ -221,6 +208,12 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
     mesh_desc.ibOffset = indexBuffer->index();
     mesh_desc.normalOffset = normalBuffer->index();
     mesh_desc.vbBufferIndex = 0;
+
+    if (texcoordBuffer)
+        mesh_desc.texCrdOffset = texcoordBuffer->index();
+    else {
+        mesh_desc.texCrdOffset = 0;
+    }
 
     mesh_desc_buffer = render_param->InstanceCollection->mesh_pool.allocate(1);
     mesh_desc_buffer->write_data(&mesh_desc);
@@ -317,6 +310,19 @@ void Hd_USTC_CG_Mesh::_SetMaterialId(
     }
 }
 
+void Hd_USTC_CG_Mesh::_CreateTexcoordsBuffer(Hd_USTC_CG_RenderParam* param)
+{
+    for (auto& pv : _primvarSourceMap) {
+        if (pv.first == pxr::TfToken("UVMap") ||
+            pv.first == pxr::TfToken("st")) {
+            texcoordBuffer = param->InstanceCollection->vertex_pool.allocate(
+                points.size() * 2);
+            texcoordBuffer->write_data(
+                pv.second.data.Get<VtVec2fArray>().data());
+        }
+    }
+}
+
 void Hd_USTC_CG_Mesh::Sync(
     HdSceneDelegate* sceneDelegate,
     HdRenderParam* renderParam,
@@ -358,42 +364,131 @@ void Hd_USTC_CG_Mesh::Sync(
     }
 
     if (!points.empty()) {
-        if (HdChangeTracker::IsTopologyDirty(*dirtyBits, id)) {
-            topology = GetMeshTopology(sceneDelegate);
-
-            HdMeshUtil meshUtil(&topology, GetId());
-            meshUtil.ComputeTriangleIndices(
-                &triangulatedIndices, &trianglePrimitiveParams);
-            _normalsValid = false;
-            _adjacencyValid = false;
-        }
-        if (HdChangeTracker::IsInstancerDirty(*dirtyBits, id) ||
-            HdChangeTracker::IsTransformDirty(*dirtyBits, id)) {
-            // TODO: fill instance matrix buffer
-            transform = GfMatrix4f(sceneDelegate->GetTransform(id));
-        }
-
         if (HdChangeTracker::IsPrimvarDirty(
                 *dirtyBits, id, HdTokens->normals) ||
             HdChangeTracker::IsPrimvarDirty(*dirtyBits, id, HdTokens->widths) ||
             HdChangeTracker::IsPrimvarDirty(
                 *dirtyBits, id, HdTokens->primvar)) {
             _UpdatePrimvarSources(sceneDelegate, *dirtyBits, renderParam);
-            _texcoordsClean = false;
         }
 
-        if (!_adjacencyValid) {
-            _adjacency.BuildAdjacencyTable(&topology);
-            _adjacencyValid = true;
-            // If we rebuilt the adjacency table, force a rebuild of normals.
+        if (HdChangeTracker::IsTopologyDirty(*dirtyBits, id)) {
+            topology = GetMeshTopology(sceneDelegate);
+
+            HdMeshUtil meshUtil(&topology, GetId());
+            meshUtil.ComputeTriangleIndices(
+                &triangulatedIndices, &trianglePrimitiveParams);
+
+            for (auto& primvar : _primvarSourceMap) {
+                if (primvar.second.interpolation ==
+                    HdInterpolationFaceVarying) {
+                    VtValue value = primvar.second.data;
+
+                    if (value.IsArrayValued()) {
+                        if (value.IsHolding<VtVec3fArray>()) {
+                            meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
+                                value.Get<VtVec3fArray>().data(),
+                                value.GetArraySize(),
+                                HdTypeFloatVec3,
+                                &primvar.second.data);
+                        }
+                        else if (value.IsHolding<VtVec2fArray>()) {
+                            meshUtil.ComputeTriangulatedFaceVaryingPrimvar(
+                                value.Get<VtVec2fArray>().data(),
+                                value.GetArraySize(),
+                                HdTypeFloatVec2,
+                                &primvar.second.data);
+                        }
+                    }
+                }
+
+                // Then make them per-vertex
+
+                if (primvar.second.interpolation ==
+                    HdInterpolationFaceVarying) {
+                    auto value = primvar.second.data;
+                    if (value.IsArrayValued()) {
+                        if (value.IsHolding<VtVec3fArray>()) {
+                            VtVec3fArray vec3fArray = value.Get<VtVec3fArray>();
+                            VtVec3fArray newVec3fArray =
+                                VtVec3fArray(points.size());
+                            for (int i = 0; i < triangulatedIndices.size();
+                                 i += 1) {
+                                newVec3fArray[triangulatedIndices[i][0]] =
+                                    vec3fArray[i * 3];
+                                newVec3fArray[triangulatedIndices[i][1]] =
+                                    vec3fArray[i * 3 + 1];
+                                newVec3fArray[triangulatedIndices[i][2]] =
+                                    vec3fArray[i * 3 + 2];
+                            }
+
+                            primvar.second.data = VtValue(newVec3fArray);
+                        }
+                        else if (value.IsHolding<VtVec2fArray>()) {
+                            VtVec2fArray vec2fArray = value.Get<VtVec2fArray>();
+                            VtVec2fArray newVec2fArray =
+                                VtVec2fArray(points.size());
+                            for (int i = 0; i < triangulatedIndices.size();
+                                 i += 1) {
+                                newVec2fArray[triangulatedIndices[i][0]] =
+                                    vec2fArray[i * 3];
+                                newVec2fArray[triangulatedIndices[i][1]] =
+                                    vec2fArray[i * 3 + 1];
+                                newVec2fArray[triangulatedIndices[i][2]] =
+                                    vec2fArray[i * 3 + 2];
+                            }
+
+                            primvar.second.data = VtValue(newVec2fArray);
+                        }
+                    }
+                }
+            }
+
+            _CreateTexcoordsBuffer(
+                static_cast<Hd_USTC_CG_RenderParam*>(renderParam));
+
             _normalsValid = false;
+            _adjacencyValid = false;
+        }
+        if (HdChangeTracker::IsInstancerDirty(*dirtyBits, id) ||
+            HdChangeTracker::IsTransformDirty(*dirtyBits, id)) {
+            // TODO: fill instance matrix buffe
+            // r
+            transform = GfMatrix4f(sceneDelegate->GetTransform(id));
         }
 
         if (!_normalsValid) {
-            computedNormals = Hd_SmoothNormals::ComputeSmoothNormals(
-                &_adjacency, points.size(), points.cdata());
+            VtValue normal_primvar;
 
-            assert(points.size() == computedNormals.size());
+            if (_primvarSourceMap.find(HdTokens->normals) ==
+                _primvarSourceMap.end()) {
+                normal_primvar = _primvarSourceMap[HdTokens->normals].data;
+            }
+            else
+                normal_primvar = GetNormals(sceneDelegate);
+
+            if (normal_primvar.IsEmpty()) {
+                // If there are no normals authored, we need to compute
+                // them. This is the case for example when the normals
+                // are not authored in the USD file, but are computed by
+                // the renderer. We compute the normals here and store
+                // them in the normals member variable.
+
+                if (!_adjacencyValid) {
+                    _adjacency.BuildAdjacencyTable(&topology);
+                    _adjacencyValid = true;
+                    // If we rebuilt the adjacency table, force a
+                    // rebuild of normals.
+                    _normalsValid = false;
+                }
+                normals = Hd_SmoothNormals::ComputeSmoothNormals(
+                    &_adjacency, points.size(), points.cdata());
+                assert(points.size() == normals.size());
+            }
+            else {
+                // If normals are authored, we use them.
+                normals = normal_primvar.Get<VtVec3fArray>();
+            }
 
             _normalsValid = true;
         }

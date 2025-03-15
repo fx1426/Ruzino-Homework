@@ -154,6 +154,7 @@ struct MeshDesc
 {
     uint vbOffset;          ///< Offset into global vertex buffer.
     uint ibOffset;          ///< Offset into global index buffer, or zero if non-indexed.
+    uint texCrdOffset;      ///< Offset into texture coordinate buffer, or zero if no texture coordinates.
 
     uint ibBufferIndex; // For the cases when the buffer is larger than 4GB, this is the index of the buffer.
     uint vbBufferIndex; // For the cases when the buffer is larger than 4GB, this is the index of the buffer.

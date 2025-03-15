@@ -76,7 +76,7 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
     VtArray<GfVec3i> triangulatedIndices;
     VtIntArray trianglePrimitiveParams;
     VtArray<GfVec3f> points;
-    VtVec3fArray computedNormals;
+    VtVec3fArray normals;
     static constexpr GLuint normalLocation = 1;
     static constexpr GLuint texcoordLocation = 2;
 
@@ -87,7 +87,6 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
         HdDirtyBits* dirtyBits);
 
     uint32_t _dirtyBits;
-    bool _texcoordsClean;
 
     void _InitRepr(const TfToken& reprToken, HdDirtyBits* dirtyBits) override;
     void _SetMaterialId(
@@ -98,6 +97,9 @@ class HD_USTC_CG_API Hd_USTC_CG_Mesh final : public HdMesh {
     TfTokenVector _UpdateComputedPrimvarSources(
         HdSceneDelegate* sceneDelegate,
         HdDirtyBits dirtyBits);
+
+    void _CreateTexcoordsBuffer(Hd_USTC_CG_RenderParam* param);
+
     void _UpdatePrimvarSources(
         HdSceneDelegate* sceneDelegate,
         HdDirtyBits dirtyBits,

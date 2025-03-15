@@ -28,13 +28,19 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
         t_BindlessBuffers[0][3 * vertex_id + normal_offset + 1],
         t_BindlessBuffers[0][3 * vertex_id + normal_offset + 2]);
 
+    float2 texCrd = float2(
+        t_BindlessBuffers[0][2 * vertex_id + mesh_data.texCrdOffset + 0],
+        t_BindlessBuffers[0][2 * vertex_id + mesh_data.texCrdOffset + 1]);
+
     StaticVertexData data =
-        StaticVertexData(pos, normal, float4(0, 0, 0, 0), float2(0, 0), 0);
+        StaticVertexData(pos, normal, float4(0, 0, 0, 0), texCrd, 0);
     return data;
 }
 
-VertexData
-get_interpolated_vertex(uint instance_id, uint primitive_id, float2 baricentric2)
+VertexData get_interpolated_vertex(
+    uint instance_id,
+    uint primitive_id,
+    float2 baricentric2)
 {
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
@@ -53,7 +59,8 @@ get_interpolated_vertex(uint instance_id, uint primitive_id, float2 baricentric2
     float4x4 worldMat = transpose(instance.transform);
     float3x3 worldInvTransposeMat = transpose(inverse(float3x3(worldMat)));
 
-    float3 baricentric =
-        float3(1.0 - baricentric2.x - baricentric2.y, baricentric2.x, baricentric2.y);
-    return computeVertexData(v, worldMat, worldInvTransposeMat, false, baricentric);
+    float3 baricentric = float3(
+        1.0 - baricentric2.x - baricentric2.y, baricentric2.x, baricentric2.y);
+    return computeVertexData(
+        v, worldMat, worldInvTransposeMat, false, baricentric);
 }

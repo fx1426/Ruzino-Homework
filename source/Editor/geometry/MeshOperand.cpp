@@ -91,6 +91,7 @@ GeometryComponentHandle MeshComponent::copy(Geometry* operand) const
     ret->set_face_vertex_indices(this->faceVertexIndices);
     ret->set_normals(this->normals);
     ret->set_display_color(this->displayColor);
+    ret->set_texcoords_array(this->texcoordsArray);
 #endif
     ret->set_vertex_scalar_quantities(this->vertex_scalar_quantities);
     ret->set_face_scalar_quantities(this->face_scalar_quantities);
