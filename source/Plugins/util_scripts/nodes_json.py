@@ -69,7 +69,7 @@ def main():
         pref = args.username+"_"
     else:
         suf =""
-        pref = args.username+"_"
+        pref = ""
 
 
     if args.nodes_dir or args.nodes_files:
