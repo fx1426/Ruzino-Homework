@@ -1,15 +1,15 @@
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
 
-#include <string>
-
 #include "imgui_internal.h"
 
 #endif
 
 #include <pxr/usd/usdGeom/primvarsAPI.h>
+#include <pxr/usd/usdShade/materialBindingAPI.h>
 
 #include <cstddef>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -35,6 +35,8 @@
 #include "pxr/usd/usdGeom/curves.h"
 #include "pxr/usd/usdGeom/points.h"
 #include "pxr/usd/usdGeom/xform.h"
+#include "pxr/usd/usdShade/material.h"
+#include "stb_image.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
@@ -353,6 +355,168 @@ void RegisterMeshQuantities(
     }
 }
 
+void RegisterTextureQuantities(
+    const pxr::UsdPrim& prim,
+    polyscope::SurfaceMesh* surface_mesh)
+{
+    // 1. 获取材质绑定
+    pxr::UsdShadeMaterialBindingAPI bindingAPI(prim);
+    auto material = bindingAPI.GetDirectBinding().GetMaterial();
+    if (!material)
+        return;
+
+    // 2. 获取surface shader
+    auto surface = material.GetSurfaceOutput();
+    if (!surface)
+        return;
+
+    // 3. 获取PBR shader连接
+    pxr::UsdShadeConnectableAPI source;
+    pxr::TfToken sourceName;
+    pxr::UsdShadeAttributeType sourceType;
+    surface.GetConnectedSource(&source, &sourceName, &sourceType);
+
+    // 4. 获取diffuseColor输入
+    auto diffuseInput = source.GetInput(pxr::TfToken("diffuseColor"));
+    if (!diffuseInput)
+        return;
+
+    // 5. 获取texture sampler连接
+    diffuseInput.GetConnectedSource(&source, &sourceName, &sourceType);
+    if (!source)
+        return;
+
+    // 6. 从texture sampler获取文件路径
+    pxr::SdfAssetPath texturePath;
+    source.GetInput(pxr::TfToken("file")).Get(&texturePath);
+
+    // 获取实际文件路径
+    std::string textureFilePath = texturePath.GetAssetPath();
+    // std::cout << "Texture path: " << textureFilePath << std::endl;
+
+    // 7. 加载纹理
+    int width, height, channels;
+    unsigned char* data =
+        stbi_load(textureFilePath.c_str(), &width, &height, &channels, 4);
+    if (!data) {
+        std::cerr << "failed to load image from " << textureFilePath
+                  << std::endl;
+        return;
+    }
+
+    bool has_alpha = (channels == 4);
+
+    // 将数据转换为float数组
+    std::vector<std::array<float, 3>> image_color(width * height);
+    std::vector<std::array<float, 4>> image_color_alpha(width * height);
+    std::vector<float> image_scalar(width * height);
+
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            int pix_ind = (j * width + i) * channels;
+            unsigned char p_r = data[pix_ind + 0];
+            unsigned char p_g = data[pix_ind + 1];
+            unsigned char p_b = data[pix_ind + 2];
+            unsigned char p_a = 255;
+            if (channels == 4) {
+                p_a = data[pix_ind + 3];
+            }
+
+            // color
+            std::array<float, 3> val{ p_r / 255.f, p_g / 255.f, p_b / 255.f };
+            image_color[j * width + i] = val;
+
+            // scalar
+            image_scalar[j * width + i] = (val[0] + val[1] + val[2]) / 3.;
+
+            // color alpha
+            std::array<float, 4> val_a{
+                p_r / 255.f, p_g / 255.f, p_b / 255.f, p_a / 255.f
+            };
+            image_color_alpha[j * width + i] = val_a;
+        }
+    }
+
+    try {
+        // 获取 UV 属性名称，从 primvar 中查找
+        auto primVarAPI = pxr::UsdGeomPrimvarsAPI(prim);
+        auto primvars = primVarAPI.GetPrimvars();
+
+        for (const auto& primvar : primvars) {
+            std::string full_name = primvar.GetName();
+            if (full_name.find("primvars:polyscope:") == 0) {
+                std::string name_without_prefix = full_name.substr(19);
+
+                // 对顶点 UV
+                if (name_without_prefix.find("vertex:parameterization:") == 0) {
+                    std::string uv_name = name_without_prefix.substr(24);
+                    surface_mesh->addTextureColorQuantity(
+                        "vertex texture color " + uv_name,
+                        uv_name,
+                        width,
+                        height,
+                        image_color,
+                        polyscope::ImageOrigin::UpperLeft);
+
+                    surface_mesh->addTextureScalarQuantity(
+                        "vertex texture scalar " + uv_name,
+                        uv_name,
+                        width,
+                        height,
+                        image_scalar,
+                        polyscope::ImageOrigin::UpperLeft);
+
+                    if (has_alpha) {
+                        surface_mesh->addTextureColorQuantity(
+                            "vertex texture color alpha " + uv_name,
+                            uv_name,
+                            width,
+                            height,
+                            image_color_alpha,
+                            polyscope::ImageOrigin::UpperLeft);
+                    }
+                }
+
+                // 对面角 UV
+                if (name_without_prefix.find("face_corner:parameterization:") ==
+                    0) {
+                    std::string uv_name = name_without_prefix.substr(29);
+                    surface_mesh->addTextureColorQuantity(
+                        "face corner texture color " + uv_name,
+                        uv_name,
+                        width,
+                        height,
+                        image_color,
+                        polyscope::ImageOrigin::UpperLeft);
+
+                    surface_mesh->addTextureScalarQuantity(
+                        "face corner texture scalar " + uv_name,
+                        uv_name,
+                        width,
+                        height,
+                        image_scalar,
+                        polyscope::ImageOrigin::UpperLeft);
+
+                    if (has_alpha) {
+                        surface_mesh->addTextureColorQuantity(
+                            "face corner texture color alpha " + uv_name,
+                            uv_name,
+                            width,
+                            height,
+                            image_color_alpha,
+                            polyscope::ImageOrigin::UpperLeft);
+                    }
+                }
+            }
+        }
+    }
+    catch (std::exception& e) {
+        std::cerr << e.what() << std::endl;
+    }
+
+    stbi_image_free(data);
+}
+
 void PolyscopeRenderer::RegisterGeometryFromPrim(const pxr::UsdPrim& prim)
 {
     // Register structures from stage
@@ -414,6 +578,7 @@ void PolyscopeRenderer::RegisterGeometryFromPrim(const pxr::UsdPrim& prim)
             std::move(faceVertexIndicesNested));
         surface_mesh->setTransform(glm::make_mat4(xform.GetArray()));
         RegisterMeshQuantities(mesh, surface_mesh);
+        RegisterTextureQuantities(prim, surface_mesh);
     }
     else if (primTypeName == "Points") {
         polyscope::removeStructure("Surface Mesh", prim.GetPath().GetString());
