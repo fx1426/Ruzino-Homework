@@ -1,9 +1,22 @@
 import pbrlib.genslang.lib.mx_microfacet_specular;
 
-void mx_generalized_schlick_bsdf_reflection(float3 L, float3 V, float3 P, float occlusion, float weight, float3 color0, float3 color90, float exponent, float2 roughness, float3 N, float3 X, int distribution, int scatter_mode, inout BSDF bsdf)
+void mx_generalized_schlick_bsdf_reflection(
+    float3 L,
+    float3 V,
+    float3 P,
+    float occlusion,
+    float weight,
+    float3 color0,
+    float3 color90,
+    float exponent,
+    float2 roughness,
+    float3 N,
+    float3 X,
+    int distribution,
+    int scatter_mode,
+    inout BSDF bsdf)
 {
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -24,20 +37,20 @@ void mx_generalized_schlick_bsdf_reflection(float3 L, float3 V, float3 P, float 
     FresnelData fd;
     float3 safeColor0 = max(color0, 0.0);
     float3 safeColor90 = max(color90, 0.0);
-    if (bsdf.thickness > 0.0)
-    { 
-        fd = mx_init_fresnel_schlick_airy(safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
+    if (bsdf.thickness > 0.0) {
+        fd = mx_init_fresnel_schlick_airy(
+            safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
     }
-    else
-    {
+    else {
         fd = mx_init_fresnel_schlick(safeColor0, safeColor90, exponent);
     }
-    float3  F = mx_compute_fresnel(VdotH, fd);
+    float3 F = mx_compute_fresnel(VdotH, fd);
     float D = mx_ggx_NDF(Ht, safeAlpha);
     float G = mx_ggx_smith_G2(NdotL, NdotV, avgAlpha);
 
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-    float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
+    float3 dirAlbedo =
+        mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
     float avgDirAlbedo = dot(dirAlbedo, float3(1.0 / 3.0));
     bsdf.throughput = float3(1.0 - avgDirAlbedo * weight);
 
@@ -45,10 +58,20 @@ void mx_generalized_schlick_bsdf_reflection(float3 L, float3 V, float3 P, float 
     bsdf.response = D * F * G * comp * occlusion * weight / (4.0 * NdotV);
 }
 
-void mx_generalized_schlick_bsdf_transmission(float3 V, float weight, float3 color0, float3 color90, float exponent, float2 roughness, float3 N, float3 X, int distribution, int scatter_mode, inout BSDF bsdf)
+void mx_generalized_schlick_bsdf_transmission(
+    float3 V,
+    float weight,
+    float3 color0,
+    float3 color90,
+    float exponent,
+    float2 roughness,
+    float3 N,
+    float3 X,
+    int distribution,
+    int scatter_mode,
+    inout BSDF bsdf)
 {
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -58,12 +81,11 @@ void mx_generalized_schlick_bsdf_transmission(float3 V, float weight, float3 col
     FresnelData fd;
     float3 safeColor0 = max(color0, 0.0);
     float3 safeColor90 = max(color90, 0.0);
-    if (bsdf.thickness > 0.0)
-    { 
-        fd = mx_init_fresnel_schlick_airy(safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
+    if (bsdf.thickness > 0.0) {
+        fd = mx_init_fresnel_schlick_airy(
+            safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
     }
-    else
-    {
+    else {
         fd = mx_init_fresnel_schlick(safeColor0, safeColor90, exponent);
     }
     float3 F = mx_compute_fresnel(NdotV, fd);
@@ -72,22 +94,34 @@ void mx_generalized_schlick_bsdf_transmission(float3 V, float weight, float3 col
     float avgAlpha = mx_average_alpha(safeAlpha);
 
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-    float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
+    float3 dirAlbedo =
+        mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
     float avgDirAlbedo = dot(dirAlbedo, float3(1.0 / 3.0));
     bsdf.throughput = float3(1.0 - avgDirAlbedo * weight);
 
-    if (scatter_mode != 0)
-    {
+    if (scatter_mode != 0) {
         float avgF0 = dot(safeColor0, float3(1.0 / 3.0));
         fd.ior = float3(mx_f0_to_ior(avgF0));
-        bsdf.response = mx_surface_transmission(N, V, X, safeAlpha, distribution, fd, safeColor0) * weight;
+        bsdf.response = mx_surface_transmission(
+                            N, V, X, safeAlpha, distribution, fd, safeColor0) *
+                        weight;
     }
 }
 
-void mx_generalized_schlick_bsdf_indirect(float3 V, float weight, float3 color0, float3 color90, float exponent, float2 roughness, float3 N, float3 X, int distribution, int scatter_mode, inout BSDF bsdf)
+void mx_generalized_schlick_bsdf_indirect(
+    float3 V,
+    float weight,
+    float3 color0,
+    float3 color90,
+    float exponent,
+    float2 roughness,
+    float3 N,
+    float3 X,
+    int distribution,
+    int scatter_mode,
+    inout BSDF bsdf)
 {
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -97,12 +131,11 @@ void mx_generalized_schlick_bsdf_indirect(float3 V, float weight, float3 color0,
     FresnelData fd;
     float3 safeColor0 = max(color0, 0.0);
     float3 safeColor90 = max(color90, 0.0);
-    if (bsdf.thickness > 0.0)
-    { 
-        fd = mx_init_fresnel_schlick_airy(safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
+    if (bsdf.thickness > 0.0) {
+        fd = mx_init_fresnel_schlick_airy(
+            safeColor0, safeColor90, exponent, bsdf.thickness, bsdf.ior);
     }
-    else
-    {
+    else {
         fd = mx_init_fresnel_schlick(safeColor0, safeColor90, exponent);
     }
     float3 F = mx_compute_fresnel(NdotV, fd);
@@ -110,7 +143,8 @@ void mx_generalized_schlick_bsdf_indirect(float3 V, float weight, float3 color0,
     float2 safeAlpha = clamp(roughness, M_FLOAT_EPS, 1.0);
     float avgAlpha = mx_average_alpha(safeAlpha);
     float3 comp = mx_ggx_energy_compensation(NdotV, avgAlpha, F);
-    float3 dirAlbedo = mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
+    float3 dirAlbedo =
+        mx_ggx_dir_albedo(NdotV, avgAlpha, safeColor0, safeColor90) * comp;
     float avgDirAlbedo = dot(dirAlbedo, float3(1.0 / 3.0));
     bsdf.throughput = float3(1.0 - avgDirAlbedo * weight);
 

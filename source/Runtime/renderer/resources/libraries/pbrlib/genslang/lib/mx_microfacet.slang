@@ -1,7 +1,8 @@
 #ifndef MX_MICROFACET
 #define MX_MICROFACET
 
-import stdlib.genslang.lib.mx_math;
+__exported import stdlib.genslang.lib.mx_math;
+__exported import stdlib.genslang.mx_bsdf;
 
 static const float M_PI = 3.1415926535897932;
 static const float M_PI_INV = (1.0 / M_PI);

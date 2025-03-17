@@ -1,6 +1,6 @@
 import stdlib.genslang.mx_bsdf;
 import pbrlib.genslang.lib.mx_environment_prefilter;
-#include "lib/mx_microfacet_sheen.slang"
+import pbrlib.genslang.lib.mx_microfacet_sheen;
 
 void mx_sheen_bsdf_reflection(
     float3 L,

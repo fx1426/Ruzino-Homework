@@ -105,9 +105,10 @@ void SurfaceNodeSlang::emitFunctionDefinition(
         std::string _functionName = "mx_surface_eval";
         shadergen.emitLine(
             "void " + _functionName +
-                "(float3 L, float3 V, float3 N, float3 P, out BSDF "
-                "result)",
+                "(float3 L, float3 V, float3 N, float3 P,",
             stage);
+
+        shadergen.emitLine(" out BSDF result", stage);
         shadergen.emitScopeBegin(stage);
 
         auto bsdfInput = node.getInput("bsdf");

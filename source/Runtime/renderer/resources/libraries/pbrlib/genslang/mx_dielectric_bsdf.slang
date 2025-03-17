@@ -1,5 +1,4 @@
 import stdlib.genslang.mx_bsdf;
-import pbrlib.genslang.lib.mx_transmission_opacity;
 import pbrlib.genslang.lib.mx_transmission_refract;
 import pbrlib.genslang.lib.mx_microfacet_specular;
 import pbrlib.genslang.lib.mx_environment_prefilter;

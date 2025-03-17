@@ -26,7 +26,7 @@ void SlangResourceBindingContext::initialize()
     // Reset sampler bind location counter.
     _hwSamplerBindLocation = _hwInitSamplerBindLocation;
 }
-
+ 
 void SlangResourceBindingContext::emitDirectives(
     GenContext& context,
     ShaderStage& stage)

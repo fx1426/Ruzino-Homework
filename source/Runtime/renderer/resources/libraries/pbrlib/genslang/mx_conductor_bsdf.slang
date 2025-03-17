@@ -1,11 +1,23 @@
 import pbrlib.genslang.lib.mx_microfacet_specular;
-
-void mx_conductor_bsdf_reflection(float3 L, float3 V, float3 P, float occlusion, float weight, float3 ior_n, float3 ior_k, float2 roughness, float3 N, float3 X, int distribution, inout BSDF bsdf)
+import stdlib.genslang.mx_bsdf;
+import pbrlib.genslang.lib.mx_environment_prefilter;
+void mx_conductor_bsdf_reflection(
+    float3 L,
+    float3 V,
+    float3 P,
+    float occlusion,
+    float weight,
+    float3 ior_n,
+    float3 ior_k,
+    float2 roughness,
+    float3 N,
+    float3 X,
+    int distribution,
+    inout BSDF bsdf)
 {
     bsdf.throughput = float3(0.0);
 
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -25,7 +37,8 @@ void mx_conductor_bsdf_reflection(float3 L, float3 V, float3 P, float occlusion,
 
     FresnelData fd;
     if (bsdf.thickness > 0.0)
-        fd = mx_init_fresnel_conductor_airy(ior_n, ior_k, bsdf.thickness, bsdf.ior);
+        fd = mx_init_fresnel_conductor_airy(
+            ior_n, ior_k, bsdf.thickness, bsdf.ior);
     else
         fd = mx_init_fresnel_conductor(ior_n, ior_k);
 
@@ -39,12 +52,20 @@ void mx_conductor_bsdf_reflection(float3 L, float3 V, float3 P, float occlusion,
     bsdf.response = D * F * G * comp * occlusion * weight / (4.0 * NdotV);
 }
 
-void mx_conductor_bsdf_indirect(float3 V, float weight, float3 ior_n, float3 ior_k, float2 roughness, float3 N, float3 X, int distribution, inout BSDF bsdf)
+void mx_conductor_bsdf_indirect(
+    float3 V,
+    float weight,
+    float3 ior_n,
+    float3 ior_k,
+    float2 roughness,
+    float3 N,
+    float3 X,
+    int distribution,
+    inout BSDF bsdf)
 {
     bsdf.throughput = float3(0.0);
 
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -54,7 +75,8 @@ void mx_conductor_bsdf_indirect(float3 V, float weight, float3 ior_n, float3 ior
 
     FresnelData fd;
     if (bsdf.thickness > 0.0)
-        fd = mx_init_fresnel_conductor_airy(ior_n, ior_k, bsdf.thickness, bsdf.ior);
+        fd = mx_init_fresnel_conductor_airy(
+            ior_n, ior_k, bsdf.thickness, bsdf.ior);
     else
         fd = mx_init_fresnel_conductor(ior_n, ior_k);
 

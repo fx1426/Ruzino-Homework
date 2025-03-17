@@ -1,4 +1,4 @@
-#include "mx_microfacet.slang"
+__exported import pbrlib.genslang.lib.mx_microfacet;
 
 // Based on the OSL implementation of Oren-Nayar diffuse, which is in turn
 // based on https://mimosa-pudica.net/improved-oren-nayar.html.

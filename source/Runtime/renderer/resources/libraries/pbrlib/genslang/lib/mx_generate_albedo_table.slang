@@ -1,4 +1,4 @@
-#include "mx_microfacet_sheen.slang"
+import pbrlib.genslang.lib.mx_microfacet_sheen;
 import pbrlib.genslang.lib.mx_microfacet_specular;
 
 float3 mx_generate_dir_albedo_table()

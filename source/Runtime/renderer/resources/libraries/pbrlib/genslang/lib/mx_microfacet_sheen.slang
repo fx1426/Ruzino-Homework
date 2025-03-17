@@ -1,4 +1,4 @@
-#include "mx_microfacet.slang"
+__exported import pbrlib.genslang.lib.mx_microfacet;
 
 // http://www.aconty.com/pdf/s2017_pbs_imageworks_sheen.pdf
 // Equation 2

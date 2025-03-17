@@ -1,11 +1,20 @@
-#include "lib/mx_microfacet_diffuse.slang"
+import pbrlib.genslang.lib.mx_microfacet_diffuse;
+import pbrlib.genslang.lib.mx_environment_prefilter;
 
-void mx_oren_nayar_diffuse_bsdf_reflection(float3 L, float3 V, float3 P, float occlusion, float weight, float3 color, float roughness, float3 normal, inout BSDF bsdf)
+void mx_oren_nayar_diffuse_bsdf_reflection(
+    float3 L,
+    float3 V,
+    float3 P,
+    float occlusion,
+    float weight,
+    float3 color,
+    float roughness,
+    float3 normal,
+    inout BSDF bsdf)
 {
     bsdf.throughput = float3(0.0);
 
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 
@@ -14,18 +23,22 @@ void mx_oren_nayar_diffuse_bsdf_reflection(float3 L, float3 V, float3 P, float o
     float NdotL = clamp(dot(normal, L), M_FLOAT_EPS, 1.0);
 
     bsdf.response = color * occlusion * weight * NdotL * M_PI_INV;
-    if (roughness > 0.0)
-    {
+    if (roughness > 0.0) {
         bsdf.response *= mx_oren_nayar_diffuse(L, V, normal, NdotL, roughness);
     }
 }
 
-void mx_oren_nayar_diffuse_bsdf_indirect(float3 V, float weight, float3 color, float roughness, float3 normal, inout BSDF bsdf)
+void mx_oren_nayar_diffuse_bsdf_indirect(
+    float3 V,
+    float weight,
+    float3 color,
+    float roughness,
+    float3 normal,
+    inout BSDF bsdf)
 {
     bsdf.throughput = float3(0.0);
 
-    if (weight < M_FLOAT_EPS)
-    {
+    if (weight < M_FLOAT_EPS) {
         return;
     }
 

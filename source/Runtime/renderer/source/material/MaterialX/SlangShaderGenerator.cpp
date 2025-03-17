@@ -770,7 +770,6 @@ void SlangShaderGenerator::emitPixelStage(
             stage);
     }
     // emitLightFunctionDefinitions(graph, context, stage);
-      
     // Emit function definitions for all nodes in the graph.
 
     emitFunctionDefinitions(graph, context, stage);
@@ -778,12 +777,12 @@ void SlangShaderGenerator::emitPixelStage(
     const ShaderGraphOutputSocket* outputSocket = graph.getOutputSocket();
 
     // Add main function
-    setFunctionName("main", stage);
+    setFunctionName("main", stage); 
 
     const VariableBlock& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
 
     emitLine("void main(", stage, false);
-
+     
     const VariableBlock& outputs = stage.getOutputBlock(HW::PIXEL_OUTPUTS);
     emitVariableDeclarations(
         outputs,
@@ -791,7 +790,7 @@ void SlangShaderGenerator::emitPixelStage(
         Syntax::COMMA,
         context,
         stage,
-        false);
+        false); 
     emitLine(
         "in " + vertexData.getName() + " " + vertexData.getInstance() + ")",
         stage,
@@ -804,7 +803,7 @@ void SlangShaderGenerator::emitPixelStage(
         // Handle the case where the graph is a direct closure.
         // We don't support rendering closures without attaching
         // to a surface shader, so just output black.
-        emitLine(
+        emitLine( 
             outputSocket->getVariable() + " = float4(0.0, 0.0, 0.0, 1.0)",
             stage);
     }
