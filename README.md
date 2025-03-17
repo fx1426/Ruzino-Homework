@@ -184,6 +184,3 @@ python configure.py --all --build_variant Debug
 # NEXT……
 阅读kickstart文档，明白写作业的workflow
 
-[Step by step Ver.](./F3Dkickstart.pdf)
-
-[Simple Ver.](./submissions/assignments/README.md)

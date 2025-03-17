@@ -21,9 +21,12 @@ foreach (dir IN LISTS dirs)
 endforeach ()
 
 message(STATUS "[All sub targets] " ${inner_targets})
-add_custom_target(submission_nodes
+
+get_filename_component(submission_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+
+add_custom_target(${submission_name}_nodes
     ALL
         COMMENT "Building submissions..."
 )
-add_dependencies(submission_nodes ${inner_targets})
+add_dependencies(${submission_name}_nodes ${inner_targets})
 

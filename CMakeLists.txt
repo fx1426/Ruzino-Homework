@@ -139,4 +139,20 @@ add_subdirectory(tests)
 
 
 # submission directory
-add_subdirectory(submissions)
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/submissions_inner)
+  message(STATUS [./SUBMISSION FOUND])
+  add_subdirectory(submissions_inner)
+endif ()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../submissions)
+  message(STATUS [../SUBMISSION FOUND])
+  get_filename_component(
+    ABS_SUBMISSION
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submissions
+    ABSOLUTE
+    BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  message(STATUS "[ABS DIR] " ${ABS_SUBMISSION})
+
+  add_subdirectory(${ABS_SUBMISSION} "OuterSubmissions")
+endif ()
