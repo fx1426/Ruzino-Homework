@@ -33,10 +33,7 @@ NODE_EXECUTION_FUNCTION(get_control_points)
 
     std::vector<size_t> control_points =
         PolyscopeRenderer::GetControlPoints(structure_name);
-    std::cout << "Control Points Indices: ";
-    for (auto i : control_points) {
-        std::cout << i << " ";
-    }
+
     params.set_output("Control Points Indices", control_points);
 
     return true;
