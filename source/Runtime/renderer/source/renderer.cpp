@@ -50,7 +50,7 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             if (!material.second) {
                 continue;
             }
-            material.second->ensure_shader_ready();
+            material.second->ensure_shader_ready(global_payload.shader_factory);
         }
 
         global_payload.resource_allocator.gc();

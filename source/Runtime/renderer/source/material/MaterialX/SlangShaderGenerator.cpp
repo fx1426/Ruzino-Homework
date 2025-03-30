@@ -916,7 +916,7 @@ void SlangShaderGenerator::emitPixelStage(
                 else {
                     emitLine(
                         outputSocket->getVariable() + " = float4(" +
-                            finalOutput + ".color, 1.0)",
+                            finalOutput + ".color," + finalOutput + ".transparency.r)",
                         stage);
                 }
             }

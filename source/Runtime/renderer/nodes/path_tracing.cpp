@@ -1,4 +1,4 @@
-﻿
+
 #include "../source/renderTLAS.h"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
@@ -7,19 +7,18 @@
 #include "renderer/raytracing_context.hpp"
 #include "shaders/shaders/utils/HitObject.h"
 #include "utils/math.h"
+// A traditional path tracing node
+
 NODE_DEF_OPEN_SCOPE
-NODE_DECLARATION_FUNCTION(material_eval_sample_pdf)
+NODE_DECLARATION_FUNCTION(path_tracing)
 {
-    b.add_input<nvrhi::BufferHandle>("PixelTarget");
-    b.add_input<nvrhi::BufferHandle>("HitInfo");
+    b.add_input<nvrhi::BufferHandle>("Pixel Target");
+    b.add_input<nvrhi::BufferHandle>("Rays");
     b.add_input<nvrhi::BufferHandle>("Random Seeds");
 
-    b.add_output<nvrhi::BufferHandle>("PixelTarget");
-    b.add_input<int>("Buffer Size").min(1).max(10).default_val(4);
-    b.add_output<nvrhi::BufferHandle>("Eval");
-    b.add_output<nvrhi::BufferHandle>("Sample");
-    b.add_output<nvrhi::BufferHandle>("Weight");
-    b.add_output<nvrhi::BufferHandle>("Pdf");
+    b.add_output<nvrhi::TextureHandle>("Output");
+
+    // Function content omitted
 }
 
 struct EnvironmentPrefilterData {
@@ -29,14 +28,12 @@ struct EnvironmentPrefilterData {
     int u_envIrradianceMips;
 };
 
-NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
+NODE_EXECUTION_FUNCTION(path_tracing)
 {
     using namespace nvrhi;
 
     ProgramDesc program_desc;
-    program_desc.set_path(
-
-        std::filesystem::path("shaders/material_eval_sample_pdf.slang"));
+    program_desc.set_path(std::filesystem::path("shaders/path_tracing.slang"));
     program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
     program_desc.nvapi_support = true;
     program_desc.define(
@@ -65,49 +62,15 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     auto raytrace_compiled = resource_allocator.create(program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(raytrace_compiled);
     CHECK_PROGRAM_ERROR(raytrace_compiled);
+    // Function content omitted
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
     MARK_DESTROY_NVRHI_RESOURCE(m_CommandList);
 
-    // 0. Get the 'HitObjectInfos'
+    auto output =
+        create_default_render_target(params, nvrhi::Format::RGBA32_FLOAT);
 
-    auto hit_info_buffer = params.get_input<BufferHandle>("HitInfo");
-    auto in_pixel_target_buffer = params.get_input<BufferHandle>("PixelTarget");
-
-    auto length = hit_info_buffer->getDesc().byteSize / sizeof(HitObjectInfo);
-
-    length = std::max(length, static_cast<decltype(length)>(1));
-
-    // The Eval, Pixel Target together should be the same size, and should
-    // together be able to store the result of the material evaluation
-
-    auto buffer_desc = BufferDesc{}
-                           .setByteSize(length * sizeof(pxr::GfVec2i))
-                           .setStructStride(sizeof(pxr::GfVec2i))
-                           .setKeepInitialState(true)
-                           .setInitialState(ResourceStates::UnorderedAccess)
-                           .setCanHaveUAVs(true);
-    auto pixel_target_buffer = resource_allocator.create(buffer_desc);
-
-    buffer_desc.setByteSize(length * sizeof(pxr::GfVec4f))
-        .setStructStride(sizeof(pxr::GfVec4f));
-    auto eval_buffer = resource_allocator.create(buffer_desc);
-
-    buffer_desc.setByteSize(length * sizeof(RayInfo))
-        .setStructStride(sizeof(RayInfo));
-    auto sample_buffer = resource_allocator.create(buffer_desc);
-
-    buffer_desc.setByteSize(length * sizeof(float))
-        .setStructStride(sizeof(float));
-    auto weight_buffer = resource_allocator.create(buffer_desc);
-
-    // 'Pdf Should be just like float...'
-    buffer_desc.setByteSize(length * sizeof(float))
-        .setStructStride(sizeof(float));
-    auto pdf_buffer = resource_allocator.create(buffer_desc);
-
-    auto random_seeds = params.get_input<BufferHandle>("Random Seeds");
-    // Set the program variables
+    ProgramVars program_vars(resource_allocator, raytrace_compiled);
 
     SamplerDesc sampler_desc;
     sampler_desc.addressU = nvrhi::SamplerAddressMode::Wrap;
@@ -116,19 +79,17 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     auto sampler = resource_allocator.create(sampler_desc);
     MARK_DESTROY_NVRHI_RESOURCE(sampler);
 
-    ProgramVars program_vars(resource_allocator, raytrace_compiled);
+    auto random_seeds = params.get_input<nvrhi::BufferHandle>("Random Seeds");
+
     program_vars["SceneBVH"] =
         params.get_global_payload<RenderGlobalPayload &>()
             .InstanceCollection->get_tlas();
-    program_vars["hitObjects"] = hit_info_buffer;
-    program_vars["in_PixelTarget"] = in_pixel_target_buffer;
-    program_vars["PixelTarget"] = pixel_target_buffer;
-    program_vars["Eval"] = eval_buffer;
-    program_vars["Sample"] = sample_buffer;
-    program_vars["Weight"] = weight_buffer;
-    program_vars["Pdf"] = pdf_buffer;
+    program_vars["inPixelTarget"] =
+        params.get_input<nvrhi::BufferHandle>("Pixel Target");
+    program_vars["output"] = output;
     program_vars["random_seeds"] = random_seeds;
     program_vars["sampler"] = sampler;
+    program_vars["rays"] = params.get_input<nvrhi::BufferHandle>("Rays");
 
     auto env_prefilter_data = EnvironmentPrefilterData{};
     auto env_prefilter_cb = create_constant_buffer(params, env_prefilter_data);
@@ -186,9 +147,9 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
 
     context.finish_announcing_shader_names();
 
-    // 2. Prepare the shader
+    auto rays = params.get_input<nvrhi::BufferHandle>("Rays");
 
-    auto buffer_size = params.get_input<int>("Buffer Size");
+    auto buffer_size = rays->getDesc().byteSize / sizeof(RayInfo);
 
     if (buffer_size > 0) {
         context.begin();
@@ -196,14 +157,10 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
         context.finish();
     }
 
-    // 4. Get the result
-    params.set_output("PixelTarget", pixel_target_buffer);
-    params.set_output("Eval", eval_buffer);
-    params.set_output("Sample", sample_buffer);
-    params.set_output("Weight", weight_buffer);
-    params.set_output("Pdf", pdf_buffer);
+    params.set_output("Output", output);
+
     return true;
 }
 
-NODE_DECLARATION_UI(material_eval_sample_pdf);
+NODE_DECLARATION_UI(path_tracing);
 NODE_DEF_CLOSE_SCOPE

@@ -33,7 +33,7 @@ inline Hd_USTC_CG_Camera* get_free_camera(
     return free_camera;
 }
 
-#define global_payload params.get_global_payload<RenderGlobalPayload&>()
+#define global_payload      params.get_global_payload<RenderGlobalPayload&>()
 #define instance_collection global_payload.InstanceCollection
 inline ResourceAllocator& get_resource_allocator(ExeParams& params)
 {
@@ -214,6 +214,7 @@ inline TextureHandle create_default_render_target(
             .setWidth(size[0])
             .setHeight(size[1])
             .setFormat(format)
+            .setIsUAV(true)
             .setInitialState(nvrhi::ResourceStates::RenderTarget)
             .setKeepInitialState(true)
             .setIsRenderTarget(true);
@@ -251,6 +252,22 @@ inline TextureHandle create_default_depth_stencil(ExeParams& params)
     return depth_stencil_texture;
 }
 
+inline TextureHandle create_empty_texture(
+    ExeParams& params,
+    const pxr::GfVec2i& size,
+    nvrhi::Format format = nvrhi::Format::RGBA16_FLOAT)
+{
+    nvrhi::TextureDesc desc =
+        nvrhi::TextureDesc{}
+            .setWidth(size[0])
+            .setHeight(size[1])
+            .setFormat(format)
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
+            .setKeepInitialState(true);
+    auto texture = resource_allocator.create(desc);
+    return texture;
+}
+
 inline auto get_size(ExeParams& params)
 {
     auto camera = get_free_camera(params);
@@ -266,7 +283,6 @@ inline auto get_size(ExeParams& params)
             program->get_error_string().c_str()); \
         return false;                             \
     }
-
 
 #ifdef _DEBUG
 #define PROFILE_SCOPE(node_name) auto scope = log::profile_scope(#node_name)

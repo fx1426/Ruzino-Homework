@@ -96,8 +96,8 @@ NODE_EXECUTION_FUNCTION(blit_to_present)
 
     std::vector macro_defines = { ShaderMacro("TEXTURE_ARRAY", "0") };
 
-    std::string vs_name = "rect_vs.hlsl";
-    std::string ps_name = "blit_ps.hlsl";
+    std::string vs_name = "rect_vs";
+    std::string ps_name = "blit_ps";
 
     std::string error_string;
 
@@ -105,7 +105,7 @@ NODE_EXECUTION_FUNCTION(blit_to_present)
     auto vertex_shader = shader_factory.compile_shader(
         "main",
         nvrhi::ShaderType::Vertex,
-        "shaders/utils/" + vs_name,
+        RENDERER_SHADER_DIR "shaders/utils/" + vs_name,
         vs_reflection_info,
         error_string,
         macro_defines);
@@ -116,7 +116,7 @@ NODE_EXECUTION_FUNCTION(blit_to_present)
     auto pixel_shader = shader_factory.compile_shader(
         "main",
         nvrhi::ShaderType::Pixel,
-        "shaders/utils/" + ps_name,
+        RENDERER_SHADER_DIR "shaders/utils/" + ps_name,
         ps_reflection_info,
         error_string,
         macro_defines);

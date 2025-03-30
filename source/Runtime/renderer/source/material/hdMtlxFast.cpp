@@ -12,6 +12,7 @@
 #include <MaterialXFormat/Util.h>
 #include <MaterialXFormat/XmlIo.h>
 
+#include "Logger/Logger.h"
 #include "pxr/base/arch/fileSystem.h"
 #include "pxr/base/gf/matrix3d.h"
 #include "pxr/base/gf/matrix4d.h"
@@ -210,6 +211,8 @@ static mx::NodePtr _AddMaterialXNode(
     for (TfToken const& paramName : hdNodeParamNames) {
         // Get the MaterialX Parameter info
         const std::string& mxInputName = paramName.GetString();
+        log::info("Adding input %s", mxInputName.c_str());
+
         const HdMaterialNetworkInterface::NodeParamData paramData =
             netInterface->GetNodeParameterData(hdNodeName, paramName);
         const std::string mxInputValue = HdMtlxConvertToString(paramData.value);
@@ -448,7 +451,7 @@ static void _AddParameterInputsToTerminalNode(
     TfTokenVector paramNames =
         netInterface->GetAuthoredNodeParameterNames(terminalNodeName);
 
-    mx::NodeDefPtr mxNodeDef = mxShaderNode->getNodeDef();
+    mx::NodeDefPtr mxNodeDef = mxShaderNode->getNodeDef("", true);
     if (!mxNodeDef) {
         TF_WARN("NodeDef not found for Node '%s'", mxType.GetText());
         return;

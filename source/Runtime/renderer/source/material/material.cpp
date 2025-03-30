@@ -133,6 +133,12 @@ void BindlessContext::emitResourceBindings(
 
                 if (type == Type::FLOAT) {
                     auto val = uniform->getValue()->asA<float>();
+
+                    log ::info(
+                        "setting %s to %f",
+                        uniform->getVariable().c_str(),
+                        val);
+
                     memcpy(
                         &material_data.data[data_location],
                         &val,
@@ -146,6 +152,12 @@ void BindlessContext::emitResourceBindings(
                 else if (type == Type::INTEGER || type == Type::STRING) {
                     if (type == Type::INTEGER) {
                         auto val = uniform->getValue()->asA<int>();
+
+                        log ::info(
+                            "setting %s to %d",
+                            uniform->getVariable().c_str(),
+                            val);
+
                         memcpy(
                             &material_data.data[data_location],
                             &val,
@@ -162,6 +174,12 @@ void BindlessContext::emitResourceBindings(
                         &val,
                         sizeof(Vector2));
 
+                    log::info(
+                        "setting %s to %f, %f",
+                        uniform->getVariable().c_str(),
+                        val[0],
+                        val[1]);
+
                     dataFetch = "float2(asfloat(data.data[" +
                                 std::to_string(data_location) +
                                 "]), asfloat(data.data[" +
@@ -173,6 +191,13 @@ void BindlessContext::emitResourceBindings(
                 else if (type == Type::VECTOR3 || type == Type::COLOR3) {
                     if (type == Type::COLOR3) {
                         auto val = uniform->getValue()->asA<Color3>();
+
+                        log::info(
+                            "setting %s to %f, %f, %f",
+                            uniform->getVariable().c_str(),
+                            val[0],
+                            val[1],
+                            val[2]);
                         memcpy(
                             &material_data.data[data_location],
                             &val,
@@ -180,6 +205,14 @@ void BindlessContext::emitResourceBindings(
                     }
                     else {
                         auto val = uniform->getValue()->asA<Vector3>();
+
+                        log ::info(
+                            "setting %s to %f, %f, %f",
+                            uniform->getVariable().c_str(),
+                            val[0],
+                            val[1],
+                            val[2]);
+
                         memcpy(
                             &material_data.data[data_location],
                             &val,
@@ -198,6 +231,15 @@ void BindlessContext::emitResourceBindings(
                 else if (type == Type::COLOR4) {
                     if (uniform->getValue()->isA<Color4>()) {
                         auto val = uniform->getValue()->asA<Color4>();
+
+                        log ::info(
+                            "setting %s to %f, %f, %f, %f",
+                            uniform->getVariable().c_str(),
+                            val[0],
+                            val[1],
+                            val[2],
+                            val[3]);
+
                         memcpy(
                             &material_data.data[data_location],
                             &val,
@@ -205,6 +247,15 @@ void BindlessContext::emitResourceBindings(
                     }
                     else if (uniform->getValue()->isA<Vector4>()) {
                         auto val = uniform->getValue()->asA<Vector4>();
+
+                        log ::info(
+                            "setting %s to %f, %f, %f, %f",
+                            uniform->getVariable().c_str(),
+                            val[0],
+                            val[1],
+                            val[2],
+                            val[3]);
+
                         memcpy(
                             &material_data.data[data_location],
                             &val,
@@ -265,6 +316,13 @@ void BindlessContext::emitResourceBindings(
                     log::warning(
                         ("Unsupported uniform type: " + type->getName())
                             .c_str());
+                }
+
+                if (uniform->getVariable() == "Surface_opacityThreshold") {
+                    log::info(
+                        "Surface_opacityThreshold: %s, value: %f",
+                        dataFetch.c_str(),
+                        uniform->getValue()->asA<float>());
                 }
 
                 if (numComponents > 0) {
@@ -682,14 +740,13 @@ void Hd_USTC_CG_Material::Sync(
 
     HdMtlxTexturePrimvarData hdMtlxData;
 
-    MaterialX::DocumentPtr mtlx_document =
-        HdMtlxCreateMtlxDocumentFromHdNetworkFast(
-            hdNetwork,
-            *surfTerminal,
-            surfTerminalPath,
-            materialPath,
-            libraries,
-            &hdMtlxData);
+    DocumentPtr mtlx_document = HdMtlxCreateMtlxDocumentFromHdNetworkFast(
+        hdNetwork,
+        *surfTerminal,
+        surfTerminalPath,
+        materialPath,
+        libraries,
+        &hdMtlxData);
     assert(mtlx_document);
     CollectTextures(netInterface, hdMtlxData);
 
@@ -788,7 +845,7 @@ void $getColor(inout CallableData data)
 }
 
 )";
-void Hd_USTC_CG_Material::ensure_shader_ready()
+void Hd_USTC_CG_Material::ensure_shader_ready(const ShaderFactory& factory)
 {
     if (shader_ready) {
         return;
@@ -803,7 +860,7 @@ void Hd_USTC_CG_Material::ensure_shader_ready()
                 pos, strlen(DATA_PLACEHOLDER), get_data_code);
         }
 
-#ifndef NDEBUG
+        // #ifndef NDEBUG
         try {
             std::filesystem::create_directories("generated_shaders");
             std::ofstream out("generated_shaders/" + material_name + ".slang");
@@ -815,7 +872,7 @@ void Hd_USTC_CG_Material::ensure_shader_ready()
         catch (const std::exception& e) {
             TF_WARN("Failed to save generated shader: %s", e.what());
         }
-#endif
+        // #endif
         final_shader_source = eval_shader_source + slang_source_code;
     }
     else {
@@ -838,12 +895,14 @@ void Hd_USTC_CG_Material::ensure_shader_ready()
 
     // Combine shader parts into final source
 
+    //shader = factory.compile_shader()
+
     shader_ready = true;
 }
 
 std::string Hd_USTC_CG_Material::GetShader(const ShaderFactory& factory)
 {
-    ensure_shader_ready();
+    ensure_shader_ready(factory);
     return final_shader_source;
 }
 

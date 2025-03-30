@@ -7,7 +7,7 @@
 
 import Scene.SceneTypes;
 import Utils.Math.MathHelpers;
-
+import callable_data;
 RaytracingAccelerationStructure SceneBVH;
 
 StructuredBuffer<HitObjectInfo> hitObjects;
@@ -22,10 +22,9 @@ RWStructuredBuffer<float> Weight;
 RWStructuredBuffer<float> Pdf;
 RWStructuredBuffer<uint> random_seeds;
 
-import Rendering.Materials.BSDFs.StandardBSDF;
-import utils.Sampling.UniformSampleGenerator;
 import Scene.Material.MaterialData;
 import utils.Math.ShadingFrame;
+import Scene.BindlessMaterial;
 
 struct Payload {
     uint seed;
@@ -74,13 +73,6 @@ struct ShadowPayload {
     float3 shadow_mask;
 };
 
-struct CallableData {
-    float4 color;
-    float3 L;
-    float3 V;
-    uint materialID;
-    VertexInfo vertexInfo;
-};
 
 // Closest hit shader
 [shader("closesthit")]
@@ -113,11 +105,13 @@ void ClosestHit(
 
     bool valid;
     ShadingFrame sf =
-        ShadingFrame.createSafe(vertex.normalW, float4(0,0,0,1), valid);
+        ShadingFrame.createSafe(vertex.normalW, float4(0, 0, 0, 1), valid);
+
+    vertex.tangentW.xyz = sf.T;
 
     var world_ray_dir = sf.fromLocal(ray_dir);
 
-    world_ray_dir = -float3(0, 0.2, -1);
+    // world_ray_dir = -float3(0, 0.2, -1);
     // world_ray_dir = normalize(light_pos - vertex.posW);
 
     RayDesc shadow_ray_desc;
@@ -145,13 +139,15 @@ void ClosestHit(
     callData.color = float4(0, 0, 0, 1);
     callData.materialID = material_id;
     CallShader(material_id, callData);
-    result *= callData.color.rgb * 3.14;
+    result *= callData.color.rgb * 3.14 * 2 * 4;
+    // result = float3(callData.color.w);
 
     if (isnan(result.x))
         result = float3(1, 0, 1);
 
-    // result = float3(vertex.normalW);
-
+    // result = float3(vertex.subsetMaterialID) / 35.0f;
+    //  result = material_id / 35.0f;
+    //
     Eval[id] = float4(result, 1);
     // Eval[id] = float4(0.5 + 0.5 * vertex.tangentW.xyz, 1);
     // * float4(hitObjects[id].rays.throughput.toFloat3(), 1.0);

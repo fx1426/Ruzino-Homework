@@ -537,6 +537,15 @@ void _FixNodeValues(HdMaterialNetwork2Interface* netInterface)
                         VtValue(value[0]));
                 }
             }
+
+            auto opacityThresholdInput = netInterface->GetNodeParameterValue(
+                nodeName, pxr::TfToken("opacityThreshold"));
+            if (!opacityThresholdInput.IsEmpty()) {
+                auto v = opacityThresholdInput.Get<float>();
+
+                if (v > 0.00001)
+                    log::info("opacityThreshold: %f", v);
+            }
         }
     }
 }

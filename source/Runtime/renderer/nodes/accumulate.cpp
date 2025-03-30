@@ -49,6 +49,8 @@ NODE_EXECUTION_FUNCTION(accumulate)
     if (storage.old_constants !=
         camera_to_view_constants(get_free_camera(params))) {
         storage.current_spp = 0;
+        initialize_texture(
+            params, storage.accumulated, nvrhi::Color{ 0, 0, 0, 1 });
         storage.old_constants =
             camera_to_view_constants(get_free_camera(params));
     }

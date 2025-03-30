@@ -43,7 +43,9 @@ inline size_t gpu_resource_size<nvrhi::FramebufferDesc>(
         }
     }
 
-    size += gpu_resource_size(desc.depthAttachment.texture->getDesc());
+    if (desc.depthAttachment.texture) {
+        size += gpu_resource_size(desc.depthAttachment.texture->getDesc());
+    }
 
     return size;
 }
