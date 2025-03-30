@@ -26,8 +26,8 @@
 
 #include <iostream>
 
-#include "USTC_CG.h"
-#include "Utils/Logging/Logging.h"
+#include "../api.h"
+#include "Logger/Logger.h"
 #include "context.h"
 #include "pxr/base/gf/vec2f.h"
 #include "pxr/imaging/hd/extComputationUtils.h"
@@ -52,13 +52,14 @@ Hd_USTC_CG_Mesh::~Hd_USTC_CG_Mesh()
 
 HdDirtyBits Hd_USTC_CG_Mesh::GetInitialDirtyBitsMask() const
 {
-    int mask = HdChangeTracker::Clean | HdChangeTracker::InitRepr | HdChangeTracker::DirtyPoints |
-               HdChangeTracker::DirtyTopology | HdChangeTracker::DirtyTransform |
-               HdChangeTracker::DirtyVisibility | HdChangeTracker::DirtyCullStyle |
-               HdChangeTracker::DirtyDoubleSided | HdChangeTracker::DirtyDisplayStyle |
-               HdChangeTracker::DirtySubdivTags | HdChangeTracker::DirtyPrimvar |
-               HdChangeTracker::DirtyNormals | HdChangeTracker::DirtyInstancer |
-               HdChangeTracker::DirtyMaterialId;
+    int mask =
+        HdChangeTracker::Clean | HdChangeTracker::InitRepr |
+        HdChangeTracker::DirtyPoints | HdChangeTracker::DirtyTopology |
+        HdChangeTracker::DirtyTransform | HdChangeTracker::DirtyVisibility |
+        HdChangeTracker::DirtyCullStyle | HdChangeTracker::DirtyDoubleSided |
+        HdChangeTracker::DirtyDisplayStyle | HdChangeTracker::DirtySubdivTags |
+        HdChangeTracker::DirtyPrimvar | HdChangeTracker::DirtyNormals |
+        HdChangeTracker::DirtyInstancer | HdChangeTracker::DirtyMaterialId;
 
     return (HdDirtyBits)mask;
 }
@@ -81,7 +82,8 @@ TfTokenVector Hd_USTC_CG_Mesh::_UpdateComputedPrimvarSources(
     for (size_t i = 0; i < HdInterpolationCount; ++i) {
         HdExtComputationPrimvarDescriptorVector compPrimvars;
         auto interp = static_cast<HdInterpolation>(i);
-        compPrimvars = sceneDelegate->GetExtComputationPrimvarDescriptors(GetId(), interp);
+        compPrimvars =
+            sceneDelegate->GetExtComputationPrimvarDescriptors(GetId(), interp);
 
         for (const auto& pv : compPrimvars) {
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name)) {
@@ -95,7 +97,8 @@ TfTokenVector Hd_USTC_CG_Mesh::_UpdateComputedPrimvarSources(
     }
 
     HdExtComputationUtils::ValueStore valueStore =
-        HdExtComputationUtils::GetComputedPrimvarValues(dirtyCompPrimvars, sceneDelegate);
+        HdExtComputationUtils::GetComputedPrimvarValues(
+            dirtyCompPrimvars, sceneDelegate);
 
     TfTokenVector compPrimvarNames;
     // Update local primvar map and track the ones that were computed
@@ -106,13 +109,16 @@ TfTokenVector Hd_USTC_CG_Mesh::_UpdateComputedPrimvarSources(
         }
 
         compPrimvarNames.emplace_back(compPrimvar.name);
-        _primvarSourceMap[compPrimvar.name] = { it->second, compPrimvar.interpolation };
+        _primvarSourceMap[compPrimvar.name] = { it->second,
+                                                compPrimvar.interpolation };
     }
 
     return compPrimvarNames;
 }
 
-void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(HdSceneDelegate* sceneDelegate, HdDirtyBits dirtyBits)
+void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(
+    HdSceneDelegate* sceneDelegate,
+    HdDirtyBits dirtyBits)
 {
     HD_TRACE_FUNCTION();
     const SdfPath& id = GetId();
@@ -124,18 +130,24 @@ void Hd_USTC_CG_Mesh::_UpdatePrimvarSources(HdSceneDelegate* sceneDelegate, HdDi
         for (const HdPrimvarDescriptor& pv : primvars) {
             if (HdChangeTracker::IsPrimvarDirty(dirtyBits, id, pv.name) &&
                 pv.name != HdTokens->points) {
-                logging("Primvar source " + pv.name.GetString(), Info);
-                _primvarSourceMap[pv.name] = { GetPrimvar(sceneDelegate, pv.name), interp };
+                log::info("Primvar source " + pv.name.GetString());
+                _primvarSourceMap[pv.name] = {
+                    GetPrimvar(sceneDelegate, pv.name), interp
+                };
             }
         }
     }
 }
 
-void Hd_USTC_CG_Mesh::_InitRepr(const TfToken& reprToken, HdDirtyBits* dirtyBits)
+void Hd_USTC_CG_Mesh::_InitRepr(
+    const TfToken& reprToken,
+    HdDirtyBits* dirtyBits)
 {
 }
 
-void Hd_USTC_CG_Mesh::_SetMaterialId(HdSceneDelegate* delegate, Hd_USTC_CG_Mesh* rprim)
+void Hd_USTC_CG_Mesh::_SetMaterialId(
+    HdSceneDelegate* delegate,
+    Hd_USTC_CG_Mesh* rprim)
 {
     SdfPath const& newMaterialId = delegate->GetMaterialId(rprim->GetId());
     if (rprim->GetMaterialId() != newMaterialId) {
@@ -172,7 +184,8 @@ void Hd_USTC_CG_Mesh::Sync(
     if (HdChangeTracker::IsTopologyDirty(*dirtyBits, id)) {
         topology = GetMeshTopology(sceneDelegate);
         HdMeshUtil meshUtil(&topology, GetId());
-        meshUtil.ComputeTriangleIndices(&triangulatedIndices, &trianglePrimitiveParams);
+        meshUtil.ComputeTriangleIndices(
+            &triangulatedIndices, &trianglePrimitiveParams);
         _normalsValid = false;
         _adjacencyValid = false;
     }
@@ -196,11 +209,11 @@ void Hd_USTC_CG_Mesh::Sync(
     }
 
     if (!_normalsValid) {
-        computedNormals =
-            Hd_SmoothNormals::ComputeSmoothNormals(&_adjacency, points.size(), points.cdata());
+        computedNormals = Hd_SmoothNormals::ComputeSmoothNormals(
+            &_adjacency, points.size(), points.cdata());
     }
     _UpdateComputedPrimvarSources(sceneDelegate, *dirtyBits);
-    logging("Syncing mesh " + GetId().GetString(), Info);
+    log::info("Syncing mesh " + GetId().GetString());
     *dirtyBits &= ~HdChangeTracker::AllSceneDirtyBits;
 }
 
@@ -221,10 +234,14 @@ void Hd_USTC_CG_Mesh::RefreshGLBuffer()
 
         // Upload the points data to the VBO
         glBufferData(
-            GL_ARRAY_BUFFER, points.size() * sizeof(pxr::GfVec3f), points.cdata(), GL_STATIC_DRAW);
+            GL_ARRAY_BUFFER,
+            points.size() * sizeof(pxr::GfVec3f),
+            points.cdata(),
+            GL_STATIC_DRAW);
 
         // Specify the layout of the points in the VBO
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glVertexAttribPointer(
+            0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
         // Unbind the VAO and VBO
@@ -259,7 +276,8 @@ void Hd_USTC_CG_Mesh::RefreshGLBuffer()
             GL_STATIC_DRAW);
 
         // Enable and specify the layout of the normal buffer
-        glVertexAttribPointer(normalLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+        glVertexAttribPointer(
+            normalLocation, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
         glEnableVertexAttribArray(normalLocation);
 
         _normalsValid = true;
@@ -267,12 +285,12 @@ void Hd_USTC_CG_Mesh::RefreshGLBuffer()
     _dirtyBits = 0;
 }
 
-void Hd_USTC_CG_Mesh::RefreshTexcoordGLBuffer(TfToken texcoord_name)
+void Hd_USTC_CG_Mesh::RefreshTexcoordGLBuffer(std::string texcoord_name)
 {
-    if (texcoord_name.IsEmpty()) {
+    if (texcoord_name.empty()) {
         texcoord_name = texcoord_name = TfToken("UVMap");
     }
-    if (!texcoord_name.IsEmpty()) {
+    if (!texcoord_name.empty()) {
         if (!_texcoordsClean) {
             if (!this->_primvarSourceMap[texcoord_name].data.IsEmpty()) {
                 glDeleteBuffers(1, &texcoords);
@@ -280,14 +298,15 @@ void Hd_USTC_CG_Mesh::RefreshTexcoordGLBuffer(TfToken texcoord_name)
 
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, texcoords);
 
-                logging(
+                log::info(
                     GetId().GetString() +
-                        " Attempts to attach texcoord: " + texcoord_name.GetString(),
-                    Info);
-                assert(this->_primvarSourceMap[texcoord_name].data.CanCast<VtVec2fArray>());
+                    " Attempts to attach texcoord: " + texcoord_name);
+                assert(this->_primvarSourceMap[texcoord_name]
+                           .data.CanCast<VtVec2fArray>());
 
                 VtArray<GfVec2f> raw_texcoord =
-                    this->_primvarSourceMap[texcoord_name].data.Get<VtVec2fArray>();
+                    this->_primvarSourceMap[texcoord_name]
+                        .data.Get<VtVec2fArray>();
 
                 VtArray<GfVec2f> texcoord;
 
@@ -305,7 +324,8 @@ void Hd_USTC_CG_Mesh::RefreshTexcoordGLBuffer(TfToken texcoord_name)
                     texcoord.resize(points.size());
                     for (int i = 0; i < triangulatedIndices.size(); ++i) {
                         for (int j = 0; j < 3; ++j) {
-                            texcoord[triangulatedIndices[i][j]] = triangulated[i * 3 + j];
+                            texcoord[triangulatedIndices[i][j]] =
+                                triangulated[i * 3 + j];
                         }
                     }
                 }

@@ -24,7 +24,7 @@
 #ifndef EXTRAS_IMAGING_EXAMPLES_HD_TINY_MESH_H
 #define EXTRAS_IMAGING_EXAMPLES_HD_TINY_MESH_H
 
-#include "USTC_CG.h"
+#include "../api.h"
 #include "pxr/base/gf/matrix4f.h"
 #include "pxr/imaging/garch/glApi.h"
 #include "pxr/imaging/hd/mesh.h"
@@ -34,7 +34,7 @@
 USTC_CG_NAMESPACE_OPEN_SCOPE
 using namespace pxr;
 
-class Hd_USTC_CG_Mesh final : public HdMesh {
+class HD_USTC_CG_GL_API Hd_USTC_CG_Mesh final : public HdMesh {
    public:
     HF_MALLOC_TAG_NEW("new Hd_USTC_CG_Mesh");
 
@@ -50,7 +50,7 @@ class Hd_USTC_CG_Mesh final : public HdMesh {
         const TfToken& reprToken) override;
 
     void RefreshGLBuffer();
-    void RefreshTexcoordGLBuffer(TfToken texcoord_name);
+    void RefreshTexcoordGLBuffer(std::string texcoord_name);
 
     void Finalize(HdRenderParam* renderParam) override;
     GLuint VAO = 0;
@@ -71,13 +71,17 @@ class Hd_USTC_CG_Mesh final : public HdMesh {
     bool _texcoordsClean;
 
     void _InitRepr(const TfToken& reprToken, HdDirtyBits* dirtyBits) override;
-    void _SetMaterialId(HdSceneDelegate* scene_delegate, Hd_USTC_CG_Mesh* hd_ustc_cg_mesh);
+    void _SetMaterialId(
+        HdSceneDelegate* scene_delegate,
+        Hd_USTC_CG_Mesh* hd_ustc_cg_mesh);
 
     HdDirtyBits _PropagateDirtyBits(HdDirtyBits bits) const override;
     TfTokenVector _UpdateComputedPrimvarSources(
         HdSceneDelegate* sceneDelegate,
         HdDirtyBits dirtyBits);
-    void _UpdatePrimvarSources(HdSceneDelegate* sceneDelegate, HdDirtyBits dirtyBits);
+    void _UpdatePrimvarSources(
+        HdSceneDelegate* sceneDelegate,
+        HdDirtyBits dirtyBits);
 
     // This class does not support copying.
     Hd_USTC_CG_Mesh(const Hd_USTC_CG_Mesh&) = delete;
@@ -104,7 +108,7 @@ class Hd_USTC_CG_Mesh final : public HdMesh {
         HdInterpolation interpolation;
     };
 
-    TfHashMap<TfToken, PrimvarSource, TfToken::HashFunctor> _primvarSourceMap;
+    TfHashMap<std::string, PrimvarSource> _primvarSourceMap;
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

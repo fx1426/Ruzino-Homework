@@ -1,3 +1,5 @@
+
+
 #include "camera.h"
 
 #include "config.h"
@@ -18,7 +20,8 @@ void Hd_USTC_CG_Camera::Sync(
     _viewMatrix = _inverseViewMatrix.GetInverse();
 }
 
-static GfRect2i _GetDataWindow(const HdRenderPassStateSharedPtr& renderPassState)
+static GfRect2i _GetDataWindow(
+    const HdRenderPassStateSharedPtr& renderPassState)
 {
     const CameraUtilFraming& framing = renderPassState->GetFraming();
     if (framing.IsValid()) {
@@ -30,7 +33,8 @@ static GfRect2i _GetDataWindow(const HdRenderPassStateSharedPtr& renderPassState
     }
 }
 
-void Hd_USTC_CG_Camera::update(const HdRenderPassStateSharedPtr& renderPassState) const
+void Hd_USTC_CG_Camera::update(
+    const HdRenderPassStateSharedPtr& renderPassState) const
 {
     _dataWindow = _GetDataWindow(renderPassState);
 

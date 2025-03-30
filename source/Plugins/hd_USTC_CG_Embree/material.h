@@ -24,7 +24,7 @@ class Hd_USTC_CG_Material : public HdMaterial {
         TfToken wrapS;
         TfToken wrapT;
 
-        TfToken uv_primvar_name;
+        std::string uv_primvar_name;
 
         VtValue value;
 
@@ -38,7 +38,7 @@ class Hd_USTC_CG_Material : public HdMaterial {
 
     HdDirtyBits GetInitialDirtyBitsMask() const override;
 
-    TfToken requireTexcoordName();
+    std::string requireTexcoordName();
 
     void Finalize(HdRenderParam* renderParam) override;
     Color Sample(const GfVec3f& wo, GfVec3f& wi, float& pdf, GfVec2f texcoord, const std::function<float()>& uniform_float);

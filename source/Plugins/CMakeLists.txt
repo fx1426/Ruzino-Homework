@@ -1,3 +1,3 @@
 add_subdirectory(optimization)
-# add_subdirectory(hd_USTC_CG_GL)
+add_subdirectory(hd_USTC_CG_GL)
 add_subdirectory(hd_USTC_CG_Embree)

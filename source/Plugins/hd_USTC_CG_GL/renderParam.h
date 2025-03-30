@@ -24,8 +24,8 @@
 #ifndef PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_PARAM_H
 #define PXR_IMAGING_PLUGIN_HD_EMBREE_RENDER_PARAM_H
 
-#include "Nodes/node_exec.hpp"
-#include "USTC_CG.h"
+#include "api.h"
+#include "nodes/system/node_system.hpp"
 #include "pxr/imaging/hd/renderDelegate.h"
 #include "pxr/imaging/hd/renderThread.h"
 #include "pxr/pxr.h"
@@ -63,8 +63,8 @@ class Hd_USTC_CG_RenderParam final : public HdRenderParam {
     }
     HdRenderThread *_renderThread = nullptr;
 
-    NodeTreeExecutor *executor;
-    NodeTree *node_tree;
+    NodeSystem *node_system;
+
     pxr::VtArray<Hd_USTC_CG_Light *> *lights = nullptr;
     pxr::VtArray<Hd_USTC_CG_Camera *> *cameras = nullptr;
     pxr::VtArray<Hd_USTC_CG_Mesh *> *meshes = nullptr;

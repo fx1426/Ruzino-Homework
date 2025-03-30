@@ -1,12 +1,13 @@
 #pragma once
-#include "USTC_CG.h"
-#include "camera.h"
+#include "api.h"
 #include "pxr/imaging/hd/aov.h"
+#include "pxr/imaging/hd/renderPassState.h"
 #include "pxr/imaging/hd/renderThread.h"
 #include "pxr/pxr.h"
 #include "renderer.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
+class Hd_USTC_CG_Camera;
 class Hd_USTC_CG_RenderParam;
 using namespace pxr;
 class Hd_USTC_CG_Renderer {
@@ -20,12 +21,16 @@ class Hd_USTC_CG_Renderer {
 
     void MarkAovBuffersUnconverged();
 
-    void renderTimeUpdateCamera(const HdRenderPassStateSharedPtr& renderPassState);
+    void renderTimeUpdateCamera(
+        const HdRenderPassStateSharedPtr& renderPassState);
     bool nodetree_modified();
     bool nodetree_modified(bool new_status);
 
-protected:
-    void _RenderTiles(HdRenderThread* renderThread, size_t tileStart, size_t tileEnd);
+   protected:
+    void _RenderTiles(
+        HdRenderThread* renderThread,
+        size_t tileStart,
+        size_t tileEnd);
     static GfVec4f _GetClearColor(const VtValue& clearValue);
 
     bool _enableSceneColors;

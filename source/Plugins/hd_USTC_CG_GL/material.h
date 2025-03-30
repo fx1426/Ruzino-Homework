@@ -1,7 +1,5 @@
 #pragma once
-#include "USTC_CG.h"
-#include "Utils/Logging/Logging.h"
-#include "Utils/Macro/map.h"
+#include "api.h"
 #include "pxr/imaging/garch/glApi.h"
 #include "pxr/imaging/hd/material.h"
 #include "pxr/imaging/hio/image.h"
@@ -16,7 +14,7 @@ class Shader;
 using namespace pxr;
 
 class Hio_StbImage;
-class Hd_USTC_CG_Material : public HdMaterial {
+class HD_USTC_CG_GL_API Hd_USTC_CG_Material : public HdMaterial {
    public:
     struct InputDescriptor {
         HioImageSharedPtr image = nullptr;
@@ -24,7 +22,7 @@ class Hd_USTC_CG_Material : public HdMaterial {
         TfToken wrapS;
         TfToken wrapT;
 
-        TfToken uv_primvar_name;
+        std::string uv_primvar_name;
 
         VtValue value;
 
@@ -34,14 +32,16 @@ class Hd_USTC_CG_Material : public HdMaterial {
 
     explicit Hd_USTC_CG_Material(SdfPath const& id);
 
-    void Sync(HdSceneDelegate* sceneDelegate, HdRenderParam* renderParam, HdDirtyBits* dirtyBits)
-        override;
+    void Sync(
+        HdSceneDelegate* sceneDelegate,
+        HdRenderParam* renderParam,
+        HdDirtyBits* dirtyBits) override;
 
     void RefreshGLBuffer();
     void BindTextures(Shader& shader);
     HdDirtyBits GetInitialDirtyBitsMask() const override;
 
-    TfToken requireTexcoordName();
+    std::string requireTexcoordName();
 
     void Finalize(HdRenderParam* renderParam) override;
 
@@ -78,7 +78,8 @@ class Hd_USTC_CG_Material : public HdMaterial {
 
     HdMaterialNode2 get_input_connection(
         HdMaterialNetwork2 surfaceNetwork,
-        std::map<TfToken, std::vector<HdMaterialConnection2>>::value_type& input_connection);
+        std::map<TfToken, std::vector<HdMaterialConnection2>>::value_type&
+            input_connection);
     void DestroyTexture(InputDescriptor& input_descriptor);
 };
 

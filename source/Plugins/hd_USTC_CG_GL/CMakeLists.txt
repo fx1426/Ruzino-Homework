@@ -1,44 +1,24 @@
-set(PXR_PREFIX pxr/imaging)
-set(PXR_PACKAGE hd_USTC_CG_GL)
+option (ENABLE_GL_BASED_RENDERER "Enable GL based renderer" ON)
 
-message("hd_USTC_CG at ${CMAKE_CURRENT_LIST_DIR}")
+if (ENABLE_GL_BASED_RENDERER)
+	
+	USTC_CG_ADD_LIB(
+		hd_USTC_CG_GL
+		SHARED
+		PUBLIC_LIBS Logger
+		PRIVATE_LIBS usd RHI hdx nodes_system usdMtlx  usdImaging glf
+		COMPILE_DEFS
+			NOMINMAX RENDER_NODES_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes" USTC_CG_BACKEND_GL
+		USD_RESOURCE_DIRS resources
+		SKIP_DIRS embree4
+		RESOURCE_COPY_TARGET ${OUT_BINARY_DIR}/usd/hd_USTC_CG_GL/resources
+	)
 
-pxr_plugin(${PXR_PACKAGE}
-   LIBRARIES
-        plug
-        tf
-        vt
-        gf
-        work
-        hf
-        hd
-        hdx
-        ${TBB_tbb_LIBRARY}
-        usdLux
-        nodes
-        RCore
-        usdImaging
-
-    INCLUDE_DIRS
-        ${TBB_INCLUDE_DIRS}
-
-    PUBLIC_CLASSES
-        renderer
-        renderDelegate
-        rendererPlugin
-        renderPass
-        renderBuffer
-        config
-        sampler
-        instancer
-        camera
-        light
-        material
-
-        geometries/mesh
-
-    RESOURCE_FILES
-        plugInfo.json
-)
-
-target_include_directories(${PXR_PACKAGE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+	add_nodes(
+		TARGET_NAME gl_based_render_nodes 
+		SRC_DIRS nodes
+		DEP_LIBS usd RHI hd_USTC_CG_GL usdImaging glf
+		COMPILE_DEFS NOMINMAX RENDER_NODES_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes" USTC_CG_BACKEND_GL
+		EXTRA_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/source
+	)
+endif()

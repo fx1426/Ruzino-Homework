@@ -47,7 +47,7 @@ struct Hd_USTC_CG_PrototypeContext {
     /// A pointer back to the owning Hd_USTC_CG_ rprim.
     HdRprim *rprim;
     /// A name-indexed map of primvar samplers.
-    TfHashMap<TfToken, Hd_USTC_CG_PrimvarSampler *, TfToken::HashFunctor> primvarMap;
+    TfHashMap<std::string, Hd_USTC_CG_PrimvarSampler *> primvarMap;
     /// A copy of the primitive params for this rprim.
     VtIntArray primitiveParams;
 };

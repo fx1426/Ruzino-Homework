@@ -46,6 +46,7 @@ SOFTWARE.
 
 #pragma once
 
+#include <GUI/api.h>
 #include <imgui.h>
 #include <nvrhi/nvrhi.h>
 

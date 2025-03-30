@@ -200,11 +200,11 @@ HdDirtyBits Hd_USTC_CG_Material::GetInitialDirtyBitsMask() const
 }
 
 #define requireTexCoord(INPUT)              \
-    if (!INPUT.uv_primvar_name.IsEmpty()) { \
+    if (!INPUT.uv_primvar_name.empty()) { \
         return INPUT.uv_primvar_name;       \
     }
 
-TfToken Hd_USTC_CG_Material::requireTexcoordName()
+std::string Hd_USTC_CG_Material::requireTexcoordName()
 {
     MACRO_MAP(requireTexCoord, INPUT_LIST)
     return {};
