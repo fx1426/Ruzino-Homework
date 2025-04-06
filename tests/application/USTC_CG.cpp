@@ -67,7 +67,7 @@ int main()
             /* Load the node system */
             auto loaded = system->load_configuration("geometry_nodes.json");
             loaded = system->load_configuration("basic_nodes.json");
-            loaded = system->load_configuration("render_nodes.json");
+            // loaded = system->load_configuration("render_nodes.json");
             //            loaded =
             //            system->load_configuration("polyscope_nodes.json");
 
