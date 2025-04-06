@@ -2,7 +2,7 @@ include(CMakeParseArguments)
 
 function(GEN_NODES_JSON TARGET_NAME)
     set(options)
-    set(oneValueArgs OUTPUT_JSON)
+    set(oneValueArgs OUTPUT_JSON USERNAME)
     set(multiValueArgs NODES_DIRS NODES_FILES CONVERSIONS_DIRS CONVERSIONS_FILES)
     cmake_parse_arguments(GEN_NODES_JSON "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -60,6 +60,13 @@ function(GEN_NODES_JSON TARGET_NAME)
     if(CONVERSIONS_FILES_STR)
         list(APPEND COMMAND_ARGS --conversions-files ${CONVERSIONS_FILES_STR})
     endif()
+
+    if (GEN_NODES_JSON_USERNAME)
+        list(APPEND COMMAND_ARGS --username ${GEN_NODES_JSON_USERNAME})
+        message(STATUS "[User name] " ${GEN_NODES_JSON_USERNAME})
+    else()
+        message(STATUS "[User name] NOT SPECIFIED! Target " ${TARGET_NAME})
+    endif ()
 
     list(APPEND COMMAND_ARGS --output ${GEN_NODES_JSON_OUTPUT_JSON})
 
@@ -130,3 +137,64 @@ function(add_nodes)
     add_library(${ARG_TARGET_NAME} INTERFACE)
     add_dependencies(${ARG_TARGET_NAME} ${all_nodes} ${all_conversions} ${ARG_TARGET_NAME}_json_target)
 endfunction()
+
+
+function(add_nodes_with_prefix)
+    cmake_parse_arguments(ARG "" "TARGET_NAME;CUS_PREFIX" "SRC_DIRS;SRC_FILES;CONVERSION_DIRS;CONVERSION_FILES;DEP_LIBS;COMPILE_DEFS;COMPILE_OPTIONS;EXTRA_INCLUDE_DIRS" ${ARGN})
+
+    if(NOT ARG_TARGET_NAME)
+        message(FATAL_ERROR "add_nodes_with_prefix: TARGET_NAME not specified")
+    endif()
+
+    if(NOT ARG_CUS_PREFIX)
+        message(FATAL_ERROR "add_nodes_with_prefix: CUS_PREFIX not specified")
+    endif()
+
+    if(NOT ARG_SRC_DIRS)
+        set(ARG_SRC_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
+    endif()
+
+    foreach(src_dir IN LISTS ARG_SRC_DIRS)
+        file(GLOB src_files ${src_dir}/*.cpp)
+        list(APPEND ARG_SRC_FILES_IN_DIRS ${src_files})
+    endforeach()
+
+    foreach(conversion_dir IN LISTS ARG_CONVERSION_DIRS)
+        file(GLOB conversion_files ${conversion_dir}/*.cpp)
+        list(APPEND ARG_CONVERSION_IN_DIRS ${conversion_files})
+    endforeach()
+
+
+    set(ALL_THAT_NEEDS_TO_BE_COMPILED ${ARG_SRC_FILES_IN_DIRS} ${ARG_CONVERSION_IN_DIRS} ${ARG_SRC_FILES} ${ARG_CONVERSION_FILES})
+
+    foreach(source ${ALL_THAT_NEEDS_TO_BE_COMPILED})
+        get_filename_component(target_name ${source} NAME_WE)
+        add_library(${ARG_CUS_PREFIX}_${target_name} MODULE ${source})
+        set_target_properties(${ARG_CUS_PREFIX}_${target_name} PROPERTIES ${OUTPUT_DIR})
+        target_link_libraries(${ARG_CUS_PREFIX}_${target_name} PUBLIC nodes_core ${ARG_DEP_LIBS})
+        if(ARG_COMPILE_DEFS)
+            target_compile_definitions(${ARG_CUS_PREFIX}_${target_name} PRIVATE ${ARG_COMPILE_DEFS})
+        endif()
+        if(ARG_COMPILE_OPTIONS)
+            target_compile_options(${ARG_CUS_PREFIX}_${target_name} PRIVATE ${ARG_COMPILE_OPTIONS})
+        endif()
+        if(ARG_EXTRA_INCLUDE_DIRS)
+            target_include_directories(${ARG_CUS_PREFIX}_${target_name} PRIVATE ${ARG_EXTRA_INCLUDE_DIRS})
+        endif()
+        list(APPEND all_nodes ${ARG_CUS_PREFIX}_${target_name})
+    endforeach()
+
+
+    GEN_NODES_JSON(${ARG_CUS_PREFIX}_${ARG_TARGET_NAME}_json_target
+            USERNAME ${ARG_CUS_PREFIX}
+        NODES_DIRS ${ARG_SRC_DIRS}
+        NODES_FILES ${ARG_SRC_FILES}
+        CONVERSIONS_DIRS ${ARG_CONVERSION_DIRS}
+        CONVERSIONS_FILES ${ARG_CONVERSION_FILES}
+        OUTPUT_JSON ${OUT_BINARY_DIR}/${ARG_CUS_PREFIX}_${ARG_TARGET_NAME}.json
+    )
+
+    add_library(${ARG_CUS_PREFIX}_${ARG_TARGET_NAME} INTERFACE)
+    add_dependencies(${ARG_CUS_PREFIX}_${ARG_TARGET_NAME} ${all_nodes} ${all_conversions} ${ARG_CUS_PREFIX}_${ARG_TARGET_NAME}_json_target)
+endfunction()
+

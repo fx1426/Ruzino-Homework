@@ -46,9 +46,10 @@ target_include_directories(imgui
     PUBLIC "${imgui_SOURCE_DIR}/misc/cpp"
     PUBLIC "${imgui_file_SOURCE_DIR}"
 )
-target_include_directories(imgui PUBLIC  "${CMAKE_CURRENT_SOURCE_DIR}/user_imgui")
+target_include_directories(imgui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/user_imgui")
 target_compile_definitions(imgui PUBLIC IMGUI_USER_CONFIG="imgui_user_config.h")
-#target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
+
+# target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
 if(MSVC)
     target_compile_definitions(imgui PRIVATE IMGUI_API=__declspec\(dllexport\))
 else()
@@ -82,7 +83,6 @@ add_subdirectory(stb_image)
 add_subdirectory(polyscope)
 set_target_properties(polyscope PROPERTIES ${OUTPUT_DIR})
 set_target_properties(glad PROPERTIES ${OUTPUT_DIR})
-
 
 # libigl
 set(LIBIGL_RESTRICTED_TRIANGLE ON CACHE BOOL "" FORCE)

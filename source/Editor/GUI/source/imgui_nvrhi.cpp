@@ -50,7 +50,6 @@ SOFTWARE.
 #include <nvrhi/nvrhi.h>
 #include <stddef.h>
 
-#include "GUI/api.h"
 #include "Logger/Logger.h"
 #include "RHI/ShaderFactory/shader.hpp"
 

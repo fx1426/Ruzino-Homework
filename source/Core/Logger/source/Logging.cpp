@@ -197,6 +197,11 @@ void info(const char* fmt...)
     va_end(args);
 }
 
+void info(const std::string& str)
+{
+    info(str.c_str());
+}
+
 void warning(const char* fmt...)
 {
     if (static_cast<int>(g_MinSeverity) > static_cast<int>(Severity::Warning))

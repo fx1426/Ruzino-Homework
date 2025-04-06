@@ -135,9 +135,13 @@ def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=Fals
             vulkan_support = ""
             if "VULKAN_SDK" in os.environ:
                 vulkan_support = "-DPXR_ENABLE_VULKAN_SUPPORT=ON"
-            else:
+            elif not copy_only:
                 print(
                     "Warning: VULKAN_SDK is not in the path. Highly recommend setting it for Vulkan support."
+                )
+            else:
+                print(
+                    "Error: VULKAN_SDK is not in the path. Please set it for Vulkan support before building."
                 )
 
             build_variant_map = {
@@ -188,17 +192,43 @@ def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=Fals
 
 
 import concurrent.futures
+import subprocess
 
 
 def pack_sdk(dry_run=False):
     src_dir = os.path.join(os.path.dirname(__file__), "SDK")
     dst_dir = os.path.join(os.path.dirname(__file__), "SDK_temp")
 
+    # Path that need to be replaced
+    where_python = subprocess.check_output(["where", "python"]).decode("utf-8").split("\n")[0]
+    python_dir_backward_slash = os.path.dirname(where_python).replace("/", "\\")
+    python_dir_forward_slash = python_dir_backward_slash.replace("\\", "/")
+    framework3d_dir_backward_slash = os.getcwd().replace("/", "\\")
+    framework3d_dir_forward_slash = framework3d_dir_backward_slash.replace("\\", "/")
+    vulkan_sdk_dir_backward_slash = os.environ.get("VULKAN_SDK", "").replace("/", "\\")
+    vulkan_sdk_dir_forward_slash = vulkan_sdk_dir_backward_slash.replace("\\", "/")
+
     def copy_file(src_file, dst_file):
         if dry_run:
             print(f"[DRY RUN] Would copy {src_file} to {dst_file}")
         else:
             shutil.copy2(src_file, dst_file)
+            try:
+                with open(dst_file, "r", encoding="utf-8") as file:
+                    filedata = file.read()
+            except (UnicodeDecodeError, IOError) as e:
+                return
+            filedata_0 = filedata
+            filedata = filedata.replace(python_dir_backward_slash, "{PYTHON_DIR_BACKWARD_SLASH}")
+            filedata = filedata.replace(python_dir_forward_slash, "{PYTHON_DIR_FORWARD_SLASH}")
+            filedata = filedata.replace(framework3d_dir_backward_slash, "{FRAMEWORK3D_DIR_BACKWARD_SLASH}")
+            filedata = filedata.replace(framework3d_dir_forward_slash, "{FRAMEWORK3D_DIR_FORWARD_SLASH}")
+            filedata = filedata.replace(vulkan_sdk_dir_backward_slash, "{VULKAN_SDK_DIR_BACKWARD_SLASH}")
+            filedata = filedata.replace(vulkan_sdk_dir_forward_slash, "{VULKAN_SDK_DIR_FORWARD_SLASH}")
+            if filedata != filedata_0:
+                with open(dst_file, "w", encoding="utf-8") as file:
+                    file.write(filedata)
+                    print(f"Found and replaced path in {dst_file}")
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
@@ -241,6 +271,24 @@ def pack_sdk(dry_run=False):
         else:
             shutil.rmtree(dst_dir)
             print(f"Deleted {dst_dir}")
+
+
+def find_and_replace(file_path, replacements):
+    """处理单个文件的替换操作"""
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            filedata = file.read()
+
+        filedata_0 = filedata
+        for old_text, new_text in replacements.items():
+            filedata = filedata.replace(old_text, new_text)
+
+        if filedata != filedata_0:
+            with open(file_path, "w", encoding="utf-8") as file:
+                file.write(filedata)
+                print(f"Found and replaced path in {file_path}")
+    except (UnicodeDecodeError, IOError) as e:
+        return
 
 
 def main():
@@ -304,11 +352,55 @@ def main():
         urls = {
             "slang": "https://github.com/shader-slang/slang/releases/download/v2024.15.2/slang-2024.15.2-windows-x86_64.zip",
         }
+    elif os.name == "posix":
+        urls = {
+            "slang": "https://github.com/shader-slang/slang/releases/download/v2024.15.2/slang-2024.15.2-macos-x86_64.zip",
+        }
     else:
         urls = {
             "slang": "https://github.com/shader-slang/slang/releases/download/v2024.14.5/slang-2024.14.5-linux-x86_64.zip",
         }
     folders = {"slang": "slang/bin"}
+
+    if copy_only and not dry_run:
+        # Path that need to be replaced
+        where_python = subprocess.check_output(["where", "python"]).decode("utf-8").split("\n")[0]
+        # Check if the version of python is 3.10.11
+        python_version = subprocess.check_output(["python", "--version"], stderr=subprocess.STDOUT).decode(
+            "utf-8"
+        )
+        print(f"The highest priority Python version is {python_version}.")
+        if "3.10.11" not in python_version:
+            # 优先级最高的python版本应为3.10.11
+            print("Please set Python version 3.10.11 as the highest priority.")
+            return
+        python_dir_backward_slash = os.path.dirname(where_python).replace("/", "\\")
+        python_dir_forward_slash = python_dir_backward_slash.replace("\\", "/")
+        framework3d_dir_backward_slash = os.getcwd().replace("/", "\\")
+        framework3d_dir_forward_slash = framework3d_dir_backward_slash.replace("\\", "/")
+        vulkan_sdk_dir_backward_slash = os.environ.get("VULKAN_SDK", "").replace("/", "\\")
+        vulkan_sdk_dir_forward_slash = vulkan_sdk_dir_backward_slash.replace("\\", "/")
+
+        # 创建替换映射
+        replacements = {
+            "{PYTHON_DIR_BACKWARD_SLASH}": python_dir_backward_slash,
+            "{PYTHON_DIR_FORWARD_SLASH}": python_dir_forward_slash,
+            "{FRAMEWORK3D_DIR_BACKWARD_SLASH}": framework3d_dir_backward_slash,
+            "{FRAMEWORK3D_DIR_FORWARD_SLASH}": framework3d_dir_forward_slash,
+            "{VULKAN_SDK_DIR_BACKWARD_SLASH}": vulkan_sdk_dir_backward_slash,
+            "{VULKAN_SDK_DIR_FORWARD_SLASH}": vulkan_sdk_dir_forward_slash,
+        }
+
+        # 使用线程池处理文件
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for root, _, files in os.walk(os.path.join(os.getcwd(), "SDK")):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    futures.append(executor.submit(find_and_replace, file_path, replacements))
+
+            # 等待所有任务完成
+            concurrent.futures.wait(futures)
 
     for lib in args.library:
         if lib == "openusd":

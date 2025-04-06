@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 import os
 import re
 import json
@@ -6,7 +7,7 @@ import concurrent.futures
 from threading import Lock
 
 
-def process_file(file_path, pattern):
+def process_file(file_path, pattern, suffix="", prefix=""):
     if file_path.endswith(".cpp"):
         compiled_pattern = re.compile(pattern)
         try:
@@ -14,16 +15,25 @@ def process_file(file_path, pattern):
                 content = f.read()
                 matches = compiled_pattern.findall(content)
                 if matches:
+                    # Add the suffix to matches if needed
+                    if len(suffix) > 0:
+                        matches = list(map(lambda x: x + suffix, matches))
+
                     file_name_without_suffix = os.path.splitext(
                         os.path.basename(file_path)
                     )[0]
+
+                    # Add prefix to file name if needed
+                    if len(prefix) > 0:
+                        file_name_without_suffix = prefix + file_name_without_suffix
+
                     return file_name_without_suffix, matches
         except Exception as e:
             print(f"Error processing {file_path}: {str(e)}")
     return None
 
 
-def scan_cpp_files(directories, files, pattern):
+def scan_cpp_files(directories, files, pattern, suffix="", prefix=""):
     nodes = {}
     file_paths = []
 
@@ -41,7 +51,7 @@ def scan_cpp_files(directories, files, pattern):
     # Process files in parallel
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {
-            executor.submit(process_file, file_path, pattern): file_path
+            executor.submit(process_file, file_path, pattern, suffix, prefix): file_path
             for file_path in file_paths
         }
         for future in concurrent.futures.as_completed(futures):
@@ -85,14 +95,24 @@ def main():
         help="Paths to the conversion cpp files",
         default=[],
     )
+    parser.add_argument("--username", type=str, help="Username suffix", default="")
     parser.add_argument("--output", type=str, help="Path to the output JSON file")
     args = parser.parse_args()
 
     result = {}
+    if len(args.username) > 0:
+        print("Username is specified: {}".format(args.username))
+        suf = "_" + args.username
+        pref = args.username + "_"
+    else:
+        suf = ""
+        pref = ""
 
     if args.nodes_dir or args.nodes_files:
-        node_pattern = r"NODE_EXECUTION_FUNCTION\((\w+)\)"
-        result["nodes"] = scan_cpp_files(args.nodes_dir, args.nodes_files, node_pattern)
+        node_pattern = r"NODE_EXECUTION_FUNCTION\((\w+)\)"  # match the original name
+        result["nodes"] = scan_cpp_files(
+            args.nodes_dir, args.nodes_files, node_pattern, suffix=suf, prefix=pref
+        )
     else:
         result["nodes"] = {}
 

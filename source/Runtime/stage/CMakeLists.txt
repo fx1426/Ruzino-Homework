@@ -10,6 +10,7 @@ USTC_CG_ADD_LIB(
 		nodes_system
 		MaterialXCore
 		MaterialXFormat
+		usdLux
 	COMPILE_DEFS
 		NOMINMAX=1
 		USTC_CG_BUILD_MODULE=1

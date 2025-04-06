@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <exception>
 
 #include "nodes/core/def/node_def.hpp"
@@ -10,8 +11,8 @@ NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(get_picked_face)
 {
     b.add_output<std::string>("Picked Structure Name");
-    b.add_output<unsigned long long>("Picked Face Index");
-    b.add_output<std::vector<unsigned long long>>("Picked Face Vertex Indices");
+    b.add_output<size_t>("Picked Face Index");
+    b.add_output<std::vector<size_t>>("Picked Face Vertex Indices");
 }
 
 NODE_EXECUTION_FUNCTION(get_picked_face)
@@ -35,7 +36,7 @@ NODE_EXECUTION_FUNCTION(get_picked_face)
             auto ind = index - mesh->nVertices();
             auto start = mesh->faceIndsStart[ind];
             auto D = mesh->faceIndsStart[ind + 1] - start;
-            std::vector<unsigned long long> vertices_indices;
+            std::vector<size_t> vertices_indices;
             for (size_t j = 0; j < D; j++) {
                 auto iV = mesh->faceIndsEntries[start + j];
                 vertices_indices.push_back(iV);

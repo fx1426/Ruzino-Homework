@@ -11,7 +11,7 @@ NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(get_polyscope_vertex_pos)
 {
     b.add_input<std::string>("Structure Name");
-    b.add_input<unsigned long long>("Vertex Index");
+    b.add_input<size_t>("Vertex Index");
     b.add_output<float>("Vertex Position X");
     b.add_output<float>("Vertex Position Y");
     b.add_output<float>("Vertex Position Z");
@@ -21,7 +21,7 @@ NODE_EXECUTION_FUNCTION(get_polyscope_vertex_pos)
 {
     auto structure_name = params.get_input<std::string>("Structure Name");
     structure_name = std::string(structure_name.c_str());
-    auto vertex_index = params.get_input<unsigned long long>("Vertex Index");
+    auto vertex_index = params.get_input<size_t>("Vertex Index");
 
     // If the input structure is a surface mesh
     if (polyscope::hasStructure("Surface Mesh", structure_name)) {

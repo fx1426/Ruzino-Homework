@@ -65,7 +65,34 @@ bool NodeDynamicLoadingSystem::load_configuration(
 {
     nlohmann::json j;
 
-    std::ifstream config_file(config_file_path);
+    std::filesystem::path executable_path;
+
+#ifdef _WIN32
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    executable_path = std::filesystem::path(path).parent_path();
+#else
+    char path[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+    if (count != -1) {
+        path[count] = '\0';
+        executable_path = std::filesystem::path(path).parent_path();
+    }
+    else {
+        throw std::runtime_error("Failed to get executable path.");
+    }
+#endif
+
+    std::filesystem::path abs_path;
+
+    if (!config_file_path.is_absolute()) {
+        abs_path = executable_path / config_file_path;
+    }
+    else {
+        abs_path = config_file_path;
+    }
+    abs_path = abs_path.lexically_normal();
+    std::ifstream config_file(abs_path);
     if (!config_file.is_open()) {
         throw std::runtime_error(
             "Failed to open configuration file: " + config_file_path.string());

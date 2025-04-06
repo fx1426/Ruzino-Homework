@@ -1,6 +1,3 @@
-[submodule "external/eigen"]
-	path = external/eigen
-	url = https://gitlab.com/libeigen/eigen.git
 [submodule "external/glfw"]
 	path = external/glfw
 	url = https://github.com/glfw/glfw.git
@@ -10,9 +7,6 @@
 [submodule "external/imgui"]
 	path = external/imgui
 	url = https://github.com/thedmd/imgui.git
-[submodule "external/OpenMesh"]
-	path = external/OpenMesh
-	url = https://gitlab.vci.rwth-aachen.de:9000/OpenMesh/OpenMesh.git
 [submodule "external/entt"]
 	path = external/entt
 	url = https://github.com/Jerry-Shen0527/entt.git
@@ -37,12 +31,9 @@
 [submodule "external/polyscope"]
 	path = external/polyscope
 	url = https://github.com/USTC-CG-NEXT/polyscope.git
-[submodule "external/libigl"]
-	path = external/libigl
-	url = https://github.com/libigl/libigl.git
-[submodule "external/googletest"]
-	path = external/googletest
-	url = https://github.com/google/googletest.git
+[submodule "external/eigen"]
+	path = external/eigen
+	url = https://gitlab.com/libeigen/eigen.git
 [submodule "external/OpenMesh"]
 	path = external/OpenMesh
 	url = https://gitlab.vci.rwth-aachen.de:9000/OpenMesh/OpenMesh.git

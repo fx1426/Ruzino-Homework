@@ -10,7 +10,7 @@ NODE_DECLARATION_FUNCTION(mesh_decompose)
     b.add_output<pxr::VtArray<int>>("FaceVertexCounts");
     b.add_output<pxr::VtArray<int>>("FaceVertexIndices");
     b.add_output<pxr::VtVec3fArray>("Normals");
-    b.add_output<pxr::GfVec2f>("Texcoords");
+    b.add_output<pxr::VtArray<pxr::GfVec2f>>("Texcoords");
 }
 
 NODE_EXECUTION_FUNCTION(mesh_decompose)

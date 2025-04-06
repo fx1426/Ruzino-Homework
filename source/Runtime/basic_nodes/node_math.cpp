@@ -151,4 +151,46 @@ NODE_EXECUTION_FUNCTION(value_atan)
     return true;
 } 
 
+NODE_DECLARATION_FUNCTION(value_and)
+{
+    b.add_input<bool>("A");
+    b.add_input<bool>("B");
+    b.add_output<bool>("Result");
+}
+
+NODE_EXECUTION_FUNCTION(value_and)
+{
+    auto a = params.get_input<bool>("A");
+    auto b = params.get_input<bool>("B");
+    params.set_output<bool>("Result", a && b);
+    return true;
+}
+NODE_DECLARATION_FUNCTION(value_or)
+{
+    b.add_input<bool>("A");
+    b.add_input<bool>("B");
+    b.add_output<bool>("Result");
+}
+
+NODE_EXECUTION_FUNCTION(value_or)
+{
+    auto a = params.get_input<bool>("A");
+    auto b = params.get_input<bool>("B");
+    params.set_output<bool>("Result", a || b);
+    return true;
+}
+
+NODE_DECLARATION_FUNCTION(value_not)
+{
+    b.add_input<bool>("A");
+    b.add_output<bool>("Result");
+}
+
+NODE_EXECUTION_FUNCTION(value_not)
+{
+    auto a = params.get_input<bool>("A");
+    params.set_output<bool>("Result", !a);
+    return true;
+}
+
 NODE_DEF_CLOSE_SCOPE

@@ -28,10 +28,11 @@ NODE_EXECUTION_FUNCTION(set_vert_color)
         points->get_display_color() = color;
     }
     else {
-        throw std::runtime_error("The input is not a mesh or points");
+        return false;
     }
 
     params.set_output("Geometry", std::move(geometry));
+    return true;
 }
 
 NODE_DECLARATION_UI(set_vert_color);

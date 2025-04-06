@@ -1,3 +1,4 @@
+#include <pxr/base/tf/stringUtils.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
 #include <pxr/usd/usdGeom/mesh.h>
@@ -7,6 +8,8 @@
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
 #include <pxr/usd/usdVol/openVDBAsset.h>
+
+#include <string>
 
 #include "GCore/Components/CurveComponent.h"
 #include "GCore/Components/InstancerComponent.h"
@@ -73,9 +76,9 @@ NODE_EXECUTION_FUNCTION(write_usd)
 #if USE_USD_SCRATCH_BUFFER
             copy_prim(mesh->get_usd_mesh().GetPrim(), usdgeom.GetPrim());
 #else
-            usdgeom.CreatePointsAttr().Set(mesh->get_vertices());
+            usdgeom.CreatePointsAttr().Set(mesh->get_vertices(), time);
             usdgeom.CreateFaceVertexCountsAttr().Set(
-                mesh->get_face_vertex_counts());
+                mesh->get_face_vertex_counts(), time);
             usdgeom.CreateFaceVertexIndicesAttr().Set(
                 mesh->get_face_vertex_indices());
 
@@ -92,13 +95,13 @@ NODE_EXECUTION_FUNCTION(write_usd)
                     pxr::TfToken("displayColor"),
                     pxr::SdfValueTypeNames->Color3fArray);
                 colorPrimvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
-                colorPrimvar.Set(mesh->get_display_color());
+                colorPrimvar.Set(mesh->get_display_color(), time);
             }
             if (!mesh->get_texcoords_array().empty()) {
                 auto primvar = primVarAPI.CreatePrimvar(
                     pxr::TfToken("UVMap"),
                     pxr::SdfValueTypeNames->TexCoord2fArray);
-                primvar.Set(mesh->get_texcoords_array());
+                primvar.Set(mesh->get_texcoords_array(), time);
                 if (mesh->get_texcoords_array().size() ==
                     mesh->get_vertices().size()) {
                     primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
@@ -110,6 +113,107 @@ NODE_EXECUTION_FUNCTION(write_usd)
 
 #endif
             usdgeom.CreateDoubleSidedAttr().Set(true);
+
+            // Store polyscope quantities
+            auto primVarAPI = pxr::UsdGeomPrimvarsAPI(usdgeom);
+
+            // It's invalid to use pxr::TfToken("some_prefix" + some_string)
+            // directly, so we need to create a new string first.
+
+            for (const std::string& name :
+                 mesh->get_vertex_scalar_quantity_names()) {
+                auto values = mesh->get_vertex_scalar_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:vertex:scalar:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->FloatArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_scalar_quantity_names()) {
+                auto values = mesh->get_face_scalar_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:face:scalar:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->FloatArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values, time);
+            }
+
+            for (std::string& name : mesh->get_vertex_color_quantity_names()) {
+                auto values = mesh->get_vertex_color_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:vertex:color:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->Color3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_color_quantity_names()) {
+                auto values = mesh->get_face_color_quantity(name);
+                const std::string primvar_name = "polyscope:face:color:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->Color3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_vertex_vector_quantity_names()) {
+                auto values = mesh->get_vertex_vector_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:vertex:vector:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->Vector3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_vector_quantity_names()) {
+                auto values = mesh->get_face_vector_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:face:vector:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->Vector3fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->uniform);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_face_corner_parameterization_quantity_names()) {
+                auto values =
+                    mesh->get_face_corner_parameterization_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:face_corner:parameterization:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->TexCoord2fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->faceVarying);
+                primvar.Set(values, time);
+            }
+
+            for (const std::string& name :
+                 mesh->get_vertex_parameterization_quantity_names()) {
+                auto values = mesh->get_vertex_parameterization_quantity(name);
+                const std::string primvar_name =
+                    "polyscope:vertex:parameterization:" + name;
+                auto primvar = primVarAPI.CreatePrimvar(
+                    pxr::TfToken(primvar_name.c_str()),
+                    pxr::SdfValueTypeNames->TexCoord2fArray);
+                primvar.SetInterpolation(pxr::UsdGeomTokens->vertex);
+                primvar.Set(values, time);
+            }
         }
     }
     else if (points) {
@@ -138,15 +242,17 @@ NODE_EXECUTION_FUNCTION(write_usd)
 #if USE_USD_SCRATCH_BUFFER
             copy_prim(curve->get_usd_curve().GetPrim(), usd_curve.GetPrim());
 #else
-            usd_curve.CreatePointsAttr().Set(curve->get_vertices());
-            usd_curve.CreateWidthsAttr().Set(curve->get_width());
+            usd_curve.CreatePointsAttr().Set(curve->get_vertices(), time);
+            usd_curve.CreateWidthsAttr().Set(curve->get_width(), time);
             usd_curve.CreateCurveVertexCountsAttr().Set(
-                curve->get_vert_count());
-            usd_curve.CreateNormalsAttr().Set(curve->get_curve_normals());
-            usd_curve.CreateDisplayColorAttr().Set(curve->get_display_color());
+                curve->get_vert_count(), time);
+            usd_curve.CreateNormalsAttr().Set(curve->get_curve_normals(), time);
+            usd_curve.CreateDisplayColorAttr().Set(
+                curve->get_display_color(), time);
             usd_curve.CreateWrapAttr().Set(
                 curve->get_periodic() ? pxr::UsdGeomTokens->periodic
-                                      : pxr::UsdGeomTokens->nonperiodic);
+                                      : pxr::UsdGeomTokens->nonperiodic,
+                time);
 #endif
         }
     }

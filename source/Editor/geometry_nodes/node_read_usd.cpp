@@ -50,7 +50,38 @@ NODE_EXECUTION_FUNCTION(read_usd)
         time = pxr::UsdTimeCode::Default();
     }
 
-    auto stage = pxr::UsdStage::Open(file_name.c_str());
+    std::filesystem::path executable_path;
+
+#ifdef _WIN32
+    char p[MAX_PATH];
+    GetModuleFileNameA(NULL, p, MAX_PATH);
+    executable_path = std::filesystem::path(p).parent_path();
+#else
+    char p[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", p, PATH_MAX);
+    if (count != -1) {
+        p[count] = '\0';
+        executable_path = std::filesystem::path(path).parent_path();
+    }
+    else {
+        throw std::runtime_error("Failed to get executable path.");
+    }
+#endif
+
+    std::filesystem::path abs_path;
+    if (!file_name.empty()) {
+        abs_path = std::filesystem::path(file_name);
+    }
+    else {
+        log::error("Path is empty.");
+        return false;
+    }
+    if (!abs_path.is_absolute()) {
+        abs_path = executable_path / abs_path;
+    }
+    abs_path = abs_path.lexically_normal();
+
+    auto stage = pxr::UsdStage::Open(abs_path.string().c_str());
 
     if (stage) {
         // Here 'c_str' call is necessary since prim_path

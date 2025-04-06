@@ -27,8 +27,13 @@ int main()
     auto stage = create_global_stage();
     init(stage.get());
 
+#ifdef REAL_TIME
     window->register_function_before_frame(
         [&stage](Window* window) { stage->tick(window->get_elapsed_time()); });
+#else
+    window->register_function_before_frame(
+        [&stage](Window* window) { stage->tick(1.0f / 30.f); });
+#endif
     // Add a sphere
 
     auto usd_file_viewer = std::make_unique<UsdFileViewer>(stage.get());
@@ -59,7 +64,7 @@ int main()
         pxr::SdfPath json_path;
         if (stage->consume_editor_creation(json_path)) {
             auto system = create_dynamic_loading_system();
-
+            /* Load the node system */
             auto loaded = system->load_configuration("geometry_nodes.json");
             loaded = system->load_configuration("basic_nodes.json");
 
@@ -76,7 +81,7 @@ int main()
 
             system->init();
             system->set_node_tree_executor(create_node_tree_executor({}));
-
+            /* Done! */
             UsdBasedNodeWidgetSettings desc;
 
             desc.json_path = json_path;

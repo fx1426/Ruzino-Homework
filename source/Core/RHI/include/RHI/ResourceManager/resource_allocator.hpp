@@ -1,29 +1,44 @@
 #pragma once
 
+#include <RHI/internal/map.h>
+
 #include <algorithm>
 #include <cassert>
 #include <iterator>
+#include <unordered_map>
 
-#include "Logger/Logger.h"
 #ifndef RESOURCE_ALLOCATOR_STATIC_ONLY
 #include "nodes/core/api.hpp"
 #endif
-#include "RHI/ShaderFactory/shader.hpp"
 #include "RHI/api.h"
-#include "RHI/internal/nvrhi_equality.hpp"
-#include "RHI/internal/nvrhi_hash.hpp"
-#include "RHI/internal/nvrhi_sizes.hpp"
-#include "RHI/internal/resources.hpp"
 
 #ifdef USTC_CG_BACKEND_NVRHI
 #include <nvrhi/nvrhi.h>
 
+#include "RHI/ShaderFactory/shader.hpp"
+#include "RHI/internal/nvrhi_equality.hpp"
+#include "RHI/internal/nvrhi_sizes.hpp"
+#include "RHI/internal/resources.hpp"
+
+#endif
+
+#ifdef USTC_CG_BACKEND_GL
+#include "GL/GLresources.hpp"
+#include "GL/resources.hpp"
 #endif
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
+#ifdef USTC_CG_BACKEND_NVRHI
+
 MACRO_MAP(DESC_HANDLE_TRAIT, RESOURCE_LIST)
 MACRO_MAP(HANDLE_DESC_TRAIT, RESOURCE_LIST)
+#endif
+
+#ifdef USTC_CG_BACKEND_GL
+MACRO_MAP(DESC_HANDLE_TRAIT, RESOURCE_LIST)
+MACRO_MAP(HANDLE_DESC_TRAIT, RESOURCE_LIST)
+#endif
 
 template<typename RESOURCE>
 using desc = typename ResouceDesc<RESOURCE>::Desc;
@@ -161,6 +176,8 @@ class ResourceAllocator {
         assert(handle);
         return handle;
     }
+
+#ifdef USTC_CG_BACKEND_NVRHI
     nvrhi::IDevice* device;
     ShaderFactory* shader_factory;
     void set_device(nvrhi::IDevice* device)
@@ -168,6 +185,7 @@ class ResourceAllocator {
         assert(device);
         this->device = device;
     }
+#endif
 
 #define DEFINEContainer(RESOURCE)                                     \
     struct PAYLOAD_NAME(RESOURCE) {                                   \
@@ -202,7 +220,9 @@ class ResourceAllocator {
     template<typename RESOURCE, typename... Args>
     RESOURCE create_resource(const desc<RESOURCE>& desc, Args&&... rest)
     {
+#ifdef USTC_CG_BACKEND_NVRHI
         MACRO_MAP(CREATE_CONCRETE, NVRHI_RESOURCE_LIST)
+
         if constexpr (std::is_same_v<ProgramHandle, RESOURCE>) {
             return shader_factory->createProgram(desc);
         }
@@ -212,6 +232,17 @@ class ResourceAllocator {
         if constexpr (std::is_same_v<AccelStructHandle, RESOURCE>) {
             return device->createAccelStruct(desc, rest...);
         }
+#endif
+#ifdef USTC_CG_BACKEND_GL
+#define CREATE_CONCRETE_GL(RESOURCE)            \
+    JUDGE_RESOURCE(RESOURCE)                    \
+    {                                           \
+        return create##RESOURCE(desc, rest...); \
+    }
+
+        MACRO_MAP(CREATE_CONCRETE_GL, RESOURCE_LIST);
+
+#endif
     }
 
     template<typename RESOURCE>
@@ -234,11 +265,13 @@ class ResourceAllocator {
         else {
             handle = create_resource<RESOURCE>(desc, rest...);
 
+#ifdef USTC_CG_BACKEND_NVRHI
             if constexpr (std::is_same_v<BindingSetHandle, RESOURCE>) {
                 for (auto& resource : desc.bindings) {
                     mRelatedBindingSets.emplace(resource.resourceHandle, desc);
                 }
             }
+#endif
         }
 
         inUseCache.emplace(handle, desc);
@@ -247,7 +280,11 @@ class ResourceAllocator {
     template<typename RESOURCE>
     auto calcSize(desc<RESOURCE>& key)
     {
+#ifdef USTC_CG_BACKEND_NVRHI
         return gpu_resource_size(key);
+#endif
+
+        return size_t{0};
     }
 
     template<typename RESOURCE>
@@ -280,6 +317,7 @@ class ResourceAllocator {
     template<typename RESOURCE>
     void gc_type(auto& cacheSize, auto&& cache_in)
     {
+#ifdef USTC_CG_BACKEND_NVRHI
         if ((cacheSize >= CACHE_CAPACITY)) {
             using ContainerType = std::remove_cvref_t<decltype(cache_in)>;
             using Vector = std::vector<std::pair<
@@ -348,6 +386,7 @@ class ResourceAllocator {
             }
             mAge -= oldestAge;
         }
+#endif
     }
 
     static constexpr size_t CACHE_CAPACITY = 1u << 30u;  // 1 GiB
@@ -430,8 +469,10 @@ class ResourceAllocator {
     size_t mAge = 0;
     static constexpr bool mEnabled = true;
 
+#ifdef USTC_CG_BACKEND_NVRHI
     std::unordered_multimap<nvrhi::IResource*, nvrhi::BindingSetDesc>
         mRelatedBindingSets;
+#endif
 };
 
 #ifndef USE_STD_MAP

@@ -8,7 +8,7 @@ NODE_DECLARATION_FUNCTION(mesh_compose)
     b.add_input<pxr::VtArray<int>>("FaceVertexCounts");
     b.add_input<pxr::VtArray<int>>("FaceVertexIndices");
     b.add_input<pxr::VtArray<pxr::GfVec3f>>("Normals");
-    b.add_input<pxr::GfVec2f>("Texcoords");
+    b.add_input<pxr::VtArray<pxr::GfVec2f>>("Texcoords");
 
     b.add_output<Geometry>("Mesh");
 }

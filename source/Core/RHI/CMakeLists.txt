@@ -10,6 +10,7 @@ if(SLANG_FOUND)
 			NOMINMAX 
 			VULKAN_HPP_STORAGE_SHARED 
 			VULKAN_HPP_STORAGE_SHARED_IMPORT
+			USTC_CG_BACKEND_NVRHI
 	)
 
 	target_compile_definitions(RHI PRIVATE RELATIVE_TO_PROJROOT="${RELATIVE_TO_PROJROOT}")
@@ -37,5 +38,4 @@ if(SLANG_FOUND)
 	if(USTC_CG_WITH_CUDA)
 		include(nvrtc.cmake)
 	endif()
-
 endif()

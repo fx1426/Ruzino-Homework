@@ -9,4 +9,6 @@ struct GeomPayload {
     bool has_simulation = false;
     bool is_simulating = false;
     pxr::UsdTimeCode current_time = pxr::UsdTimeCode::Default();
+
+    std::string stage_filepath_;
 };

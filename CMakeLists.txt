@@ -1,10 +1,10 @@
-﻿cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.29.6)
 
 #
 # Project details
 #
 project(
-  "USTC_CG_2024"
+  "USTC_CG_Framework3D"
   VERSION 1.0
   LANGUAGES C CXX
 )
@@ -44,6 +44,16 @@ set(BUILD_SHARED_LIBS ON)
 
 # On mac, the cpp standard should >= 20
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
+
+if(NOT MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fms-extensions")
+endif()
+
 set(CMAKE_CUDA_STANDARD 20)
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
@@ -84,7 +94,6 @@ if(pxr_FOUND)
   set(USTC_CG_WITH_OPENUSD ON)
 
   if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
-
     if(Python3_LIBRARY MATCHES "_d.lib$")
       set_target_properties(usd PROPERTIES INTERFACE_COMPILE_DEFINITIONS "TBB_USE_DEBUG=1; BOOST_DEBUG_PYTHON")
     else()
@@ -113,3 +122,24 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/Runtime)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/Plugins)
 
 add_subdirectory(tests)
+
+
+# submission directory
+set(editor_dir ${CMAKE_CURRENT_SOURCE_DIR}/source/Editor)
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/submissions_inner)
+  message(STATUS [./SUBMISSION FOUND])
+  add_subdirectory(submissions_inner)
+endif ()
+
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../submissions)
+  message(STATUS [../SUBMISSION FOUND])
+  get_filename_component(
+    ABS_SUBMISSION
+    ${CMAKE_CURRENT_SOURCE_DIR}/../submissions
+    ABSOLUTE
+    BASE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  message(STATUS "[ABS DIR] " ${ABS_SUBMISSION})
+
+  add_subdirectory(${ABS_SUBMISSION} "OuterSubmissions")
+endif ()

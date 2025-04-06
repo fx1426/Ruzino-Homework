@@ -15,7 +15,7 @@ NODE_EXECUTION_FUNCTION(func_color_map)
     auto input = params.get_input<pxr::VtArray<float>>("Vals");
 
     if (input.empty()) {
-        throw std::runtime_error("Func Color Map: Require input data");
+        return false;
     }
 
     auto minmax = std::minmax_element(input.begin(), input.end());
@@ -50,6 +50,7 @@ NODE_EXECUTION_FUNCTION(func_color_map)
     }
 
     params.set_output("Colors", colors);
+    return true;
 }
 
 NODE_DECLARATION_UI(func_color_map);

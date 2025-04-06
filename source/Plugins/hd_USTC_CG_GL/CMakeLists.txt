@@ -1,0 +1,24 @@
+option (ENABLE_GL_BASED_RENDERER "Enable GL based renderer" ON)
+
+if (ENABLE_GL_BASED_RENDERER)
+	
+	USTC_CG_ADD_LIB(
+		hd_USTC_CG_GL
+		SHARED
+		PUBLIC_LIBS Logger
+		PRIVATE_LIBS usd RHI hdx nodes_system usdMtlx  usdImaging glf
+		COMPILE_DEFS
+			NOMINMAX RENDER_NODES_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes" USTC_CG_BACKEND_GL
+		USD_RESOURCE_DIRS resources
+		SKIP_DIRS embree4
+		RESOURCE_COPY_TARGET ${OUT_BINARY_DIR}/usd/hd_USTC_CG_GL/resources
+	)
+
+	add_nodes(
+		TARGET_NAME gl_based_render_nodes 
+		SRC_DIRS nodes
+		DEP_LIBS usd RHI hd_USTC_CG_GL usdImaging glf
+		COMPILE_DEFS NOMINMAX RENDER_NODES_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/nodes" USTC_CG_BACKEND_GL
+		EXTRA_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/source
+	)
+endif()

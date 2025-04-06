@@ -99,6 +99,12 @@ void UsdviewEngine::ChooseRenderer(
                 .Get<const void*>();
     }
 
+    if (available_renderers[i].GetString() == "Hd_USTC_CG_GL_RendererPlugin") {
+        renderer_ui_control =
+            renderer_->GetRendererSetting(pxr::TfToken("RenderNodeSystem"))
+                .Get<const void*>();
+    }
+
     renderer_->SetEnablePresentation(false);
     data_->nvrhi_texture = nullptr;
 
@@ -215,7 +221,13 @@ void UsdviewEngine::OnFrame(float delta_time)
     _renderParams.enableLighting = true;
     _renderParams.enableSceneMaterials = true;
     _renderParams.showRender = true;
-    _renderParams.frame = UsdTimeCode::Default();
+    if (timecode == 0)
+        _renderParams.frame = UsdTimeCode::Default();
+    else {
+        _renderParams.frame = std::min(
+            UsdTimeCode(stage_->get_current_time()),
+            UsdTimeCode(timecode - 1.0f / 30.f));
+    }
     _renderParams.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME_ON_SURFACE;
     _renderParams.colorCorrectionMode = pxr::HdxColorCorrectionTokens->disabled;
 
@@ -327,19 +339,26 @@ void UsdviewEngine::OnFrame(float delta_time)
 
 void UsdviewEngine::time_controller()
 {
-    // if (is_active_ && ImGui::IsKeyPressed(ImGuiKey_Space)) {
-    //     playing = !playing;
-    // }
-    // if (playing) {
-    //     timecode += delta_time * GlobalUsdStage::timeCodesPerSecond;
-    //     if (timecode > time_code_max) {
-    //         timecode = 0;
-    //     }
-    // }
+    timecode = stage_->get_render_time().GetValue();
+
+    if (is_active && ImGui::IsKeyReleased(ImGuiKey_Space)) {
+        playing = !playing;
+    }
+    if (playing) {
+        timecode += 1.0f / 30.f;
+
+        if (timecode > time_code_max) {
+            timecode = 0;
+        }
+        stage_->set_render_time(timecode);
+    }
 
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
     if (ImGui::SliderFloat("Time##timecode", &timecode, 0, time_code_max)) {
+        stage_->set_render_time(timecode);
     }
+
+    // TODO:  1.加个显示当前仿真进度的进度条 (current_time)
 }
 
 // std::unique_ptr<USTC_CG::PickEvent> UsdviewEngine::get_pick_event()

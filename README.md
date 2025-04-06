@@ -1,11 +1,11 @@
-# USTC_CG_2024
-The assignments for the computer graphics course for 2024，Spring.
+# USTC_CG_2025
+The 3D assignments for the computer graphics course for 2025，Spring.
+
+# 常见问题 [点击跳转->](./doc/FAQ.md)
 
 # Build
-首先执行git系列操作
+首先确保submodules都已就位
 ```
-git fetch upstream
-git merge upstream/main
 git submodule update --init --recursive
 ```
 然后安装下方依赖。
@@ -19,128 +19,168 @@ git submodule update --init --recursive
 [下载地址](https://www.python.org/downloads/release/python-31011/)
 
 安装时无需勾选Debug库，需要加入path。
-### 其他依赖
-> 本框架依赖于 https://github.com/Jerry-Shen0527/USTC_CG_2024_Dependencies 。 
->
-> 我们为使用Windows操作系统的同学提供了预构建的依赖库：https://rec.ustc.edu.cn/share/4d6a6e00-e04a-11ee-bd1a-2561f5e1cc93 ，因此使用Windows的同学无需clone Dependencies仓库，只需下载并执行以下步骤。
->
-> 下载SDK，解压到此README所在的文件夹，执行
-> ```
-> python.exe configure.py
-> ```
-> 最后使用编辑器/IDE打开文件夹，或cmake后打开sln文件，即配置完成。
 
-本框架依赖于OpenUSD和slang，你有两种方式来构建依赖
-
-- 打开终端。如果你在使用Windows，打开VS附带的**Developer PowerShell for VS 2022**，以确保默认使用的编译器是MSVC。将当前的目录记作`path/to/Framework3D`，执行以下命令
-
-  ```shell
-  # 移动到当前目录
-  cd path/to/Framework3D
-  # 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo
-  python configure.py --all --build_variant Debug
-  ```
-
-  以上的方法对网络和性能要求较高，且耗时较长
-
-- 如果你在使用Windows，可以直接下载提供的依赖库**（暂无）**，将其解压到当前文件夹，形如
-
-  ```
-  Framework3D
-  ├── SDK
-  │   ├── OpenUSD
-  │   └── slang
-  └── ...
-  ```
-  
-  然后打开终端，执行以下命令
-  
-  ```shell
-  # 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo
-  python configure.py --all --copy-only --build_variant Debug
-  ```
-
-最后用编辑器/IDE打开文件夹，或cmake后打开sln文件即配置完成
-
-### 可选
-python依赖：PyOpenGL PySide6 PySide2 numpy
+#### python依赖
+PyOpenGL PySide6 numpy
 
 推荐使用pip安装。
 
-> ## Other Platform
-> clone (recursive) https://github.com/Jerry-Shen0527/USTC_CG_2024_Dependencies
->
-> 在该系统下执行该仓库的build.py，检查过程中报出的依赖缺失，并安装该依赖在该平台的对应版本。欢迎同学们向该仓库提交跨平台构建脚本所需的改动。
->
-> 将生成的SDK文件夹转移到本目录下，并执行
-> ```
-> python.exe configure.py
-> ```
->
-> # Remark
->
-> - 由于注册节点时使用了简易的代码生成机制，添加新节点时对于namespace行的要求比较严格，需要大括号和namespace声明在同一行，需要中间有空格，且代码中不能出现中文变量和注释。类似这样
->
-> ![alt text](images/c3be37d50ecefccb00a6332d16870819.png)
->
-> - 稍后助教会对此限制进行改进。
->
-> # Update at HW5
->
-> 默认相机是第一人称相机，使用QWWASD进行交互，鼠标滚轮可以调速度。上方菜单栏可以改回第三人称相机。
->
-> # Usage (Kick Start for HW4)
->
-> 构建并执行 `engine_test.exe`
->
-> 你将看到
->
-> ![alt text](images/hw4_kick_start/image.png)
->
-> 对其进行摆放，在节点系统中单击右键，放置如图节点：
->
-> ![alt text](images/hw4_kick_start/image-1.png)
->
-> 你应该看到如图所示的结果。添加首个节点后可以点击Zoom to Content，来将节点居中（首次启动时会有一个初始缩放数值，并不能看到你添加的节点。后续使用将有正常的初始值。）
->
-> 节点和渲染窗口都可用左右键进行交互。
->
-> 读取输入网格：
-> ![alt text](images/hw4_kick_start/image-2.png)
->
-> HW4 极小曲面
-> ![alt text](images/hw4_kick_start/image-3.png)
->
-> HW4 参数化 （不完整，请按照理解完成节点图连接）
-> ![alt text](images/hw4_kick_start/image-5.png)
->
-> 实现节点时，移除节点中的"not implemeted"的throw，即可以正常执行。
->
-> # Trouble Shoot
-> 1. 添加新节点时编译错误：
->
-> - 由于注册节点时使用了简易的代码生成机制，添加新节点时对于namespace行的要求比较严格，需要大括号和namespace声明在同一行，需要中间有空格，且代码中不能出现中文变量和注释。类似这样
->
-> ![alt text](images/c3be37d50ecefccb00a6332d16870819.png)
->
-> - 稍后助教会对此限制进行改进。
->
-> 2. vscode在Release模式下无法找到SDK.
->
-> ![alt text](images/image3.png)
->
-> 3. Python version mismatch
->
-> ![alt text](images/image.png)
->
-> 检查Python版本是否为3.10，如果不是，将排在3.10之前的设法移除（修改环境变量，或将排在前面的临时改名为python_bak.exe）。
->
-> 4. 对于使用双显卡笔记本的同学，如果渲染窗口没有渲染结果且Debug Console有关于GL的报错输出，请分别测试两个显卡的运行结果，通常有一个可以正常执行。
->
-> # 自行构建依赖过程中出现的问题
->
-> 这个文档肯定需要重写，这些内容我就先放在这里，请写文档的同学自行整理
->
-> - 由于 USD 的构建脚本中 GCC 的优先级啊更高，为了保证使用 MSVC 编译，configure.py 须在 Developer PowerShell for VS 2022 下运行
->
-> - 确保 CMake 的版本为最新，3.31.5 过测
+```
+pip install PyOpenGL PySide6 numpy
+```
+
+### CMake 最新版本 (>3.31.5)
+[下载地址](https://cmake.org/download/#latest)
+
+### Vulkan SDK (为避免兼容性问题，使用1.3.296版本) (**方法2必须**)
+[下载地址](https://vulkan.lunarg.com/sdk/home)
+
+### 其他依赖
+
+本框架依赖于OpenUSD和slang，你有两种方式来构建依赖
+
+1. 打开终端。如果你在使用Windows，打开VS附带的**Developer PowerShell for VS 2022**，以确保默认使用的编译器是MSVC。在开始构建前，你需要确保已安装最新版的CMake(>3.31.5)和Python3.10.11，并将其加入环境变量。输入以下命令以测试：
+
+   ```shell
+   python --version
+   # 确保输出为Python 3.10.11
+   
+   cmake --version
+   # 确保输出为CMake version 3.31.5
+
+   echo $Env:VULKAN_SDK
+   # 确保输出为Vulkan SDK的路径
+   ```
+ 
+   确保Python和CMake的版本正确后，将以下命令中的`path/to/framework3d`替换为你的实验框架目录，然后执行：
+
+   ```shell
+   # 移动到实验框架目录
+   cd path/to/framework3d
+   # 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo，以构建全部模式依赖
+   python configure.py --all --build_variant Debug
+   ```
+
+   以上的方法对网络要求较高，且耗时较长。构建完成后会占据很大的空间，可以删除`SDK/OpenUSD/Debug/build/`和`SDK/OpenUSD/Debug/src`文件夹以释放部分空间。
+
+2. 如果你在使用Windows，可以直接下载提供的依赖库：https://rec.ustc.edu.cn/share/964f44c0-f347-11ef-a987-91f9b7ea5492 ，将其解压到当前文件夹，形如
+
+   ```
+   Framework3D
+   ├── SDK
+   │   ├── OpenUSD
+   │   └── slang
+   └── ...
+   ```
+
+   然后打开终端，执行以下命令
+
+   ```shell
+   # 构建所有模式的依赖
+   # 注意：运行后SDK文件夹内的内容将被修改，如需重新构建，请删除SDK、Binary文件夹，重新解压SDK.zip
+   python configure.py --all --copy-only --build_variant Debug Release RelWithDebInfo
+   ```
+
+最后用编辑器/IDE打开文件夹，或cmake后打开sln文件即配置完成
+
+-   例如，你可以用已经配置好CMake插件的VS Code打开文件夹，并将CMake插件中的编译器设置为MSVC(如Visual Studio Community 2022 - amd64)。
+
+-   你也可以直接用VS打开文件夹，VS会自动进行CMake操作。当CMake操作完成后，就可以在屏幕上方的下拉菜单选择启动项，选择`USTC_CG_polyscope_test`即可点击调试运行。
+
+-   你也可以用CMake Gui打开文件夹，选择生成文件夹为`build`，选择MSVC编译器，点击Configure，然后点击Generate，生成的sln文件即可用VS打开。
+
+-   你也可以在项目根目录打开终端，输入以下命令
+
+    ```shell
+    mkdir build # 创建build文件夹
+    cd build # 进入build文件夹
+    cmake .. # 生成sln文件
+    ```
+
+    然后用VS打开build文件夹下的sln文件即可。
+
+    如果你不想打开VS编译，你也可以用命令行编译：
+
+    ```shell
+    # 在build文件夹下
+    cmake --build . --config Debug
+    ```
+
+    如果你想编译Release版本，将`Debug`替换为`Release`即可。
+
+
+## Mac (macOS Catalina) + Homebrew + Xcode
+App Store 下载Xcode安装
+运行命令
+```Terminal
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer 
+```
+
+### Python 3.10.11 
+```Terminal
+brew install pyenv
+pyenv install 3.10.11
+pyenv global 3.10.11   # 全局设置为3.10.11版本
+```
+
+Terminal 设置
+```Terminal
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc  # 如果你使用zsh
+echo 'eval "$(pyenv init -)"' >> ~/.bash_profile  # 如果你使用bash
+source ~/.zshrc  # 或 source ~/.bash_profile
+```
+
+### CMake 最新版本 (>=3.31.5)
+[下载地址](https://cmake.org/download/#latest)
+```Terminal
+brew install cmake
+```
+
+### ninja 安装
+```Terminal
+brew install ninja
+```
+
+### vulkan 安装 (为避免兼容性问题，使用1.3.296版本)
+[下载地址](https://vulkan.lunarg.com/sdk/home)
+
+确保Python和CMake的版本正确
+python --version
+# 确保输出为Python 3.10.11
+```
+pip install pyside6 pyopengl jinja2 -i https://pypi.mirrors.ustc.edu.cn/simple/    # 必须安装
+cmake --version
+# 确保输出为CMake version>=3.31.5
+```
+
+将以下命令中的`path/to/framework3d`替换为你的实验框架目录，然后执行：
+```Terminal
+# 移动到实验框架目录
+cd path/to/framework3d
+# 构建Debug模式依赖，你也可以将以下命令修改为python configure.py --all --build_variant Debug Release RelWithDebInfo，以构建全部模式依赖
+python configure.py --all --build_variant Debug
+```
+在构建依赖过程中python可能会缺少一些安装包，通过 pip install ... 安装后再次构建依赖即可
+
+## 使用方法简介
+打开项目并编译后，运行`USTC_CG_polyscope_test`项目（可执行文件位于`Binaries/Debug`下），可以看到其中包含数个窗口，堆叠在右上角。如图所示：
+
+![image-1](images/image_1.png)
+
+第一次启动时，需要自行整理窗口布局，例如：
+
+![image-2](images/image_2.png)
+
+[//]: # (右击下图箭头位置“/”处，选择“Create/Mesh”即可创建一个名为`mesh_0`的目录。如图所示：)
+
+[//]: # ()
+[//]: # (![image-3]&#40;images/image_3.png&#41;)
+
+[//]: # (右击`mesh_0`，选择“Edit”即可打开节点编辑窗口。右击节点编辑窗口，选择并添加节点，例如通过`create_grid`和`write_polyscope`即可创建一个yz平面上的网格，并显示在`Polyscope Renderer`窗口中，转动视角即可看到网格，如图所示：)
+
+[//]: # ()
+[//]: # (![image-4]&#40;images/image_4.png&#41;)
+
+# NEXT……
+阅读kickstart文档，明白写作业的workflow
+

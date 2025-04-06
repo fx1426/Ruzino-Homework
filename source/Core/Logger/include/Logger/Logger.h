@@ -45,6 +45,7 @@ LOGGER_API void ConsoleApplicationMode();
 LOGGER_API void message(Severity severity, const char* fmt...);
 LOGGER_API void debug(const char* fmt...);
 LOGGER_API void info(const char* fmt...);
+LOGGER_API void info(const std::string& str);
 LOGGER_API void warning(const char* fmt...);
 LOGGER_API void error(const char* fmt...);
 LOGGER_API void fatal(const char* fmt...);

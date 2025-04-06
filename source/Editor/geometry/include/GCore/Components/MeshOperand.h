@@ -102,53 +102,165 @@ struct GEOMETRY_API MeshComponent : public GeometryComponent {
 #endif
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<float>>
-    get_vertex_scalar_quantities() const
+    [[nodiscard]] pxr::VtArray<float> get_vertex_scalar_quantity(
+        const std::string& name) const
     {
-        return vertex_scalar_quantities;
+        auto it = vertex_scalar_quantities.find(name);
+        if (it != vertex_scalar_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<float>();
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<float>> get_face_scalar_quantities()
+    [[nodiscard]] std::vector<std::string> get_vertex_scalar_quantity_names()
         const
     {
-        return face_scalar_quantities;
+        std::vector<std::string> names;
+        for (const auto& pair : vertex_scalar_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>
-    get_vertex_color_quantities() const
+    [[nodiscard]] pxr::VtArray<float> get_face_scalar_quantity(
+        const std::string& name) const
     {
-        return vertex_color_quantities;
+        auto it = face_scalar_quantities.find(name);
+        if (it != face_scalar_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<float>();
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>
-    get_face_color_quantities() const
+    [[nodiscard]] std::vector<std::string> get_face_scalar_quantity_names()
+        const
     {
-        return face_color_quantities;
+        std::vector<std::string> names;
+        for (const auto& pair : face_scalar_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>
-    get_vertex_vector_quantities() const
+    [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_vertex_color_quantity(
+        const std::string& name) const
     {
-        return vertex_vector_quantities;
+        auto it = vertex_color_quantities.find(name);
+        if (it != vertex_color_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec3f>();
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>
-    get_face_vector_quantities() const
+    [[nodiscard]] std::vector<std::string> get_vertex_color_quantity_names()
+        const
     {
-        return face_vector_quantities;
+        std::vector<std::string> names;
+        for (const auto& pair : vertex_color_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec2f>>
-    get_face_corner_parameterization_quantities() const
+    [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_face_color_quantity(
+        const std::string& name) const
     {
-        return face_corner_parameterization_quantities;
+        auto it = face_color_quantities.find(name);
+        if (it != face_color_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec3f>();
     }
 
-    [[nodiscard]] pxr::VtArray<pxr::VtArray<pxr::GfVec2f>>
-    get_vertex_parameterization_quantities() const
+    [[nodiscard]] std::vector<std::string> get_face_color_quantity_names() const
     {
-        return vertex_parameterization_quantities;
+        std::vector<std::string> names;
+        for (const auto& pair : face_color_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
     }
+
+    [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_vertex_vector_quantity(
+        const std::string& name) const
+    {
+        auto it = vertex_vector_quantities.find(name);
+        if (it != vertex_vector_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec3f>();
+    }
+
+    [[nodiscard]] std::vector<std::string> get_vertex_vector_quantity_names()
+        const
+    {
+        std::vector<std::string> names;
+        for (const auto& pair : vertex_vector_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
+    }
+
+    [[nodiscard]] pxr::VtArray<pxr::GfVec3f> get_face_vector_quantity(
+        const std::string& name) const
+    {
+        auto it = face_vector_quantities.find(name);
+        if (it != face_vector_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec3f>();
+    }
+
+    [[nodiscard]] std::vector<std::string> get_face_vector_quantity_names()
+        const
+    {
+        std::vector<std::string> names;
+        for (const auto& pair : face_vector_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
+    }
+
+    [[nodiscard]] pxr::VtArray<pxr::GfVec2f>
+    get_face_corner_parameterization_quantity(const std::string& name) const
+    {
+        auto it = face_corner_parameterization_quantities.find(name);
+        if (it != face_corner_parameterization_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec2f>();
+    }
+
+    [[nodiscard]] std::vector<std::string>
+    get_face_corner_parameterization_quantity_names() const
+    {
+        std::vector<std::string> names;
+        for (const auto& pair : face_corner_parameterization_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
+    }
+
+    [[nodiscard]] pxr::VtArray<pxr::GfVec2f>
+    get_vertex_parameterization_quantity(const std::string& name) const
+    {
+        auto it = vertex_parameterization_quantities.find(name);
+        if (it != vertex_parameterization_quantities.end()) {
+            return it->second;
+        }
+        return pxr::VtArray<pxr::GfVec2f>();
+    }
+
+    [[nodiscard]] std::vector<std::string>
+    get_vertex_parameterization_quantity_names() const
+    {
+        std::vector<std::string> names;
+        for (const auto& pair : vertex_parameterization_quantities) {
+            names.push_back(pair.first);
+        }
+        return names;
+    }
+
     void set_vertices(const pxr::VtArray<pxr::GfVec3f>& vertices)
     {
 #if USE_USD_SCRATCH_BUFFER
@@ -218,93 +330,109 @@ struct GEOMETRY_API MeshComponent : public GeometryComponent {
     }
 
     void set_vertex_scalar_quantities(
-        const pxr::VtArray<pxr::VtArray<float>>& scalar)
+        const std::map<std::string, pxr::VtArray<float>>& scalar)
     {
         vertex_scalar_quantities = scalar;
     }
 
     void set_face_scalar_quantities(
-        const pxr::VtArray<pxr::VtArray<float>>& scalar)
+        const std::map<std::string, pxr::VtArray<float>>& scalar)
     {
         face_scalar_quantities = scalar;
     }
 
     void set_vertex_color_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>& color)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec3f>>& color)
     {
         vertex_color_quantities = color;
     }
 
     void set_face_color_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>& color)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec3f>>& color)
     {
         face_color_quantities = color;
     }
 
     void set_vertex_vector_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>& vector)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec3f>>& vector)
     {
         vertex_vector_quantities = vector;
     }
 
     void set_face_vector_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec3f>>& vector)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec3f>>& vector)
     {
         face_vector_quantities = vector;
     }
 
     void set_face_corner_parameterization_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec2f>>& parameterization)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec2f>>&
+            parameterization)
     {
         face_corner_parameterization_quantities = parameterization;
     }
 
     void set_vertex_parameterization_quantities(
-        const pxr::VtArray<pxr::VtArray<pxr::GfVec2f>>& parameterization)
+        const std::map<std::string, pxr::VtArray<pxr::GfVec2f>>&
+            parameterization)
     {
         vertex_parameterization_quantities = parameterization;
     }
 
-    void add_vertex_scalar_quantity(const pxr::VtArray<float>& scalar)
+    void add_vertex_scalar_quantity(
+        const std::string& name,
+        const pxr::VtArray<float>& scalar)
     {
-        vertex_scalar_quantities.push_back(scalar);
+        vertex_scalar_quantities[name] = scalar;
     }
 
-    void add_face_scalar_quantity(const pxr::VtArray<float>& scalar)
+    void add_face_scalar_quantity(
+        const std::string& name,
+        const pxr::VtArray<float>& scalar)
     {
-        face_scalar_quantities.push_back(scalar);
+        face_scalar_quantities[name] = scalar;
     }
 
-    void add_vertex_color_quantity(const pxr::VtArray<pxr::GfVec3f>& color)
+    void add_vertex_color_quantity(
+        const std::string& name,
+        const pxr::VtArray<pxr::GfVec3f>& color)
     {
-        vertex_color_quantities.push_back(color);
+        vertex_color_quantities[name] = color;
     }
 
-    void add_face_color_quantity(const pxr::VtArray<pxr::GfVec3f>& color)
+    void add_face_color_quantity(
+        const std::string& name,
+        const pxr::VtArray<pxr::GfVec3f>& color)
     {
-        face_color_quantities.push_back(color);
+        face_color_quantities[name] = color;
     }
 
-    void add_vertex_vector_quantity(const pxr::VtArray<pxr::GfVec3f>& vector)
+    void add_vertex_vector_quantity(
+        const std::string& name,
+        const pxr::VtArray<pxr::GfVec3f>& vector)
     {
-        vertex_vector_quantities.push_back(vector);
+        vertex_vector_quantities[name] = vector;
     }
 
-    void add_face_vector_quantity(const pxr::VtArray<pxr::GfVec3f>& vector)
+    void add_face_vector_quantity(
+        const std::string& name,
+        const pxr::VtArray<pxr::GfVec3f>& vector)
     {
-        face_vector_quantities.push_back(vector);
+        face_vector_quantities[name] = vector;
     }
 
     void add_face_corner_parameterization_quantity(
+        const std::string& name,
         const pxr::VtArray<pxr::GfVec2f>& parameterization)
     {
-        face_corner_parameterization_quantities.push_back(parameterization);
+        face_corner_parameterization_quantities[name] = parameterization;
     }
 
     void add_vertex_parameterization_quantity(
+        const std::string& name,
         const pxr::VtArray<pxr::GfVec2f>& parameterization)
     {
-        vertex_parameterization_quantities.push_back(parameterization);
+        vertex_parameterization_quantities[name] = parameterization;
     }
 
 #if USE_USD_SCRATCH_BUFFER
@@ -331,17 +459,18 @@ struct GEOMETRY_API MeshComponent : public GeometryComponent {
 
     // Quantities for polyscope
     // Edge quantities are not supported because the indexing is not clear
-    pxr::VtArray<pxr::VtArray<float>> vertex_scalar_quantities;
-    pxr::VtArray<pxr::VtArray<float>> face_scalar_quantities;
+    std::map<std::string, pxr::VtArray<float>> vertex_scalar_quantities;
+    std::map<std::string, pxr::VtArray<float>> face_scalar_quantities;
     // pxr::VtArray<pxr::VtArray<float>> edge_scalar_quantities;
     // pxr::VtArray<pxr::VtArray<float>> halfedge_scalar_quantities
-    pxr::VtArray<pxr::VtArray<pxr::GfVec3f>> vertex_color_quantities;
-    pxr::VtArray<pxr::VtArray<pxr::GfVec3f>> face_color_quantities;
-    pxr::VtArray<pxr::VtArray<pxr::GfVec3f>> vertex_vector_quantities;
-    pxr::VtArray<pxr::VtArray<pxr::GfVec3f>> face_vector_quantities;
-    pxr::VtArray<pxr::VtArray<pxr::GfVec2f>>
+    std::map<std::string, pxr::VtArray<pxr::GfVec3f>> vertex_color_quantities;
+    std::map<std::string, pxr::VtArray<pxr::GfVec3f>> face_color_quantities;
+    std::map<std::string, pxr::VtArray<pxr::GfVec3f>> vertex_vector_quantities;
+    std::map<std::string, pxr::VtArray<pxr::GfVec3f>> face_vector_quantities;
+    std::map<std::string, pxr::VtArray<pxr::GfVec2f>>
         face_corner_parameterization_quantities;
-    pxr::VtArray<pxr::VtArray<pxr::GfVec2f>> vertex_parameterization_quantities;
+    std::map<std::string, pxr::VtArray<pxr::GfVec2f>>
+        vertex_parameterization_quantities;
     // pxr::VtArray<pxr::VtArray<pxr::GfVec3f>> misc_quantities_nodes;
     // pxr::VtArray<pxr::VtArray<pxr::GfVec2i>> misc_quantities_edges;
 };
