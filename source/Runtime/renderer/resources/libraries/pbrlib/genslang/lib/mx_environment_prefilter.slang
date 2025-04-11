@@ -6,12 +6,11 @@ struct EnvironmentPrefilterData {
     int u_envRadianceMips;
     int u_envIrradianceMips;
 };
-Texture2D u_envRadiance : register(t0, space3);
-SamplerState u_envRadiance_sampler : register(s0, space3);
-Texture2D u_envIrradiance : register(t1, space3);
-SamplerState u_envIrradiance_sampler : register(s1, space3);
-ConstantBuffer<EnvironmentPrefilterData> u_envPrefilterData
-    : register(b0, space3);
+Texture2D u_envRadiance : register(t0);
+SamplerState u_envRadiance_sampler : register(s0);
+Texture2D u_envIrradiance : register(t1);
+SamplerState u_envIrradiance_sampler : register(s1);
+ConstantBuffer<EnvironmentPrefilterData> u_envPrefilterData : register(b0);
 
 // Return the mip level associated with the given alpha in a prefiltered
 // environment.

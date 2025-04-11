@@ -176,6 +176,8 @@ void UsdviewEngine::copy_to_presentation()
     if (hgi_texture) {
         nvrhi::TextureDesc tex_desc =
             RHI::ConvertToNvrhiTextureDesc(hgi_texture->GetDescriptor());
+        tex_desc.keepInitialState = true;
+        tex_desc.initialState = nvrhi::ResourceStates::CopyDest;
 
         pxr::HgiBlitCmdsUniquePtr blitCmds = hgi->CreateBlitCmds();
         pxr::HgiTextureGpuToCpuOp copyOp;

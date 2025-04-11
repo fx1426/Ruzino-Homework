@@ -24,11 +24,13 @@ struct RGBSpectrum : ISpectrum
     __init(float v)
     {
         data = float3(v, v, v);
+        padding = 0;
     }
 
     __init(float3 rgb)
     {
         data = rgb;
+        padding = 0;
     }
 
     float3 data;

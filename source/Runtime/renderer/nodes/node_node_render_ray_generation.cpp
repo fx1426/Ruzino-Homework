@@ -1,4 +1,4 @@
-﻿
+
 #include "RHI/internal/resources.hpp"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
@@ -88,12 +88,15 @@ NODE_EXECUTION_FUNCTION(node_render_ray_generation)
     auto binding_layout = resource_allocator.create(binding_layout_desc_vec[0]);
     MARK_DESTROY_NVRHI_RESOURCE(binding_layout);
 
-    auto camera_param_cb = resource_allocator.create(
-        BufferDesc{ .byteSize = sizeof(CameraParameters),
-                    .debugName = "cameraParamCB",
-                    .isConstantBuffer = true,
-                    .initialState = nvrhi::ResourceStates::ConstantBuffer,
-                    .cpuAccess = nvrhi::CpuAccessMode::Write });
+    BufferDesc desc;
+
+    desc.byteSize = sizeof(CameraParameters);
+    desc.debugName = "cameraParamCB";
+    desc.isConstantBuffer = true;
+    desc.keepInitialState = true;
+    desc.initialState = nvrhi::ResourceStates::ConstantBuffer;
+
+    auto camera_param_cb = resource_allocator.create(desc);
     MARK_DESTROY_NVRHI_RESOURCE(camera_param_cb);
 
     ComputePipelineDesc pipeline_desc;

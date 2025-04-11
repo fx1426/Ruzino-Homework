@@ -53,8 +53,7 @@ NODE_EXECUTION_FUNCTION(scene_ray_launch)
             .setByteSize(sizeof(unsigned))
             .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
             .setCanHaveUAVs(true)
-            .setKeepInitialState(true)
-            .setCpuAccess(nvrhi::CpuAccessMode::Read);
+            .setKeepInitialState(true);
     auto hit_counter_buffer =
         resource_allocator.create(hit_counter_buffer_desc);
     MARK_DESTROY_NVRHI_RESOURCE(hit_counter_buffer);
@@ -65,8 +64,7 @@ NODE_EXECUTION_FUNCTION(scene_ray_launch)
             .setByteSize(sizeof(unsigned))
             .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
             .setCanHaveUAVs(true)
-            .setKeepInitialState(true)
-            .setCpuAccess(nvrhi::CpuAccessMode::Read);
+            .setKeepInitialState(true);
     auto miss_counter_buffer =
         resource_allocator.create(miss_counter_buffer_desc);
     MARK_DESTROY_NVRHI_RESOURCE(miss_counter_buffer);

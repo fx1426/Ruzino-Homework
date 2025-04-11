@@ -103,7 +103,7 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     program_vars["u_envRadiance"] = u_envRadiance;
     program_vars["u_envIrradiance"] = u_envIrradiance;
 
-    auto refraction_twosided = create_constant_buffer(params, false);
+    auto refraction_twosided = create_constant_buffer(params, 0u);
     MARK_DESTROY_NVRHI_RESOURCE(refraction_twosided);
     program_vars["u_refractionTwoSided"] = refraction_twosided;
 

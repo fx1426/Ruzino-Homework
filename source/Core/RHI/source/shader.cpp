@@ -341,7 +341,10 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         nvrhi::BindingLayoutItem item;
         item.type = convertBindingTypeToResourceType(type, resource_shape);
         item.slot = index;
-        modify_vulkan_binding_shift(item);
+
+        if (RHI::get_backend() == nvrhi::GraphicsAPI::VULKAN) {
+            modify_vulkan_binding_shift(item);
+        }
         if (layout_vector.size() < space + 1) {
             layout_vector.resize(space + 1);
             indices.resize(space + 1, 0);
@@ -725,13 +728,15 @@ void ShaderFactory::SlangCompile(
         CHECK_REPORTED_ERROR();
         assert(result == SLANG_OK);
     }
-    else {
+    else
+
+    {
         result = linkedProgram->getTargetCode(
             0, ppResultBlob.writeRef(), diagnostics.writeRef());
 
+        CHECK_REPORTED_ERROR();
         assert(ppResultBlob);
 
-        CHECK_REPORTED_ERROR();
         assert(result == SLANG_OK);
     }
 

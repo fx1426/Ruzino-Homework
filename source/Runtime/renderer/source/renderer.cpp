@@ -25,6 +25,32 @@ Hd_USTC_CG_Renderer::~Hd_USTC_CG_Renderer()
     executor->reset_allocator();
 }
 
+static TextureHandle create_empty_texture(
+    const pxr::GfVec2i& size,
+    nvrhi::Format format = nvrhi::Format::RGBA32_FLOAT)
+{
+    nvrhi::TextureDesc desc =
+        nvrhi::TextureDesc{}
+            .setWidth(size[0])
+            .setHeight(size[1])
+            .setFormat(format)
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
+            .setKeepInitialState(true)
+            .setIsUAV(true);
+    auto d = RHI::get_device();
+    auto texture = d->createTexture(desc);
+
+    auto commandList = d->createCommandList();
+    commandList->open();
+    commandList->clearTextureFloat(
+        texture, nvrhi::AllSubresources, nvrhi::Color(0.0f, 0.0f, 0.0f, 0.0f));
+    commandList->close();
+    d->executeCommandList(commandList);
+    d->waitForIdle();
+
+    return texture;
+}
+
 void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
 {
     _completedSamples.store(0);
@@ -115,6 +141,11 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             rb->Present(texture);
 #endif
             rb->SetConverged(true);
+        }
+
+        else if (!render_param->presented_texture) {
+            render_param->presented_texture = create_empty_texture(
+                GfVec2i{ 16, 16 }, nvrhi::Format::RGBA32_FLOAT);
         }
     }
 
