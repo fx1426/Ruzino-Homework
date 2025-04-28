@@ -248,7 +248,7 @@ nvrhi::BufferHandle IntersectToBuffer(
     ProgramDesc desc;
     desc.shaderType = nvrhi::ShaderType::AllRayTracing;
     desc.set_path(GEOM_COMPUTE_SHADER_DIR "intersection.slang");
-    auto program = shader_factory->createProgram(desc);
+    auto program = resource_allocator.create(desc);
 
     // Create output buffer for intersection results
     auto result_buffer = resource_allocator.create(

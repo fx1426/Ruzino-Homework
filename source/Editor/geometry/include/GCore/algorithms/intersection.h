@@ -16,7 +16,6 @@ GEOMETRY_API ResourceAllocator& get_resource_allocator();
 struct GEOMETRY_API PointSample {
     pxr::GfVec3f position;
     pxr::GfVec3f normal;
-    pxr::GfVec3f tangent;
     pxr::GfVec2f uv;
     bool valid;
 };

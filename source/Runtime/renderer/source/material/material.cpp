@@ -192,6 +192,7 @@ void Hd_USTC_CG_Material::BuildGPUTextures(Hd_USTC_CG_RenderParam* render_param)
 
                 desc.initialState = nvrhi::ResourceStates::ShaderResource;
                 desc.isRenderTarget = false;
+                desc.keepInitialState = true;
 
                 texture_resource.second.texture = device->createTexture(desc);
 

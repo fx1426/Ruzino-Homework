@@ -36,7 +36,7 @@ NODE_EXECUTION_FUNCTION(create_grid)
             float v = static_cast<float>(j) / (resolution - 1);
             points.push_back(pxr::GfVec3f(0, y, z));
             texcoord.push_back(pxr::GfVec2f(u, v));
-            normals.push_back(pxr::GfVec3f(1.0f, 0.0f, 0.0f));
+            normals.push_back(-pxr::GfVec3f(1.0f, 0.0f, 0.0f));
         }
     }
 

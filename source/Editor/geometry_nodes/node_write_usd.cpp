@@ -35,7 +35,7 @@ bool legal(const std::string& string)
         return false;
     }
     if (std::find_if(string.begin(), string.end(), [](char val) {
-            return val == '(' || val == ')' || val == '-' || val == ',';
+            return val == '(' || val == ')' || val == ',';
         }) == string.end()) {
         return true;
     }
@@ -81,12 +81,12 @@ NODE_EXECUTION_FUNCTION(write_usd)
             usdgeom.CreateFaceVertexCountsAttr().Set(
                 mesh->get_face_vertex_counts(), time);
             usdgeom.CreateFaceVertexIndicesAttr().Set(
-                mesh->get_face_vertex_indices());
+                mesh->get_face_vertex_indices(), time);
 
             auto primVarAPI = pxr::UsdGeomPrimvarsAPI(usdgeom);
 
             if (!mesh->get_normals().empty()) {
-                usdgeom.CreateNormalsAttr().Set(mesh->get_normals());
+                usdgeom.CreateNormalsAttr().Set(mesh->get_normals(), time);
                 usdgeom.SetNormalsInterpolation(pxr::UsdGeomTokens->vertex);
                 usdgeom.CreateSubdivisionSchemeAttr().Set(
                     pxr::UsdGeomTokens->none);
@@ -309,7 +309,7 @@ NODE_EXECUTION_FUNCTION(write_usd)
 
             auto material =
                 material_component->define_material(stage, material_path);
-            // usdgeom.GetPrim().ApplyAPI(pxr::UsdShadeTokens->MaterialBindingAPI);
+            usdgeom.GetPrim().ApplyAPI(pxr::UsdShadeTokens->MaterialBindingAPI);
             pxr::UsdShadeMaterialBindingAPI(usdgeom).Bind(material);
         }
         else {

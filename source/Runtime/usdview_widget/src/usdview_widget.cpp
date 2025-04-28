@@ -71,6 +71,10 @@ UsdviewEngine::UsdviewEngine(Stage* stage) : stage_(stage)
             pxr::UsdGeomCamera::Define(
                 stage_->get_usd_stage(), pxr::SdfPath("/FreeCamera"));
 
+        free_camera_->CreateFocusDistanceAttr().Set(10.0f);
+        free_camera_->CreateClippingRangeAttr(
+            pxr::VtValue(pxr::GfVec2f{ 1.f, 2000.f }));
+
         static_cast<FirstPersonCamera*>(free_camera_.get())
             ->LookAt(
                 pxr::GfVec3d{ -10, 0, 0 },
@@ -80,10 +84,6 @@ UsdviewEngine::UsdviewEngine(Stage* stage) : stage_(stage)
     auto plugins = renderer_->GetRendererPlugins();
 
     ChooseRenderer(plugins, engine_status.renderer_id);
-
-    free_camera_->CreateFocusDistanceAttr().Set(10.0f);
-    free_camera_->CreateClippingRangeAttr(
-        pxr::VtValue(pxr::GfVec2f{ 1.f, 2000.f }));
 }
 
 void UsdviewEngine::ChooseRenderer(

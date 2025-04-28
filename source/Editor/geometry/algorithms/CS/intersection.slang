@@ -11,7 +11,6 @@ RaytracingAccelerationStructure SceneBVH;
 struct RayPayload {
     float3 position;
     float3 normal;
-    float3 tangent;
     float2 texCoord;
     bool valid;
 };
@@ -50,6 +49,7 @@ void RayGen()
     // Store result
     g_Result[linearIndex].position = payload.position;
     g_Result[linearIndex].normal = payload.normal;
+    g_Result[linearIndex].texCoord = payload.texCoord;
     g_Result[linearIndex].valid = payload.valid;
 }
 
