@@ -298,7 +298,6 @@ nvrhi::BufferHandle IntersectToBuffer(
     raytracing_context.finish();
 
     // Clean up resources except for result_buffer
-    resource_allocator.destroy(accel);
     resource_allocator.destroy(vertex_buffer);
     resource_allocator.destroy(mesh_cb);
     resource_allocator.destroy(program);
