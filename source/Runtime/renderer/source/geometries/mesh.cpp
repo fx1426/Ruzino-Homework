@@ -398,6 +398,18 @@ void Hd_USTC_CG_Mesh::updateTLAS(
     args.startInstanceLocation = instanceBuffer->index();
 
     draw_indirect->write_data(&args);
+    nvrhi::DrawIndirectArguments dbg_args;
+
+    draw_indirect->read_data(&dbg_args);
+
+    std::cout << "draw_indirect: " << std::endl;
+    std::cout << "vertexCount: " << dbg_args.vertexCount << std::endl;
+    std::cout << "instanceCount: " << dbg_args.instanceCount << std::endl;
+
+    std::cout << "startVertexLocation: " << dbg_args.startVertexLocation
+              << std::endl;
+    std::cout << "startInstanceLocation: " << dbg_args.startInstanceLocation
+              << std::endl;
 }
 
 void Hd_USTC_CG_Mesh::_InitRepr(

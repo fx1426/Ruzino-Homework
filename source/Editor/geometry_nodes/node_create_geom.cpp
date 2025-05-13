@@ -108,6 +108,90 @@ NODE_EXECUTION_FUNCTION(create_circle)
     return true;
 }
 
+
+NODE_DECLARATION_FUNCTION(create_cylinder_section)
+{
+    b.add_input<float>("height").min(0.1).max(20).default_val(1.0);
+    b.add_input<float>("radius").min(0.1).max(20).default_val(1.0);
+    b.add_input<int>("resolution").min(2).max(100).default_val(16);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_cylinder_section)
+{
+    float height = params.get_input<float>("height");
+    float radius = params.get_input<float>("radius");
+    int resolution = params.get_input<int>("resolution");
+
+    Geometry geometry;
+    std::shared_ptr<MeshComponent> mesh =
+        std::make_shared<MeshComponent>(&geometry);
+    geometry.attach_component(mesh);
+
+    // Since height = arc length = radius * angle
+    // angle = height / radius (in radians)
+    float angle = height / radius;
+    
+    pxr::VtArray<pxr::GfVec3f> points;
+    pxr::VtArray<pxr::GfVec3f> normals;
+    pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<int> faceVertexIndices;
+    pxr::VtArray<int> faceVertexCounts;
+
+    int rows = resolution;
+    int cols = resolution;
+
+    // Generate vertices
+    for (int i = 0; i <= rows; ++i) {
+        float v = static_cast<float>(i) / rows;
+        float z = height * v;
+        
+        for (int j = 0; j <= cols; ++j) {
+            float u = static_cast<float>(j) / cols;
+            float theta = angle * u;
+            
+            // Calculate position
+            float x = radius * std::cos(theta);
+            float y = radius * std::sin(theta);
+            
+            points.push_back(pxr::GfVec3f(x, y, z));
+            
+            // Normal is pointing outward from the cylinder axis
+            pxr::GfVec3f normal(x, y, 0);
+            normal.Normalize();
+            normals.push_back(normal);
+            
+            // UV coordinates: u along the arc, v along the height
+            texcoord.push_back(pxr::GfVec2f(u, v));
+        }
+    }
+
+    // Generate faces
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            int idx0 = i * (cols + 1) + j;
+            int idx1 = idx0 + 1;
+            int idx2 = (i + 1) * (cols + 1) + j + 1;
+            int idx3 = (i + 1) * (cols + 1) + j;
+            
+            faceVertexCounts.push_back(4);
+            faceVertexIndices.push_back(idx0);
+            faceVertexIndices.push_back(idx1);
+            faceVertexIndices.push_back(idx2);
+            faceVertexIndices.push_back(idx3);
+        }
+    }
+
+    mesh->set_vertices(points);
+    mesh->set_normals(normals);
+    mesh->set_face_vertex_indices(faceVertexIndices);
+    mesh->set_face_vertex_counts(faceVertexCounts);
+    mesh->set_texcoords_array(texcoord);
+
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
 NODE_DECLARATION_FUNCTION(create_spiral)
 {
     b.add_input<int>("resolution").min(1).max(100).default_val(10);
@@ -448,5 +532,4 @@ NODE_EXECUTION_FUNCTION(create_point)
     return true;
 }
 
-NODE_DECLARATION_UI(create_geom);
 NODE_DEF_CLOSE_SCOPE

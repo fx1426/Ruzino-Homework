@@ -33,6 +33,8 @@ void RayGen()
     uint2 pixel = inPixelTarget[DispatchRaysIndex().x];
     RayInfo ray = rays[DispatchRaysIndex().x];
 
+    return;
+
     RayPayload payload;
     payload.color = float3(0, 0, 0);
     payload.throughput = float3(1, 1, 1);
