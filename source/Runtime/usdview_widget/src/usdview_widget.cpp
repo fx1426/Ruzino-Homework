@@ -229,6 +229,7 @@ void UsdviewEngine::OnFrame(float delta_time)
     _renderParams.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME_ON_SURFACE;
     _renderParams.colorCorrectionMode = pxr::HdxColorCorrectionTokens->disabled;
 
+    _renderParams.clearColor = GfVec4f(1.f, 1.f, 1.f, 1.f);
     _renderParams.clearColor = GfVec4f(0.2f, 0.2f, 0.2f, 1.f);
 
     for (int i = 0; i < free_camera_->GetCamera(UsdTimeCode::Default())
@@ -244,10 +245,11 @@ void UsdviewEngine::OnFrame(float delta_time)
     auto cam_pos = frustum.GetPosition();
     lights[0].SetPosition(GfVec4f{
         float(cam_pos[0]), float(cam_pos[1]), float(cam_pos[2]), 1.0f });
-    lights[0].SetAmbient(GfVec4f(0.6, 0.6, 0.6, 1));
+    lights[0].SetAmbient(GfVec4f(0.8, 0.8, 0.8, 1));
     lights[0].SetDiffuse(GfVec4f(1.0f));
+    lights[0].SetSpecular(GfVec4f(1.0f));
     GlfSimpleMaterial material;
-    float kA = 0.4f;
+    float kA = 6.8f;    
     float kS = 0.4f;
     float shiness = 0.8f;
     material.SetDiffuse(GfVec4f(kA, kA, kA, 1.0f));

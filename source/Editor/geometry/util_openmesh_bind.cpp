@@ -7,11 +7,6 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
     auto openmesh = std::make_shared<PolyMesh>();
     auto topology = mesh_oeprand->get_component<MeshComponent>();
 
-    // Request vertex normals, texcoords, and colors
-    openmesh->request_vertex_normals();
-    openmesh->request_vertex_texcoords2D();
-    openmesh->request_vertex_colors();
-
     // Get mesh data
     const auto& vertices = topology->get_vertices();
     for (const auto& vv : vertices) {
@@ -35,6 +30,14 @@ std::shared_ptr<PolyMesh> operand_to_openmesh(Geometry* mesh_oeprand)
         hasTexcoords && (texcoords.size() == vertices.size());
     bool hasColors = !colors.empty();
     bool perVertexColors = hasColors && (colors.size() == vertices.size());
+
+    // Request vertex normals, texcoords, and colors only when they exist
+    if (hasNormals)
+        openmesh->request_vertex_normals();
+    if (hasTexcoords)
+        openmesh->request_vertex_texcoords2D();
+    if (hasColors)
+        openmesh->request_vertex_colors();
 
     int vertexIndex = 0;
     for (int i = 0; i < faceVertexCounts.size(); i++) {

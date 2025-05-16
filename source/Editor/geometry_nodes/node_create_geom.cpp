@@ -546,4 +546,215 @@ NODE_EXECUTION_FUNCTION(create_point)
     return true;
 }
 
+NODE_DECLARATION_FUNCTION(create_wave_mesh)
+{
+    b.add_input<int>("resolution").min(2).max(100).default_val(16);
+    b.add_input<float>("size").min(0.1).max(20).default_val(1.0);
+    b.add_input<float>("period_count").min(0.1).max(10).default_val(2.0);
+    b.add_input<float>("wave_height").min(0.1).max(5).default_val(0.5);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_wave_mesh)
+{
+    int resolution = params.get_input<int>("resolution");
+    float size = params.get_input<float>("size");
+    float period_count = params.get_input<float>("period_count");
+    float wave_height = params.get_input<float>("wave_height");
+
+    Geometry geometry;
+    std::shared_ptr<MeshComponent> mesh =
+        std::make_shared<MeshComponent>(&geometry);
+    geometry.attach_component(mesh);
+
+    pxr::VtArray<pxr::GfVec3f> points;
+    pxr::VtArray<pxr::GfVec3f> normals;
+    pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<int> faceVertexIndices;
+    pxr::VtArray<int> faceVertexCounts;
+
+    // Calculate grid step size
+    float step = size / (resolution - 1);
+
+    // Generate vertices
+    for (int i = 0; i < resolution; ++i) {
+        for (int j = 0; j < resolution; ++j) {
+            float x = i * step;
+            float y = j * step;
+
+            // One side is straight (x-axis), z-axis has wave pattern based on
+            // y-coordinate
+            float z =
+                wave_height * std::sin(y * period_count * 2.0f * M_PI / size);
+
+            points.push_back(pxr::GfVec3f(x, y, z));
+
+            // Calculate normal (using partial derivatives)
+            float dz_dy = wave_height * (2.0f * M_PI * period_count / size) *
+                          std::cos(y * period_count * 2.0f * M_PI / size);
+            pxr::GfVec3f normal(-0.0f, -dz_dy, 1.0f);
+            normal.Normalize();
+            normals.push_back(-normal);
+
+            // UV coordinates
+            float u = static_cast<float>(i) / (resolution - 1);
+            float v = static_cast<float>(j) / (resolution - 1);
+            texcoord.push_back(pxr::GfVec2f(u, v));
+        }
+    }
+
+    // Generate faces
+    for (int i = 0; i < resolution - 1; ++i) {
+        for (int j = 0; j < resolution - 1; ++j) {
+            faceVertexCounts.push_back(4);
+
+            // Quad vertices in counter-clockwise order
+            int baseIdx = i * resolution + j;
+            faceVertexIndices.push_back(baseIdx);
+            faceVertexIndices.push_back(baseIdx + 1);
+            faceVertexIndices.push_back(baseIdx + resolution + 1);
+            faceVertexIndices.push_back(baseIdx + resolution);
+        }
+    }
+
+    mesh->set_vertices(points);
+    mesh->set_normals(normals);
+    mesh->set_face_vertex_indices(faceVertexIndices);
+    mesh->set_face_vertex_counts(faceVertexCounts);
+    mesh->set_texcoords_array(texcoord);
+
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
+NODE_DECLARATION_FUNCTION(create_diamond)
+{
+    b.add_input<float>("height").min(0.1).max(20).default_val(2.0);
+    b.add_input<float>("section height").min(0.1).max(20).default_val(0.8);
+    b.add_input<float>("top width").min(0.1).max(20).default_val(1.0);
+    b.add_input<float>("section width").min(0.1).max(20).default_val(1.2);
+    b.add_input<int>("segments").min(3).max(32).default_val(8);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_diamond)
+{
+    float height = params.get_input<float>("height");
+    float sectionHeight = params.get_input<float>("section height");
+    float topWidth = params.get_input<float>("top width");
+    float sectionWidth = params.get_input<float>("section width");
+    int segments = params.get_input<int>("segments");
+
+    Geometry geometry;
+    std::shared_ptr<MeshComponent> mesh =
+        std::make_shared<MeshComponent>(&geometry);
+    geometry.attach_component(mesh);
+
+    pxr::VtArray<pxr::GfVec3f> points;
+    pxr::VtArray<pxr::GfVec3f> normals;
+    pxr::VtArray<pxr::GfVec2f> texcoord;
+    pxr::VtArray<int> faceVertexIndices;
+    pxr::VtArray<int> faceVertexCounts;
+
+    // Calculate positions for top, middle, and bottom vertices
+    float halfHeight = height / 2.0f;
+    float middleZ = halfHeight - sectionHeight;
+    float bottomZ = -halfHeight;
+
+    // Add top vertex
+    points.push_back(pxr::GfVec3f(0.0f, 0.0f, halfHeight));
+    texcoord.push_back(pxr::GfVec2f(0.5f, 1.0f));
+
+    // Add middle ring vertices
+    for (int i = 0; i < segments; ++i) {
+        float angle = 2.0f * M_PI * i / segments;
+        float x = sectionWidth * std::cos(angle);
+        float y = sectionWidth * std::sin(angle);
+        points.push_back(pxr::GfVec3f(x, y, middleZ));
+
+        // Calculate UV coordinates
+        float u = static_cast<float>(i) / segments;
+        texcoord.push_back(pxr::GfVec2f(u, 0.66f));
+    }
+
+    // Add bottom ring vertices
+    for (int i = 0; i < segments; ++i) {
+        float angle = 2.0f * M_PI * i / segments;
+        float x = topWidth * std::cos(angle);
+        float y = topWidth * std::sin(angle);
+        points.push_back(pxr::GfVec3f(x, y, bottomZ));
+
+        // Calculate UV coordinates
+        float u = static_cast<float>(i) / segments;
+        texcoord.push_back(pxr::GfVec2f(u, 0.0f));
+    }
+
+    // Add bottom vertex
+    points.push_back(pxr::GfVec3f(0.0f, 0.0f, bottomZ));
+    texcoord.push_back(pxr::GfVec2f(0.5f, 0.0f));
+
+    // Create top pyramid faces
+    for (int i = 0; i < segments; ++i) {
+        int next = (i + 1) % segments;
+
+        faceVertexCounts.push_back(3);
+        faceVertexIndices.push_back(0);         // top vertex
+        faceVertexIndices.push_back(1 + i);     // current middle vertex
+        faceVertexIndices.push_back(1 + next);  // next middle vertex
+
+        // Compute per-face normal for top pyramid
+        pxr::GfVec3f v1 = points[1 + i] - points[0];
+        pxr::GfVec3f v2 = points[1 + next] - points[0];
+        pxr::GfVec3f faceNormal = pxr::GfCross(v1, v2).GetNormalized();
+        normals.push_back(faceNormal);
+    }
+
+    // Create middle section faces
+    for (int i = 0; i < segments; ++i) {
+        int next = (i + 1) % segments;
+
+        faceVertexCounts.push_back(4);
+        faceVertexIndices.push_back(1 + i);     // current middle vertex
+        faceVertexIndices.push_back(1 + next);  // next middle vertex
+        faceVertexIndices.push_back(1 + segments + next);  // next bottom vertex
+        faceVertexIndices.push_back(1 + segments + i);  // current bottom vertex
+
+        // Compute per-face normal for middle section
+        pxr::GfVec3f v1 = points[1 + next] - points[1 + i];
+        pxr::GfVec3f v2 = points[1 + segments + i] - points[1 + i];
+        pxr::GfVec3f faceNormal = pxr::GfCross(v1, v2).GetNormalized();
+        normals.push_back(faceNormal);
+    }
+
+    // Create bottom pyramid faces
+    int bottomVertex = points.size() - 1;
+    for (int i = 0; i < segments; ++i) {
+        int next = (i + 1) % segments;
+
+        faceVertexCounts.push_back(3);
+        faceVertexIndices.push_back(bottomVertex);  // bottom vertex
+        faceVertexIndices.push_back(
+            1 + segments + next);  // next bottom ring vertex
+        faceVertexIndices.push_back(
+            1 + segments + i);  // current bottom ring vertex
+
+        // Compute per-face normal for bottom pyramid
+        pxr::GfVec3f v1 = points[1 + segments + next] - points[bottomVertex];
+        pxr::GfVec3f v2 = points[1 + segments + i] - points[bottomVertex];
+        pxr::GfVec3f faceNormal =
+            pxr::GfCross(v2, v1)
+                .GetNormalized();  // Reverse order for correct orientation
+        normals.push_back(faceNormal);
+    }
+
+    mesh->set_vertices(points);
+    mesh->set_face_vertex_indices(faceVertexIndices);
+    mesh->set_face_vertex_counts(faceVertexCounts);
+    mesh->set_normals(normals);
+    mesh->set_texcoords_array(texcoord);
+
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
 NODE_DEF_CLOSE_SCOPE

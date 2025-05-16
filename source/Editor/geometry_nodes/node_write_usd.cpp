@@ -93,7 +93,13 @@ NODE_EXECUTION_FUNCTION(write_usd)
 
             if (!mesh->get_normals().empty()) {
                 usdgeom.CreateNormalsAttr().Set(mesh->get_normals(), time);
-                usdgeom.SetNormalsInterpolation(pxr::UsdGeomTokens->vertex);
+                if (mesh->get_normals().size() == mesh->get_vertices().size()) {
+                    usdgeom.SetNormalsInterpolation(pxr::UsdGeomTokens->vertex);
+                }
+                else {
+                    usdgeom.SetNormalsInterpolation(
+                        pxr::UsdGeomTokens->faceVarying);
+                }
                 usdgeom.CreateSubdivisionSchemeAttr().Set(
                     pxr::UsdGeomTokens->none);
             }
