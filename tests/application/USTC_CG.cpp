@@ -6,18 +6,19 @@
 #include "Logger/Logger.h"
 // #include "diff_optics/diff_optics.hpp"
 // #include "diff_optics/lens_system.hpp"
+#include "GCore/algorithms/intersection.h"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/sphere.h"
 #include "stage/stage.hpp"
 #include "usd_nodejson.hpp"
-#include "GCore/algorithms/intersection.h"
 #include "widgets/usdtree/usd_fileviewer.h"
 #include "widgets/usdview/usdview_widget.hpp"
+
 using namespace USTC_CG;
 
-int main()
+int main(int argc, char* argv[])
 {
 #ifdef _DEBUG
     log::SetMinSeverity(Severity::Debug);
@@ -25,7 +26,18 @@ int main()
     log::EnableOutputToConsole(true);
     auto window = std::make_unique<Window>();
 
-    auto stage = create_global_stage();
+    // Check for command line arguments to specify USD file
+    std::unique_ptr<Stage> stage;
+    if (argc > 1) {
+        // Use custom stage path from command line
+        std::string stage_path = argv[1];
+        stage = create_custom_global_stage(stage_path);
+    }
+    else {
+        // Use default stage
+        stage = create_global_stage();
+    }
+
     init(stage.get());
 
 #ifdef REAL_TIME

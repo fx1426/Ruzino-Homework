@@ -335,9 +335,9 @@ void Stage::import_materialx(
     MaterialX::FilePath path(path_string);
 }
 
-std::unique_ptr<Stage> create_global_stage()
+std::unique_ptr<Stage> create_global_stage(const std::string& usd_name)
 {
-    return std::make_unique<Stage>();
+    return std::make_unique<Stage>(usd_name);
 }
 
 std::unique_ptr<Stage> create_custom_global_stage(const std::string& filename)

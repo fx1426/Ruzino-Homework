@@ -118,7 +118,7 @@ class STAGE_API Stage {
         animatable_prims;
 };
 
-STAGE_API std::unique_ptr<Stage> create_global_stage();
+STAGE_API std::unique_ptr<Stage> create_global_stage(const std::string& usd_name = "../../Assets/stage.usdc" );
 STAGE_API std::unique_ptr<Stage> create_custom_global_stage(
     const std::string& filename);
 USTC_CG_NAMESPACE_CLOSE_SCOPE
