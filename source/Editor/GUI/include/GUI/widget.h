@@ -61,9 +61,11 @@ class GUI_API IWidget {
     unsigned height = 600;
 
     bool size_changed = true;
-    virtual bool Begin();
+    virtual bool Begin();    virtual void SetNodeSystemDirty(bool dirty = true);
 
-    virtual void SetNodeSystemDirty(bool dirty = true);
+    // Menu bar support
+    virtual bool HasMenuBar() const { return false; }
+    virtual void DrawMenuBar() {}
 
    private:
     bool is_open = true;

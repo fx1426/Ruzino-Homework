@@ -245,13 +245,19 @@ void DockingImguiRenderer::buildUI()
     ImGui::DockSpace(
         dockspace_id,
         ImVec2(0.0f, 0.0f),
-        ImGuiDockNodeFlags_PassthruCentralNode);
-
-    std::vector<IWidget*> widget_to_remove;
+        ImGuiDockNodeFlags_PassthruCentralNode);    std::vector<IWidget*> widget_to_remove;
     for (auto& widget : widgets_) {
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         if (widget->Begin()) {
             ImGui::PopStyleVar(1);
+
+            // Draw widget-specific menu bar if it has one
+            if (widget->HasMenuBar()) {
+                if (ImGui::BeginMenuBar()) {
+                    widget->DrawMenuBar();
+                    ImGui::EndMenuBar();
+                }
+            }
 
             if (widget->SizeChanged()) {
                 widget->BackBufferResized(widget->Width(), widget->Height(), 1);
@@ -381,6 +387,7 @@ IWidget* Window::get_widget(const std::string& unique_name) const
             return widget.get();
         }
     }
+    return nullptr;
 }
 
 std::vector<IWidget*> Window::get_widgets() const

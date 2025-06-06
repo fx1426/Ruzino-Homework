@@ -86,6 +86,7 @@ else()
 endif()
 
 set(pxr_DIR SDK/OpenUSD/${SDK_FOLDER})
+message("Looking for OpenUSD in ${pxr_DIR}")
 find_package(pxr)
 
 if(pxr_FOUND)
