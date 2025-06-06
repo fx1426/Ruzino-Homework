@@ -1,10 +1,8 @@
 #pragma once
 
-#include <pxr/usd/sdf/path.h>
-#include <pxr/usd/usd/stage.h>
-
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "GCore/api.h"
 

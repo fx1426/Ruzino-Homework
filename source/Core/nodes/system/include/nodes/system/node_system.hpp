@@ -12,7 +12,7 @@ class NODES_SYSTEM_API NodeSystem {
     void init(std::unique_ptr<NodeTree> tree);
     virtual void set_node_tree_executor(
         std::unique_ptr<NodeTreeExecutor> executor);
-    virtual bool load_configuration(const std::filesystem::path& config) = 0;
+    virtual bool load_configuration(const std::string& config) = 0;
     virtual ~NodeSystem();
     void finalize();
 

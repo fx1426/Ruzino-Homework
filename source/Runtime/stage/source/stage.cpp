@@ -13,10 +13,11 @@
 #include <pxr/usd/usdMtlx/utils.h>
 #include <pxr/usd/usdShade/material.h>
 
+#include <filesystem>
+
 #include "MaterialXFormat/File.h"
 #include "MaterialXFormat/Util.h"
 #include "animation.h"
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 #define SAVE_ALL_THE_TIME 0
 

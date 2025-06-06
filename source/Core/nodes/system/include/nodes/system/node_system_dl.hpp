@@ -58,7 +58,7 @@ class NODES_SYSTEM_API NodeDynamicLoadingSystem : public NodeSystem {
    public:
     NodeDynamicLoadingSystem();
     ~NodeDynamicLoadingSystem() override;
-    bool load_configuration(const std::filesystem::path& config) override;
+    bool load_configuration(const std::string& config) override;
 
    private:
     std::unordered_map<std::string, std::unique_ptr<DynamicLibraryLoader>>

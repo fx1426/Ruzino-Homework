@@ -13,6 +13,7 @@
 #include <pxr/usd/usdSkel/cache.h>
 #include <pxr/usd/usdSkel/skeleton.h>
 
+#include <filesystem>
 #include <memory>
 
 #include "GCore/Components/MaterialComponent.h"
@@ -20,7 +21,6 @@
 #include "GCore/Components/SkelComponent.h"
 #include "GCore/Components/XformComponent.h"
 #include "geom_node_base.h"
-#include "pxr/usd/usdSkel/animation.h"
 #include "pxr/usd/usdSkel/bindingAPI.h"
 #include "pxr/usd/usdSkel/skeletonQuery.h"
 

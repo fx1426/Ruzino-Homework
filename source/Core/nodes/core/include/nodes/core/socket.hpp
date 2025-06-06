@@ -3,7 +3,7 @@
 #include <set>
 
 #include "id.hpp"
-#include "io/json.hpp"
+#include "io/json_fwd.hpp"
 #include "nodes/core/api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE

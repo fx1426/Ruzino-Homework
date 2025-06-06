@@ -1,9 +1,9 @@
 #pragma once
-#include <filesystem>
-#include <memory>
+
+#include <pxr/usd/sdf/path.h>
+#include <pxr/usd/usd/prim.h>
 
 #include "GUI/widget.h"
-#include "pxr/usd/usd/stage.h"
 #include "widgets/api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE

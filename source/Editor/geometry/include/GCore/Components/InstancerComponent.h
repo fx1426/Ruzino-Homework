@@ -1,6 +1,8 @@
 #pragma once
 #include "GCore/Components.h"
 #include "GCore/api.h"
+#include "pxr/base/gf/matrix4d.h"
+#include "pxr/base/vt/array.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 

@@ -61,8 +61,9 @@ NodeDynamicLoadingSystem::~NodeDynamicLoadingSystem()
 }
 
 bool NodeDynamicLoadingSystem::load_configuration(
-    const std::filesystem::path& config_file_path)
+    const std::string& config_file_path_str)
 {
+    std::filesystem::path config_file_path(config_file_path_str);
     nlohmann::json j;
 
     std::filesystem::path executable_path;

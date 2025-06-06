@@ -2,6 +2,7 @@
 
 #include "GCore/api.h"
 #include "GOP.h"
+#include <pxr/base/gf/matrix4d.h>
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 struct GEOMETRY_API GeometryComponent {

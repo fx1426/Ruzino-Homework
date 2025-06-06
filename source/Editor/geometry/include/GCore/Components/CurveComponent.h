@@ -4,8 +4,11 @@
 #include "GCore/Components.h"
 #include "GCore/GOP.h"
 #include "pxr/usd/usdGeom/basisCurves.h"
-#include "pxr/usd/usdGeom/curves.h"
 #include "pxr/usd/usdGeom/xform.h"
+
+#if USE_USD_SCRATCH_BUFFER
+#include "pxr/usd/usdGeom/curves.h"
+#endif
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 struct GEOMETRY_API CurveComponent : public GeometryComponent {

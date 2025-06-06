@@ -1,5 +1,6 @@
 #pragma once
-#include <pxr/usd/usd/stage.h>
+#include <pxr/usd/sdf/path.h>
+#include <pxr/usd/usd/common.h>
 
 struct GeomPayload {
     pxr::UsdStageRefPtr stage;

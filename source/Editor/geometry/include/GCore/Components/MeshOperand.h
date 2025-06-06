@@ -1,14 +1,17 @@
 #pragma once
 #include <pxr/base/gf/vec3f.h>
 #include <pxr/base/vt/array.h>
-#include <pxr/usd/usdGeom/mesh.h>
 
 #include <string>
 
 #include "GCore/Components.h"
 #include "GCore/GOP.h"
-#include "pxr/usd/usdGeom/primvarsAPI.h"
 #include "pxr/usd/usdGeom/xform.h"
+
+#if USE_USD_SCRATCH_BUFFER
+#include "pxr/usd/usdGeom/primvarsAPI.h"
+#include <pxr/usd/usdGeom/mesh.h>
+#endif
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 struct GEOMETRY_API MeshComponent : public GeometryComponent {

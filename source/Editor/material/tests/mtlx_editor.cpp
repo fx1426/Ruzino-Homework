@@ -21,7 +21,7 @@ class MaterialXNodeSystem : public NodeSystem {
     {
     }
 
-    bool load_configuration(const std::filesystem::path& config) override
+    bool load_configuration(const std::string& config) override
     {
         return true;
     }

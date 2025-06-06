@@ -1,11 +1,13 @@
 #pragma once
 
 #include <pxr/base/gf/ray.h>
+#include <pxr/base/gf/vec2f.h>
+#include <pxr/base/gf/vec3f.h>
+#include <pxr/base/vt/array.h>
 
 #include "GCore/GOP.h"
 #include "GCore/api.h"
 #include "RHI/ResourceManager/resource_allocator.hpp"
-
 USTC_CG_NAMESPACE_OPEN_SCOPE
 struct MeshDesc;
 GEOMETRY_API void init_gpu_geometry_algorithms();

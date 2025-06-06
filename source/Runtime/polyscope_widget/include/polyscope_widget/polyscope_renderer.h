@@ -1,20 +1,13 @@
 #pragma once
 
 #include <chrono>
-#include <memory>
 #include <vector>
 
 #include "GUI/widget.h"
 #include "imgui.h"
-#include "polyscope/camera_parameters.h"
-#include "polyscope/polyscope.h"
 #include "polyscope/structure.h"
-#include "polyscope/types.h"
-#include "polyscope/view.h"
 #include "polyscope_widget/api.h"
 #include "pxr/base/tf/token.h"
-#include "pxr/usd/usd/stage.h"
-#include "stage/stage.hpp"
 #include "stage_listener/stage_listener.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE

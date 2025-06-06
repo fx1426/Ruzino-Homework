@@ -3,20 +3,16 @@
 #include "widgets/usdtree/usd_fileviewer.h"
 
 #include <future>
-#include <iostream>
 #include <vector>
 
 #include "GUI/ImGuiFileDialog.h"
 #include "Logger/Logger.h"
 #include "imgui.h"
-#include "imgui_internal.h"
 #include "pxr/base/gf/matrix4f.h"
-#include "pxr/base/tf/ostreamMethods.h"
 #include "pxr/base/vt/typeHeaders.h"
 #include "pxr/base/vt/visitValue.h"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/prim.h"
-#include "pxr/usd/usd/primRange.h"
 #include "pxr/usd/usd/property.h"
 #include "pxr/usd/usdGeom/xformOp.h"
 #include "stage/stage.hpp"

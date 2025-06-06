@@ -3,7 +3,7 @@
 #include "nodes/core/api.hpp"
 #include "nodes/core/node.hpp"
 #include "nodes/core/node_tree.hpp"
-
+#include "nodes/core/io/json.hpp"
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
 extern std::map<std::string, NodeTypeInfo*> conversion_node_registry;

@@ -7,7 +7,7 @@
 #include "entt/core/type_info.hpp"
 #include "entt/meta/meta.hpp"
 #include "id.hpp"
-#include "io/json.hpp"
+#include "io/json_fwd.hpp"
 #include "nodes/core/api.h"
 #include "socket.hpp"
 
@@ -58,7 +58,7 @@ struct NODES_CORE_API Node {
     bool has_available_linked_inputs = false;
     bool has_available_linked_outputs = false;
 
-    mutable nlohmann::json storage_info;
+    mutable std::string storage_info;
     mutable entt::meta_any storage;
     mutable std::string error_message;
 

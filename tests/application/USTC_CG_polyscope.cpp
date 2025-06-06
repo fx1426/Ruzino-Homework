@@ -2,12 +2,12 @@
 #include <filesystem>
 #include <memory>
 #include <regex>
-#include "cmdparser.hpp"
 
 #include "GCore/GOP.h"
 #include "GCore/geom_payload.hpp"
 #include "GUI/window.h"
 #include "Logger/Logger.h"
+#include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
 #include "polyscope_widget/polyscope_info_viewer.h"
@@ -29,9 +29,10 @@ int main(int argc, char* argv[])
     // parse the arguments
     cmdline::parser parser;
     parser.add<std::string>("stage", 's', "Custom stage file", false, "");
-    parser.add<std::string>("gtest_color", 0x00,"Useless. Don't care", false, "");
+    parser.add<std::string>(
+        "gtest_color", 0x00, "Useless. Don't care", false, "");
     parser.parse_check(argc, argv);
-    std::string stage_filename{parser.get<std::string>("stage")};
+    std::string stage_filename{ parser.get<std::string>("stage") };
     // if the length == 0, use the default stage file
 
 #ifdef _DEBUG
@@ -41,8 +42,14 @@ int main(int argc, char* argv[])
 
     std::unique_ptr<Stage> stage;
     // load the stage file
-    if (stage_filename.empty()) {stage = create_global_stage();log::info("Use the default stage file!");}
-    else {stage = create_custom_global_stage(stage_filename);log::info("Use the custom stage file! %s", stage_filename.c_str());}
+    if (stage_filename.empty()) {
+        stage = create_global_stage();
+        log::info("Use the default stage file!");
+    }
+    else {
+        stage = create_custom_global_stage(stage_filename);
+        log::info("Use the custom stage file! %s", stage_filename.c_str());
+    }
     init(stage.get());
 
     // Polyscope need to be initialized before window, or it cannot load opengl
@@ -87,10 +94,11 @@ int main(int argc, char* argv[])
             namespace fs = std::filesystem;
             std::regex submission_suffix(R"(.*_nodes_hw_submissions\.json)");
             log::info("LOADING SUBMISSIONS");
-            for (auto &itr: fs::directory_iterator(".")){
-                if (std::regex_match(itr.path().string(), submission_suffix)){
+            for (auto& itr : fs::directory_iterator(".")) {
+                if (std::regex_match(itr.path().string(), submission_suffix)) {
                     log::info("Found: %s", itr.path().string().c_str());
-                    loaded = system->load_configuration(itr.path());
+                    loaded =
+                        system->load_configuration(itr.path().generic_string());
                 }
             }
             // finished
@@ -102,7 +110,8 @@ int main(int argc, char* argv[])
             geom_global_params.stage = stage->get_usd_stage();
             geom_global_params.prim_path = json_path;
             geom_global_params.stage_filepath_ = stage->GetStagePath();
-//            log::warning("Path in the payload is %s", geom_global_params.stage_filepath_.c_str());
+            //            log::warning("Path in the payload is %s",
+            //            geom_global_params.stage_filepath_.c_str());
 
             // add the stage path to the payload
             system->set_global_params(geom_global_params);

@@ -1,3 +1,5 @@
+#include <sstream>
+
 #include "Logger/Logger.h"
 #include "nodes/core/def/node_def.hpp"
 

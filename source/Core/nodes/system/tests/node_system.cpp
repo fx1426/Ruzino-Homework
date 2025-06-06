@@ -8,7 +8,7 @@ using namespace USTC_CG;
 
 class MyNodeSystem : public NodeSystem {
    public:
-    bool load_configuration(const std::filesystem::path& config) override
+    bool load_configuration(const std::string& config) override
     {
         return true;
     }

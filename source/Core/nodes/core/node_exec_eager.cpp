@@ -1,5 +1,6 @@
 #include "nodes/core/node_exec_eager.hpp"
 
+#include <algorithm>
 #include <set>
 
 #include "entt/core/any.hpp"

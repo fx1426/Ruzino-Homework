@@ -2,6 +2,7 @@
 
 #include "basic_node_base.h"
 #include "nodes/core/def/node_def.hpp"
+#include "nodes/core/io/json.hpp"
 
 NODE_DEF_OPEN_SCOPE
 
