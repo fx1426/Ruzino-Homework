@@ -217,7 +217,6 @@ struct NODES_CORE_API NodeGroup : public Node {
     Node* group_out;
 };
 
-
 /* Socket declaration. */
 class ItemDeclaration {
    public:
@@ -319,8 +318,7 @@ class Decl : public SocketDeclaration {
                 socket->dataField.max = soft_max;
             }
             if constexpr (HasMin && HasMax && HasDefault) {
-                socket->dataField.value =
-                    std::max(std::min(default_value, soft_max), soft_min);
+                socket->dataField.value = default_value;
             }
             else if constexpr (HasDefault) {
                 socket->dataField.value = default_value;

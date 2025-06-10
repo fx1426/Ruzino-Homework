@@ -1,9 +1,13 @@
+#include <pxr/base/gf/vec2f.h>
+#include <pxr/base/gf/vec3f.h>
+
 #include "Logger/Logger.h"
 #include "nodes/core/api.h"
 #include "nodes/core/api.hpp"
+#include "nodes/core/io/json.hpp"
 #include "nodes/core/node.hpp"
 #include "nodes/core/node_tree.hpp"
-#include "nodes/core/io/json.hpp"
+
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
 extern std::map<std::string, NodeTypeInfo*> conversion_node_registry;
@@ -49,6 +53,17 @@ void NodeSocket::Serialize(nlohmann::json& value)
             case entt::type_hash<bool>().value():
                 socket["value"] = default_value_typed<bool>();
                 break;
+            case entt::type_hash<pxr::GfVec2f>().value():
+                socket["value"] = { default_value_typed<pxr::GfVec2f&>()[0],
+                                    default_value_typed<pxr::GfVec2f&>()[1] };
+                break;
+
+            case entt::type_hash<pxr::GfVec3f>().value():
+                socket["value"] = { default_value_typed<pxr::GfVec3f&>()[0],
+                                    default_value_typed<pxr::GfVec3f&>()[1],
+                                    default_value_typed<pxr::GfVec3f&>()[2] };
+                break;
+
             default: log::error("Unknown type in serialization"); break;
         }
     }
@@ -90,6 +105,17 @@ void NodeSocket::DeserializeValue(const nlohmann::json& value)
                 case entt::type_hash<bool>():
                     default_value_typed<bool&>() = value["value"];
                     break;
+                case entt::type_hash<pxr::GfVec2f>():
+                    default_value_typed<pxr::GfVec2f&>() =
+                        pxr::GfVec2f(value["value"][0], value["value"][1]);
+                    break;
+                case entt::type_hash<pxr::GfVec3f>():
+                    default_value_typed<pxr::GfVec3f&>() = pxr::GfVec3f(
+                        value["value"][0],
+                        value["value"][1],
+                        value["value"][2]);
+                    break;
+
                 default: break;
             }
         }

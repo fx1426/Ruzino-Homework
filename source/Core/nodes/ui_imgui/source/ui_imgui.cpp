@@ -5,6 +5,8 @@
 #include "nodes/core/node_exec_eager.hpp"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_internal.h>
+#include <pxr/base/gf/vec2f.h>
+#include <pxr/base/gf/vec3f.h>
 
 #include <fstream>
 #include <string>
@@ -523,8 +525,47 @@ bool NodeWidget::draw_socket_controllers(NodeSocket* input)
                     .c_str(),
                 &input->dataField.value.cast<bool&>());
             break;
-    }
+        case entt::type_hash<pxr::GfVec2f>().value(): {
+            auto& vec = input->dataField.value.cast<pxr::GfVec2f&>();
+            auto min_vec = input->dataField.min.cast<pxr::GfVec2f>();
+            auto max_vec = input->dataField.max.cast<pxr::GfVec2f>();
+            changed |= ImGui::SliderFloat(
+                ("##" + std::to_string(input->ID.Get()) + "_x").c_str(),
+                &vec[0],
+                min_vec[0],
+                max_vec[0]);
+            changed |= ImGui::SliderFloat(
+                ("##" + std::to_string(input->ID.Get()) + "_y").c_str(),
+                &vec[1],
+                min_vec[1],
+                max_vec[1]);
+            ImGui::Text("%s", input->ui_name);
+            break;
+        }
+        case entt::type_hash<pxr::GfVec3f>().value(): {
+            auto& vec = input->dataField.value.cast<pxr::GfVec3f&>();
+            auto min_vec = input->dataField.min.cast<pxr::GfVec3f>();
+            auto max_vec = input->dataField.max.cast<pxr::GfVec3f>();
+            changed |= ImGui::SliderFloat(
+                ("##" + std::to_string(input->ID.Get()) + "_x").c_str(),
+                &vec[0],
+                min_vec[0],
+                max_vec[0]);
+            changed |= ImGui::SliderFloat(
+                ("##" + std::to_string(input->ID.Get()) + "_y").c_str(),
+                &vec[1],
+                min_vec[1],
+                max_vec[1]);
+            changed |= ImGui::SliderFloat(
+                ("##" + std::to_string(input->ID.Get()) + "_z").c_str(),
+                &vec[2],
+                min_vec[2],
+                max_vec[2]);
 
+            ImGui::Text("%s", input->ui_name);
+            break;
+        }
+    }
     return changed;
 }
 

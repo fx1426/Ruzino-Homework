@@ -51,7 +51,7 @@ ProgramDesc& ProgramDesc::set_path(const std::string& path)
 {
     this->path = path;
 #ifdef _DEBUG
-    // update_last_write_time(path);
+    update_last_write_time(path);
 #endif
     return *this;
 }

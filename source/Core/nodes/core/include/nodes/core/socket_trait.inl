@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 template<typename T>
 struct ValueTrait {
     static constexpr bool has_min = false;

@@ -124,7 +124,8 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
                     entt::meta_any data;
                     node_system->get_node_tree_executor()
                         ->sync_node_to_external_storage(output_socket, data);
-                    obj = data.cast<T>();
+                    if (data)
+                        obj = data.cast<T>();
                 }
             };
             try_fetch_info(present_name.c_str(), texture);
