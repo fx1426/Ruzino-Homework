@@ -109,19 +109,9 @@ void ClosestHit(
     float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir = sf.toLocal(ray_dir);
 
-    // payload.color = pdf;
-
-    // payload.seed = callData.seed;
-
-    // return;    // Update payload
-    payload.throughput *= callData.throughput;
-    
-    // For transmission rays, we need to account for the cosine term differently
     float cosine_factor = abs(local_ray_dir.z);
-    
-    // Apply cosine weighting and PDF correction
-    if (pdf > 0.0) {
-        payload.throughput *= cosine_factor / pdf;
+    {
+        payload.throughput *= cosine_factor * callData.throughput / pdf;
     }
 
     payload.hitPosition = vertex.posW;
