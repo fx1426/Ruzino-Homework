@@ -82,6 +82,12 @@ void mx_dielectric_bsdf_transmission(
     N = mx_forward_facing_normal(N, V);
     float NdotV = clamp(dot(N, V), M_FLOAT_EPS, 1.0);
 
+    if (dot(N, L) > 0.0) {
+        bsdf.throughput = 0.0;
+        bsdf.response = float3(0.0);
+        return;
+    }
+
     FresnelData fd;
     float3 safeTint = max(tint, 0.0);
     if (bsdf.thickness > 0.0) {

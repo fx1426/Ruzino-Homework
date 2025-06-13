@@ -54,7 +54,9 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 30) {
+    if (payload.depth >= 2) {
+        payload.throughput = float3(0, 0, 0);
+        payload.color = float3(0, 0, 0);
         payload.terminated = true;
         return;
     }
@@ -79,8 +81,15 @@ void ClosestHit(
     // Create shading frame
     bool valid;
     ShadingFrame sf =
-        ShadingFrame.createSafe(vertex.normalW, float4(1, 1, 0, 1), valid);
+        ShadingFrame.createSafe(vertex.normalW, float4(1, 0, 0, 1), valid);
     vertex.tangentW.xyz = sf.T;
+
+    float3 visualize = float3(vertex.texC, 0.0);
+    visualize = dot(vertex.normalW, WorldRayDirection());
+    visualize = vertex.tangentW.xyz * 0.5 + 0.5;  // Visualize tangent space
+
+    //payload.color = visualize;  // For debugging, visualize texture coordinates
+    //return;
 
     // Get material ID
     var material_id = instanceDescBuffer[instance_id].materialID;
@@ -114,7 +123,8 @@ void ClosestHit(
         // For transmission, apply cosine weighting on the exit side
         // Use the absolute value to handle both sides correctly
         float cosine_factor = abs(local_ray_dir.z);
-        payload.throughput *= callData.throughput / pdf * cosine_factor*3.14;
+        payload.throughput *= callData.throughput / pdf * cosine_factor * 3.14;
+        // payload.throughput = 0.0f;
     }
     else {
         // For reflection, apply cosine weighting
@@ -182,7 +192,7 @@ void Miss(inout RayPayload payload)
     skyColor += sunsetColor * sunsetIntensity * (1.0 - skyBlend) * 0.4;
 
     // Add contribution to path
-    //skyColor = 0.5f;
+    // skyColor = 0.5f;
     payload.color += payload.throughput * skyColor * 1.0;
     payload.terminated = true;
 }

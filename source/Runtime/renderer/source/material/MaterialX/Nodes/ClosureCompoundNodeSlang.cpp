@@ -104,10 +104,11 @@ float3 sample_standard_surface(
 )
 {
     bool valid;
-    ShadingFrame sf = ShadingFrame.createSafe(normal, float4(tangent, 1.0), valid);
-      // Calculate layer weights for importance sampling
+    ShadingFrame sf = ShadingFrame.createSafe(normal, float4(1, 0, 0, 1), valid);
+
     float diffuse_weight = base * (1.0 - metalness) * (1.0 - transmission);
-    float specular_weight = specular * (1.0 - metalness) * (1.0 - transmission);
+    // Specular reflection should always be present for dielectrics (Fresnel reflection)
+    float specular_weight = specular * (1.0 - metalness);
     float metal_weight = metalness;
     float transmission_weight = transmission * (1.0 - metalness);
     
@@ -126,6 +127,8 @@ float3 sample_standard_surface(
     
     float3 L;
     pdf = 0.0;
+
+    // Calculate layer weights for importance sampling
     
     // Choose sampling method based on weights
     float r = random_float(seed);
@@ -303,7 +306,7 @@ float3 sample_standard_surface(
     }
     
     // Clamp PDF to avoid numerical issues
-    pdf = max(pdf, 0.0001);
+    pdf = max(pdf, 0.000001);
     
     return L;
 }
