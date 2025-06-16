@@ -3,8 +3,6 @@ import pbrlib.genslang.lib.mx_transmission_refract;
 import pbrlib.genslang.lib.mx_microfacet_specular;
 import pbrlib.genslang.lib.mx_environment_prefilter;
 
-import pbrlib.genslang.lib.mx_microfacet_specular;
-
 void mx_dielectric_bsdf_reflection(
     float3 L,
     float3 V,
