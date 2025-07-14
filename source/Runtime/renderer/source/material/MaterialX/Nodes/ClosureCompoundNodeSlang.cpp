@@ -93,6 +93,10 @@ float3 sample_specular_reflection(float2 u, float3 V, float2 roughness, out floa
 {
     // Sample microfacet normal using GGX VNDF distribution
     float3 H = mx_ggx_importance_sample_VNDF(u, V, roughness);
+    // Ensure half vector points toward the incident side
+    if (H.z < 0.0) {
+        H = -H;
+    }
     
     // Reflect view direction around microfacet normal
     float3 L = reflect(-V, H);
