@@ -14,6 +14,31 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 file(RELATIVE_PATH RELATIVE_TO_PROJROOT ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 set(USTC_CG_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Root directory of the project")
 
+# Set Python variables BEFORE including any subdirectories
+set(Python3_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDK/python")
+message(STATUS "Python3_ROOT_DIR is set to ${Python3_ROOT_DIR}")
+set(Python3_FIND_STRATEGY LOCATION)
+set(Python3_FIND_REGISTRY NEVER)
+set(Python3_FIND_FRAMEWORK NEVER)
+
+# Find Python early to ensure it's available for all subdirectories
+find_package(Python3 COMPONENTS Development Interpreter REQUIRED)
+message(STATUS "Found Python3 version: ${Python3_VERSION}")
+message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
+# Export Python3_EXECUTABLE to parent scope
+set(Python3_EXECUTABLE ${Python3_EXECUTABLE} PARENT_SCOPE)
+
+# Set up environment for nanobind to find the same Python
+# Remove the Python3 to Python mapping, let nanobind find Python itself
+set(Python_ROOT_DIR "${Python3_ROOT_DIR}")
+set(Python_FIND_STRATEGY LOCATION)
+set(Python_FIND_REGISTRY NEVER)
+set(Python_FIND_FRAMEWORK NEVER)
+find_package(Python 3.8
+  REQUIRED COMPONENTS Interpreter Development.Module
+  OPTIONAL_COMPONENTS Development.SABIModule)
+
+
 include(cmake/AddLibrary.cmake)
 include(cmake/AddNodes.cmake)
 
@@ -38,6 +63,7 @@ option(USTC_CG_WITH_TORCH OFF)
 if(USTC_CG_WITH_CUDA)
     set(CMAKE_CUDA_ARCHITECTURES 86)
     enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 20)
 else()
   add_compile_definitions(USTC_CG_WITH_CUDA=0)
 endif()
@@ -59,7 +85,6 @@ if(NOT MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fms-extensions")
 endif()
 
-set(CMAKE_CUDA_STANDARD 20)
 
 if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
   set(SDK_FOLDER ${CMAKE_BUILD_TYPE})
@@ -79,18 +104,9 @@ else()
   add_compile_definitions(USTC_CG_WITH_TORCH=0)
 endif()
 
-# The following packages optional
-find_package(Python COMPONENTS Development Interpreter REQUIRED)
-
-find_package(Vulkan)
-
-if(Vulkan_FOUND)
-  message("Found Vulkan version ${Vulkan_VERSION}")
-else()
-  message("Vulkan not found")
-endif()
 
 set(pxr_DIR SDK/OpenUSD/${SDK_FOLDER})
+set(FRAMEWORK3D_DIR ${USTC_CG_ROOT_DIR})
 message("Looking for OpenUSD in ${pxr_DIR}")
 find_package(pxr)
 

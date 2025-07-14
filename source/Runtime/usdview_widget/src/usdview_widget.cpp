@@ -43,14 +43,11 @@ UsdviewEngine::UsdviewEngine(Stage* stage) : stage_(stage)
     pxr::UsdImagingGLEngine::Parameters params;
     params.allowAsynchronousSceneProcessing = true;
 
-    // Initialize Vulkan driver
-#if USDVIEW_WITH_VULKAN
     hgi = pxr::Hgi::CreateNamedHgi(pxr::HgiTokens->OpenGL);
     pxr::HdDriver hdDriver;
     hdDriver.name = pxr::HgiTokens->renderDriver;
     hdDriver.driver = pxr::VtValue(hgi.get());
     params.driver = hdDriver;
-#endif
 
     renderer_ = std::make_unique<pxr::UsdImagingGLEngine>(params);
 

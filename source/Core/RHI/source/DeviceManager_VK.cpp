@@ -55,6 +55,7 @@ freely, subject to the following restrictions:
 #include <string>
 #include <unordered_set>
 
+#define VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL 1
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <sstream>
 #include <vulkan/vulkan.hpp>
@@ -252,7 +253,9 @@ class DeviceManager_VK : public DeviceManager {
     nvrhi::DeviceHandle m_ValidationLayer;
 
     nvrhi::CommandListHandle m_BarrierCommandList;
+    std::vector<vk::Semaphore> m_AcquireSemaphores;
     std::vector<vk::Semaphore> m_PresentSemaphores;
+    uint32_t m_AcquireSemaphoreIndex = 0;
     uint32_t m_PresentSemaphoreIndex = 0;
 
     std::queue<nvrhi::EventQueryHandle> m_FramesInFlight;
@@ -260,7 +263,13 @@ class DeviceManager_VK : public DeviceManager {
 
     bool m_BufferDeviceAddressSupported = false;
 
-    vk::DynamicLoader m_dynamicLoader;
+#if VK_HEADER_VERSION >= 301
+    typedef vk::detail::DynamicLoader VulkanDynamicLoader;
+#else
+    typedef vk::DynamicLoader VulkanDynamicLoader;
+#endif
+
+    std::unique_ptr<VulkanDynamicLoader> m_dynamicLoader;
 
    private:
     static VKAPI_ATTR VkBool32 VKAPI_CALL vulkanDebugCallback(
@@ -1109,8 +1118,10 @@ bool DeviceManager_VK::CreateInstanceInternal()
     }
 #endif
 
+    m_dynamicLoader = std::make_unique<VulkanDynamicLoader>();
+
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr =
-        m_dynamicLoader.getProcAddress<PFN_vkGetInstanceProcAddr>(
+        m_dynamicLoader->getProcAddress<PFN_vkGetInstanceProcAddr>(
             "vkGetInstanceProcAddr");
     VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
 
@@ -1229,11 +1240,18 @@ bool DeviceManager_VK::CreateSwapChain()
 {
     CHECK(createSwapChain())
 
-    m_BarrierCommandList = m_NvrhiDevice->createCommandList();
-
-    m_PresentSemaphores.reserve(m_DeviceParams.maxFramesInFlight + 1);
-    for (uint32_t i = 0; i < m_DeviceParams.maxFramesInFlight + 1; ++i) {
+    size_t const numPresentSemaphores = m_SwapChainImages.size();
+    m_PresentSemaphores.reserve(numPresentSemaphores);
+    for (uint32_t i = 0; i < numPresentSemaphores; ++i) {
         m_PresentSemaphores.push_back(
+            m_VulkanDevice.createSemaphore(vk::SemaphoreCreateInfo()));
+    }
+
+    size_t const numAcquireSemaphores = std::max(
+        size_t(m_DeviceParams.maxFramesInFlight), m_SwapChainImages.size());
+    m_AcquireSemaphores.reserve(numAcquireSemaphores);
+    for (uint32_t i = 0; i < numAcquireSemaphores; ++i) {
+        m_AcquireSemaphores.push_back(
             m_VulkanDevice.createSemaphore(vk::SemaphoreCreateInfo()));
     }
 
@@ -1246,6 +1264,13 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
     destroySwapChain();
 
     for (auto& semaphore : m_PresentSemaphores) {
+        if (semaphore) {
+            m_VulkanDevice.destroySemaphore(semaphore);
+            semaphore = vk::Semaphore();
+        }
+    }
+
+    for (auto& semaphore : m_AcquireSemaphores) {
         if (semaphore) {
             m_VulkanDevice.destroySemaphore(semaphore);
             semaphore = vk::Semaphore();
@@ -1281,7 +1306,7 @@ void DeviceManager_VK::DestroyDeviceAndSwapChain()
 
 bool DeviceManager_VK::BeginFrame()
 {
-    const auto& semaphore = m_PresentSemaphores[m_PresentSemaphoreIndex];
+    const auto& semaphore = m_AcquireSemaphores[m_AcquireSemaphoreIndex];
 
     vk::Result res;
 
@@ -1294,7 +1319,9 @@ bool DeviceManager_VK::BeginFrame()
             vk::Fence(),
             &m_SwapChainIndex);
 
-        if (res == vk::Result::eErrorOutOfDateKHR && attempt < maxAttempts) {
+        if ((res == vk::Result::eErrorOutOfDateKHR ||
+             res == vk::Result::eSuboptimalKHR) &&
+            attempt < maxAttempts) {
             BackBufferResizing();
             auto surfaceCaps = m_VulkanPhysicalDevice.getSurfaceCapabilitiesKHR(
                 m_WindowSurface);
@@ -1309,7 +1336,12 @@ bool DeviceManager_VK::BeginFrame()
             break;
     }
 
-    if (res == vk::Result::eSuccess) {
+    m_AcquireSemaphoreIndex =
+        (m_AcquireSemaphoreIndex + 1) % m_AcquireSemaphores.size();
+
+    if (res == vk::Result::eSuccess ||
+        res == vk::Result::eSuboptimalKHR) {  // Suboptimal is considered a success
+        // Schedule the wait. The actual wait operation will be submitted when the app executes any command list.
         m_NvrhiDevice->queueWaitForSemaphore(
             nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
@@ -1320,14 +1352,14 @@ bool DeviceManager_VK::BeginFrame()
 
 bool DeviceManager_VK::Present()
 {
-    const auto& semaphore = m_PresentSemaphores[m_PresentSemaphoreIndex];
+    const auto& semaphore = m_PresentSemaphores[m_SwapChainIndex];
 
     m_NvrhiDevice->queueSignalSemaphore(
         nvrhi::CommandQueue::Graphics, semaphore, 0);
 
-    m_BarrierCommandList->open();  // umm...
-    m_BarrierCommandList->close();
-    m_NvrhiDevice->executeCommandList(m_BarrierCommandList);
+    // NVRHI buffers the semaphores and signals them when something is submitted to a queue.
+    // Call 'executeCommandLists' with no command lists to actually signal the semaphore.
+    m_NvrhiDevice->executeCommandLists(nullptr, 0);
 
     vk::PresentInfoKHR info = vk::PresentInfoKHR()
                                   .setWaitSemaphoreCount(1)
@@ -1338,7 +1370,8 @@ bool DeviceManager_VK::Present()
 
     const vk::Result res = m_PresentQueue.presentKHR(&info);
     if (!(res == vk::Result::eSuccess ||
-          res == vk::Result::eErrorOutOfDateKHR)) {
+          res == vk::Result::eErrorOutOfDateKHR ||
+          res == vk::Result::eSuboptimalKHR)) {
         return false;
     }
 
@@ -1346,7 +1379,9 @@ bool DeviceManager_VK::Present()
         (m_PresentSemaphoreIndex + 1) % m_PresentSemaphores.size();
 
 #ifndef _WIN32
-    if (m_DeviceParams.vsyncEnabled) {
+    if (m_DeviceParams.vsyncEnabled || m_DeviceParams.enableDebugRuntime) {
+        // according to vulkan-tutorial.com, "the validation layer implementation expects
+        // the application to explicitly synchronize with the GPU"
         m_PresentQueue.waitIdle();
     }
 #endif
