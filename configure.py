@@ -132,18 +132,6 @@ def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=Fals
             use_debug_python = ""
 
         for target in targets:
-            vulkan_support = ""
-            if "VULKAN_SDK" in os.environ:
-                vulkan_support = "-DPXR_ENABLE_VULKAN_SUPPORT=ON"
-            elif not copy_only:
-                print(
-                    "Warning: VULKAN_SDK is not in the path. Highly recommend setting it for Vulkan support."
-                )
-            else:
-                print(
-                    "Error: VULKAN_SDK is not in the path. Please set it for Vulkan support before building."
-                )
-
             build_variant_map = {
                 "Debug": "debug",
                 "Release": "release",
@@ -151,13 +139,13 @@ def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=Fals
             }
             build_variant = build_variant_map.get(target, target.lower())
             if build_variant == "relwithdebuginfo":
-                openvdb_args = 'OpenVDB,"-DUSE_EXPLICIT_INSTANTIATION=OFF -DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO="RelWithDebInfo;Release;"" '
+                openvdb_args = 'OpenVDB,"-DUSE_EXPLICIT_INSTANTIATION=OFF -DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBUGINFO="RelWithDebInfo;Release;"" '
             else:
                 openvdb_args = "OpenVDB,-DUSE_EXPLICIT_INSTANTIATION=OFF "
 
             no_tbb_linkage = "-DCMAKE_CXX_FLAGS=-D__TBB_NO_IMPLICIT_LINKAGE=1"
             openimageio_args = f"OpenImageIO,{no_tbb_linkage} "
-            build_command = f'python {build_script} --build-args USD,"-DPXR_ENABLE_GL_SUPPORT=ON {vulkan_support}" {openvdb_args}{openimageio_args}--openvdb {use_debug_python}--ptex --openimageio --opencolorio --no-examples --no-tutorials --generator Ninja --build-variant {build_variant} {os.path.dirname(__file__)}/SDK/OpenUSD/{target} -v'
+            build_command = f'python {build_script} --build-args USD,"-DPXR_ENABLE_GL_SUPPORT=ON" {openvdb_args}{openimageio_args}--openvdb {use_debug_python}--ptex --openimageio --opencolorio --no-examples --no-tutorials --generator Ninja --build-variant {build_variant} {os.path.dirname(__file__)}/SDK/OpenUSD/{target} -v'
 
             if dry_run:
                 print(f"[DRY RUN] Would run: {build_command}")
@@ -197,7 +185,7 @@ import subprocess
 
 def pack_sdk(dry_run=False):
     src_dir = os.path.join(os.path.dirname(__file__), "SDK")
-    dst_dir = os.path.join(os.path.dirname(__file__), "SDK_temp")
+    dst_dir = os.path.join(os.path.dirname(__file__), "SDK\\SDK_pack_temp")
 
     # Path that need to be replaced
     where_python = (
@@ -207,8 +195,6 @@ def pack_sdk(dry_run=False):
     python_dir_forward_slash = python_dir_backward_slash.replace("\\", "/")
     framework3d_dir_backward_slash = os.getcwd().replace("/", "\\")
     framework3d_dir_forward_slash = framework3d_dir_backward_slash.replace("\\", "/")
-    vulkan_sdk_dir_backward_slash = os.environ.get("VULKAN_SDK", "").replace("/", "\\")
-    vulkan_sdk_dir_forward_slash = vulkan_sdk_dir_backward_slash.replace("\\", "/")
 
     def copy_file(src_file, dst_file):
         if dry_run:
@@ -222,27 +208,114 @@ def pack_sdk(dry_run=False):
                 return
             filedata_0 = filedata
             filedata = filedata.replace(
-                python_dir_backward_slash, "{PYTHON_DIR_BACKWARD_SLASH}"
+                python_dir_backward_slash, "${Python3_ROOT_DIR}"
             )
             filedata = filedata.replace(
-                python_dir_forward_slash, "{PYTHON_DIR_FORWARD_SLASH}"
+                python_dir_forward_slash, "${Python3_ROOT_DIR}"
             )
             filedata = filedata.replace(
-                framework3d_dir_backward_slash, "{FRAMEWORK3D_DIR_BACKWARD_SLASH}"
+                framework3d_dir_backward_slash, "${FRAMEWORK3D_DIR}"
             )
             filedata = filedata.replace(
-                framework3d_dir_forward_slash, "{FRAMEWORK3D_DIR_FORWARD_SLASH}"
+                framework3d_dir_forward_slash, "${FRAMEWORK3D_DIR}"
             )
-            filedata = filedata.replace(
-                vulkan_sdk_dir_backward_slash, "{VULKAN_SDK_DIR_BACKWARD_SLASH}"
-            )
-            filedata = filedata.replace(
-                vulkan_sdk_dir_forward_slash, "{VULKAN_SDK_DIR_FORWARD_SLASH}"
-            )
+            
+            # Remove brackets around paths containing placeholders
+            import re
+            # Pattern to match [[${FRAMEWORK3D_DIR}/...]] or [[${Python3_ROOT_DIR}/...]]
+            bracket_pattern = r'\[\[(.*?)\]\]'
+            matches = re.findall(bracket_pattern, filedata)
+            for match in matches:
+                if '${FRAMEWORK3D_DIR}' in match or '${Python3_ROOT_DIR}' in match:
+                    # Normalize path separators to forward slashes
+                    normalized_match = match.replace('\\', '/')
+                    filedata = filedata.replace(f'[[{match}]]', normalized_match)
+            
+            # Also normalize any remaining paths with placeholders that have backslashes
+            filedata = re.sub(r'(\$\{(?:FRAMEWORK3D_DIR|Python3_ROOT_DIR)\}[^;\s\]]*)', 
+                            lambda m: m.group(1).replace('\\', '/'), filedata)
+
             if filedata != filedata_0:
                 with open(dst_file, "w", encoding="utf-8") as file:
                     file.write(filedata)
                     print(f"Found and replaced path in {dst_file}")
+
+    def copy_python_installation(python_dir, dst_python_dir):
+        """Copy essential Python installation files"""
+        if dry_run:
+            print(f"[DRY RUN] Would copy Python installation from {python_dir} to {dst_python_dir}")
+            return
+            
+        print(f"Copying Python installation from {python_dir} to {dst_python_dir}")
+        os.makedirs(dst_python_dir, exist_ok=True)
+        
+        # Copy python.exe and python_d.exe if exists
+        for exe_name in ["python.exe", "python_d.exe", "pythonw.exe"]:
+            exe_path = os.path.join(python_dir, exe_name)
+            if os.path.exists(exe_path):
+                shutil.copy2(exe_path, dst_python_dir)
+        
+        # Copy all DLLs in python directory
+        for file in os.listdir(python_dir):
+            if file.endswith(".dll"):
+                shutil.copy2(os.path.join(python_dir, file), dst_python_dir)
+        
+        # Copy DLLs directory if exists
+        dlls_dir = os.path.join(python_dir, "DLLs")
+        if os.path.exists(dlls_dir):
+            dst_dlls_dir = os.path.join(dst_python_dir, "DLLs")
+            shutil.copytree(dlls_dir, dst_dlls_dir, dirs_exist_ok=True)
+        
+        # Copy libs directory (contains python3.lib and other static libraries)
+        libs_dir = os.path.join(python_dir, "libs")
+        if os.path.exists(libs_dir):
+            dst_libs_dir = os.path.join(dst_python_dir, "libs")
+            shutil.copytree(libs_dir, dst_libs_dir, dirs_exist_ok=True)
+            print(f"Copied libs directory (including python3.lib)")
+        
+        # Copy Scripts directory (contains pip and other tools)
+        scripts_dir = os.path.join(python_dir, "Scripts")
+        if os.path.exists(scripts_dir):
+            dst_scripts_dir = os.path.join(dst_python_dir, "Scripts")
+            shutil.copytree(scripts_dir, dst_scripts_dir, dirs_exist_ok=True)
+            print(f"Copied Scripts directory (including pip)")
+        
+        # Copy Lib directory but exclude site-packages and other third-party packages
+        lib_dir = os.path.join(python_dir, "Lib")
+        if os.path.exists(lib_dir):
+            dst_lib_dir = os.path.join(dst_python_dir, "Lib")
+            os.makedirs(dst_lib_dir, exist_ok=True)
+            
+            # Standard library directories/files to include
+            standard_lib_items = []
+            exclude_dirs = {"site-packages", "dist-packages", "__pycache__"}
+            
+            for item in os.listdir(lib_dir):
+                item_path = os.path.join(lib_dir, item)
+                if os.path.isdir(item_path):
+                    if item not in exclude_dirs:
+                        standard_lib_items.append(item)
+                else:
+                    # Include .py files in root Lib directory
+                    if item.endswith(".py"):
+                        standard_lib_items.append(item)
+            
+            # Copy standard library items
+            for item in standard_lib_items:
+                src_item = os.path.join(lib_dir, item)
+                dst_item = os.path.join(dst_lib_dir, item)
+                if os.path.isdir(src_item):
+                    shutil.copytree(src_item, dst_item, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(src_item, dst_item)
+        
+        # Copy Include directory if exists
+        include_dir = os.path.join(python_dir, "include")
+        if os.path.exists(include_dir):
+            dst_include_dir = os.path.join(dst_python_dir, "include")
+            shutil.copytree(include_dir, dst_include_dir, dirs_exist_ok=True)
+        
+        print(f"Python installation copied successfully")
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = []
@@ -272,19 +345,23 @@ def pack_sdk(dry_run=False):
         # Wait for all threads to complete
         concurrent.futures.wait(futures)
 
+        # Copy Python installation
+        python_dst_dir = os.path.join(dst_dir, "python")
+        copy_python_installation(python_dir_backward_slash, python_dst_dir)
+
         # Pack the SDK_temp directory into SDK.zip
         if dry_run:
             print(f"[DRY RUN] Would pack {dst_dir} into SDK.zip")
         else:
-            shutil.make_archive("SDK", "zip", dst_dir)
+            shutil.make_archive("SDK\\SDK", "zip", dst_dir)
             print(f"Packed {dst_dir} into SDK.zip")
 
         # Delete the SDK_temp directory
-        if dry_run:
-            print(f"[DRY RUN] Would delete {dst_dir}")
-        else:
-            shutil.rmtree(dst_dir)
-            print(f"Deleted {dst_dir}")
+        # if dry_run:
+        #     print(f"[DRY RUN] Would delete {dst_dir}")
+        # else:
+        #     shutil.rmtree(dst_dir)
+        #     print(f"Deleted {dst_dir}")
 
 
 def find_and_replace(file_path, replacements):
@@ -380,53 +457,6 @@ def main():
         }
     folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin"}
 
-    if copy_only and not dry_run:
-        # Path that need to be replaced
-        where_python = (
-            subprocess.check_output(["where", "python"]).decode("utf-8").split("\n")[0]
-        )
-        # Check if the version of python is 3.10.11
-        python_version = subprocess.check_output(
-            ["python", "--version"], stderr=subprocess.STDOUT
-        ).decode("utf-8")
-        print(f"The highest priority Python version is {python_version}.")
-        # if "3.10.11" not in python_version:
-        #     # 优先级最高的python版本应为3.10.11
-        #     print("Please set Python version 3.10.11 as the highest priority.")
-        #     return
-        python_dir_backward_slash = os.path.dirname(where_python).replace("/", "\\")
-        python_dir_forward_slash = python_dir_backward_slash.replace("\\", "/")
-        framework3d_dir_backward_slash = os.getcwd().replace("/", "\\")
-        framework3d_dir_forward_slash = framework3d_dir_backward_slash.replace(
-            "\\", "/"
-        )
-        vulkan_sdk_dir_backward_slash = os.environ.get("VULKAN_SDK", "").replace(
-            "/", "\\"
-        )
-        vulkan_sdk_dir_forward_slash = vulkan_sdk_dir_backward_slash.replace("\\", "/")
-
-        # 创建替换映射
-        replacements = {
-            "{PYTHON_DIR_BACKWARD_SLASH}": python_dir_backward_slash,
-            "{PYTHON_DIR_FORWARD_SLASH}": python_dir_forward_slash,
-            "{FRAMEWORK3D_DIR_BACKWARD_SLASH}": framework3d_dir_backward_slash,
-            "{FRAMEWORK3D_DIR_FORWARD_SLASH}": framework3d_dir_forward_slash,
-            "{VULKAN_SDK_DIR_BACKWARD_SLASH}": vulkan_sdk_dir_backward_slash,
-            "{VULKAN_SDK_DIR_FORWARD_SLASH}": vulkan_sdk_dir_forward_slash,
-        }
-
-        # 使用线程池处理文件
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = []
-            for root, _, files in os.walk(os.path.join(os.getcwd(), "SDK")):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    futures.append(
-                        executor.submit(find_and_replace, file_path, replacements)
-                    )
-
-            # 等待所有任务完成
-            concurrent.futures.wait(futures)
 
     for lib in args.library:
         if lib == "openusd":
