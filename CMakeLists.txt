@@ -128,6 +128,7 @@ set(pxr_DIR SDK/OpenUSD/${SDK_FOLDER})
 set(FRAMEWORK3D_DIR ${USTC_CG_ROOT_DIR})
 message("Looking for OpenUSD in ${pxr_DIR}")
 set(PYTHON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/SDK/python")
+set(OpenSubdiv_DIR SDK/OpenUSD/${SDK_FOLDER}/lib/cmake/OpenSubdiv)
 find_package(pxr)
 
 if(pxr_FOUND)

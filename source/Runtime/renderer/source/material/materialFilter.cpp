@@ -567,8 +567,7 @@ void _FixOmittedConnections(
         visitedNodes.insert(node);
 
         auto node_def = node->getNodeDef();
-        auto rough_node_def =
-            node->getNodeDef(MaterialX_v1_38_10::EMPTY_STRING, true);
+        auto rough_node_def = node->getNodeDef(mx::EMPTY_STRING, true);
 
         if (rough_node_def && !node_def) {
             // Process each input on this node
@@ -597,15 +596,15 @@ void _FixOmittedConnections(
                     // Handle type conversion cases
                     std::string nodeName, nodeDefString;
 
-                    if (input_in_def->getType() == mx::Type::FLOAT->getName() &&
-                        input->getType() == mx::Type::COLOR3->getName()) {
+                    if (input_in_def->getType() == mx::Type::FLOAT.getName() &&
+                        input->getType() == mx::Type::COLOR3.getName()) {
                         nodeName = _tokens->separate3;
                         nodeDefString = _tokens->ND_separate3_color3;
                     }
                     else if (
                         input_in_def->getType() ==
-                            mx::Type::VECTOR3->getName() &&
-                        input->getType() == mx::Type::COLOR3->getName()) {
+                            mx::Type::VECTOR3.getName() &&
+                        input->getType() == mx::Type::COLOR3.getName()) {
                         nodeName = "convert";
                         nodeDefString = _tokens->ND_convert_color3_vector3;
                     }
@@ -675,11 +674,12 @@ HdMaterialNode2 const* _GetTerminalNode(
                   << ", Output: "
                   << terminal.second.upstreamOutputName.GetText() << std::endl;
     }
-    
+
     std::cout << "All nodes in network:" << std::endl;
     for (const auto& node : network.nodes) {
         std::cout << "  Node: " << node.first.GetText()
-                  << ", Type: " << node.second.nodeTypeId.GetText() << std::endl;
+                  << ", Type: " << node.second.nodeTypeId.GetText()
+                  << std::endl;
     }
 
     if (terminalConnIt == network.terminals.end()) {

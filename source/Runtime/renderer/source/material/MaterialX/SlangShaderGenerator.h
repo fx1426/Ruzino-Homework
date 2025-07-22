@@ -21,11 +21,17 @@ using SlangShaderGeneratorPtr = shared_ptr<class SlangShaderGenerator>;
 /// A generator for a specific SLANG target should be derived from this class.
 class HD_USTC_CG_API SlangShaderGenerator : public HwShaderGenerator {
    public:
-    SlangShaderGenerator();
+    /// Constructor.
+    SlangShaderGenerator(TypeSystemPtr typeSystem = nullptr);
 
-    static ShaderGeneratorPtr create()
+    /// Creator function.
+    /// If a TypeSystem is not provided it will be created internally.
+    /// Optionally pass in an externally created TypeSystem here, 
+    /// if you want to keep type descriptions alive after the lifetime
+    /// of the shader generator.
+    static ShaderGeneratorPtr create(TypeSystemPtr typeSystem = nullptr)
     {
-        return std::make_shared<SlangShaderGenerator>();
+        return std::make_shared<SlangShaderGenerator>(typeSystem ? typeSystem : TypeSystem::create());
     }
 
     /// Generate a shader starting from the given element, translating
@@ -124,7 +130,7 @@ class HD_USTC_CG_API SlangShaderGenerator : public HwShaderGenerator {
         GenContext& context,
         ShaderStage& stage) const;
 
-    static void toVec4(const TypeDesc* type, string& variable);
+    static void toVec4(const TypeDesc& type, string& variable);
 
     /// Nodes used internally for light sampling.
     vector<ShaderNodePtr> _lightSamplingNodes;

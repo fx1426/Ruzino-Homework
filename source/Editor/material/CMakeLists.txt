@@ -10,6 +10,7 @@ USTC_CG_ADD_LIB(
 		usdMtlx
 		nodes_ui_imgui
 		blueprints
+		MaterialXGenShader
 
 	COMPILE_DEFS
 		NOMINMAX=1

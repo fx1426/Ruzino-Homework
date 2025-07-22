@@ -5,46 +5,38 @@
 
 #include "SlangShaderGenerator.h"
 
-#include <MaterialXGenShader/Nodes/ClosureAddNode.h>
 #include <MaterialXGenShader/Nodes/ClosureCompoundNode.h>
-#include <MaterialXGenShader/Nodes/ClosureLayerNode.h>
-#include <MaterialXGenShader/Nodes/ClosureMultiplyNode.h>
-#include <MaterialXGenShader/Nodes/CombineNode.h>
-#include <MaterialXGenShader/Nodes/ConvertNode.h>
+#include <MaterialXGenShader/Nodes/ClosureSourceCodeNode.h>
+#include <MaterialXGenShader/Nodes/HwBitangentNode.h>
+#include <MaterialXGenShader/Nodes/HwBlurNode.h>
 #include <MaterialXGenShader/Nodes/HwFrameNode.h>
+#include <MaterialXGenShader/Nodes/HwGeomColorNode.h>
+#include <MaterialXGenShader/Nodes/HwGeomPropValueNode.h>
+#include <MaterialXGenShader/Nodes/HwHeightToNormalNode.h>
+#include <MaterialXGenShader/Nodes/HwImageNode.h>
+#include <MaterialXGenShader/Nodes/HwNormalNode.h>
 #include <MaterialXGenShader/Nodes/HwPositionNode.h>
+#include <MaterialXGenShader/Nodes/HwTangentNode.h>
 #include <MaterialXGenShader/Nodes/HwTexCoordNode.h>
-#include <MaterialXGenShader/Nodes/HwTimeNode.h>
 #include <MaterialXGenShader/Nodes/HwTransformNode.h>
 #include <MaterialXGenShader/Nodes/HwViewDirectionNode.h>
 #include <MaterialXGenShader/Nodes/MaterialNode.h>
-#include <MaterialXGenShader/Nodes/SwitchNode.h>
-#include <MaterialXGenShader/Nodes/SwizzleNode.h>
 
-#include <format>
+#include <iostream>
+#include <sstream>
 
-#include "Logger/Logger.h"
-#include "Nodes/BitangentNodeSlang.h"
-#include "Nodes/BlurNodeSlang.h"
 #include "Nodes/ClosureCompoundNodeSlang.h"
-#include "Nodes/ClosureMixNodeSlang.h"
-#include "Nodes/ClosureSourceCodeNodeSlang.h"
 #include "Nodes/CompoundNodeSlang.h"
-#include "Nodes/GeomColorNodeSlang.h"
-#include "Nodes/GeomPropValueNodeSlang.h"
-#include "Nodes/HeightToNormalNodeSlang.h"
-#include "Nodes/HwImageNodeSlang.h"
 #include "Nodes/LightCompoundNodeSlang.h"
 #include "Nodes/LightNodeSlang.h"
 #include "Nodes/LightSamplerNodeSlang.h"
 #include "Nodes/LightShaderNodeSlang.h"
-#include "Nodes/NormalNodeSlang.h"
 #include "Nodes/NumLightsNodeSlang.h"
-#include "Nodes/SourceCodeNodeSlang.h"
 #include "Nodes/SurfaceNodeSlang.h"
-#include "Nodes/TangentNodeSlang.h"
 #include "Nodes/UnlitSurfaceNodeSlang.h"
 #include "SlangSyntax.h"
+const std::string SlangSamplingIncludeFilename =
+    "stdlib/genslang/lib/mx_sampling.glsl";
 
 MATERIALX_NAMESPACE_BEGIN
 const string SlangShaderGenerator::TARGET = "genslang";
@@ -54,120 +46,14 @@ const string SlangShaderGenerator::VERSION = "400";
 // SlangShaderGenerator methods
 //
 
-SlangShaderGenerator::SlangShaderGenerator()
-    : HwShaderGenerator(SlangSyntax::create())
+SlangShaderGenerator::SlangShaderGenerator(TypeSystemPtr typeSystem)
+    : HwShaderGenerator(
+          typeSystem ? typeSystem : TypeSystem::create(),
+          SlangSyntax::create(typeSystem ? typeSystem : TypeSystem::create()))
 {
     //
     // Register all custom node implementation classes
-    //
-
-    StringVec elementNames;
-
-    // <!-- <switch> -->
-    elementNames = {
-        // <!-- 'which' type : float -->
-        "IM_switch_float_" + SlangShaderGenerator::TARGET,
-        "IM_switch_color3_" + SlangShaderGenerator::TARGET,
-        "IM_switch_color4_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- 'which' type : integer -->
-        "IM_switch_floatI_" + SlangShaderGenerator::TARGET,
-        "IM_switch_color3I_" + SlangShaderGenerator::TARGET,
-        "IM_switch_color4I_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector2I_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector3I_" + SlangShaderGenerator::TARGET,
-        "IM_switch_vector4I_" + SlangShaderGenerator::TARGET,
-    };
-    registerImplementation(elementNames, SwitchNode::create);
-
-    // <!-- <swizzle> -->
-    elementNames = {
-        // <!-- from type : float -->
-        "IM_swizzle_float_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_float_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_float_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_float_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_float_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- from type : color3 -->
-        "IM_swizzle_color3_float_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color3_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color3_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color3_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color3_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color3_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- from type : color4 -->
-        "IM_swizzle_color4_float_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color4_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color4_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color4_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color4_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_color4_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- from type : vector2 -->
-        "IM_swizzle_vector2_float_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector2_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector2_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector2_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector2_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector2_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- from type : vector3 -->
-        "IM_swizzle_vector3_float_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector3_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector3_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector3_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector3_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector3_vector4_" + SlangShaderGenerator::TARGET,
-
-        // <!-- from type : vector4 -->
-        "IM_swizzle_vector4_float_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector4_color3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector4_color4_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector4_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector4_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_swizzle_vector4_vector4_" + SlangShaderGenerator::TARGET,
-    };
-    registerImplementation(elementNames, SwizzleNode::create);
-
-    // <!-- <convert> -->
-    elementNames = {
-        "IM_convert_float_color3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_float_color4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_float_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_convert_float_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_float_vector4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector2_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector3_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector3_color3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector3_vector4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector4_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_vector4_color4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_color3_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_color4_vector4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_color3_color4_" + SlangShaderGenerator::TARGET,
-        "IM_convert_color4_color3_" + SlangShaderGenerator::TARGET,
-        "IM_convert_boolean_float_" + SlangShaderGenerator::TARGET,
-        "IM_convert_integer_float_" + SlangShaderGenerator::TARGET,
-    };
-    registerImplementation(elementNames, ConvertNode::create);
-
-    // <!-- <combine> -->
-    elementNames = {
-        "IM_combine2_vector2_" + SlangShaderGenerator::TARGET,
-        "IM_combine2_color4CF_" + SlangShaderGenerator::TARGET,
-        "IM_combine2_vector4VF_" + SlangShaderGenerator::TARGET,
-        "IM_combine2_vector4VV_" + SlangShaderGenerator::TARGET,
-        "IM_combine3_color3_" + SlangShaderGenerator::TARGET,
-        "IM_combine3_vector3_" + SlangShaderGenerator::TARGET,
-        "IM_combine4_color4_" + SlangShaderGenerator::TARGET,
-        "IM_combine4_vector4_" + SlangShaderGenerator::TARGET,
-    };
-    registerImplementation(elementNames, CombineNode::create);
+    //    StringVec elementNames;
 
     // <!-- <position> -->
     registerImplementation(
@@ -176,15 +62,15 @@ SlangShaderGenerator::SlangShaderGenerator()
     // <!-- <normal> -->
     registerImplementation(
         "IM_normal_vector3_" + SlangShaderGenerator::TARGET,
-        NormalNodeSlang::create);
+        HwNormalNode::create);
     // <!-- <tangent> -->
     registerImplementation(
         "IM_tangent_vector3_" + SlangShaderGenerator::TARGET,
-        TangentNodeSlang::create);
+        HwTangentNode::create);
     // <!-- <bitangent> -->
     registerImplementation(
         "IM_bitangent_vector3_" + SlangShaderGenerator::TARGET,
-        BitangentNodeSlang::create);
+        HwBitangentNode::create);
     // <!-- <texcoord> -->
     registerImplementation(
         "IM_texcoord_vector2_" + SlangShaderGenerator::TARGET,
@@ -195,15 +81,15 @@ SlangShaderGenerator::SlangShaderGenerator()
     // <!-- <geomcolor> -->
     registerImplementation(
         "IM_geomcolor_float_" + SlangShaderGenerator::TARGET,
-        GeomColorNodeSlang::create);
+        HwGeomColorNode::create);
     registerImplementation(
         "IM_geomcolor_color3_" + SlangShaderGenerator::TARGET,
-        GeomColorNodeSlang::create);
+        HwGeomColorNode::create);
     registerImplementation(
         "IM_geomcolor_color4_" + SlangShaderGenerator::TARGET,
-        GeomColorNodeSlang::create);
+        HwGeomColorNode::create);
     // <!-- <geompropvalue> -->
-    elementNames = {
+    StringVec elementNames = {
         "IM_geompropvalue_integer_" + SlangShaderGenerator::TARGET,
         "IM_geompropvalue_float_" + SlangShaderGenerator::TARGET,
         "IM_geompropvalue_color3_" + SlangShaderGenerator::TARGET,
@@ -212,20 +98,20 @@ SlangShaderGenerator::SlangShaderGenerator()
         "IM_geompropvalue_vector3_" + SlangShaderGenerator::TARGET,
         "IM_geompropvalue_vector4_" + SlangShaderGenerator::TARGET,
     };
-    registerImplementation(elementNames, GeomPropValueNodeSlang::create);
+    registerImplementation(elementNames, HwGeomPropValueNode::create);
     registerImplementation(
         "IM_geompropvalue_boolean_" + SlangShaderGenerator::TARGET,
-        GeomPropValueNodeSlangAsUniform::create);
+        HwGeomPropValueNodeAsUniform::create);
     registerImplementation(
         "IM_geompropvalue_string_" + SlangShaderGenerator::TARGET,
-        GeomPropValueNodeSlangAsUniform::create);
+        HwGeomPropValueNodeAsUniform::create);
+    registerImplementation(
+        "IM_geompropvalue_filename_" + SlangShaderGenerator::TARGET,
+        HwGeomPropValueNodeAsUniform::create);
 
     // <!-- <frame> -->
     registerImplementation(
         "IM_frame_float_" + SlangShaderGenerator::TARGET, HwFrameNode::create);
-    // <!-- <time> -->
-    registerImplementation(
-        "IM_time_float_" + SlangShaderGenerator::TARGET, HwTimeNode::create);
     // <!-- <viewdirection> -->
     registerImplementation(
         "IM_viewdirection_vector3_" + SlangShaderGenerator::TARGET,
@@ -258,7 +144,9 @@ SlangShaderGenerator::SlangShaderGenerator()
     // <!-- <heighttonormal> -->
     registerImplementation(
         "IM_heighttonormal_vector3_" + SlangShaderGenerator::TARGET,
-        HeightToNormalNodeSlang::create);
+        []() -> ShaderNodeImplPtr {
+            return HwHeightToNormalNode::create(SlangSamplingIncludeFilename);
+        });
 
     // <!-- <blur> -->
     elementNames = {
@@ -269,7 +157,9 @@ SlangShaderGenerator::SlangShaderGenerator()
         "IM_blur_vector3_" + SlangShaderGenerator::TARGET,
         "IM_blur_vector4_" + SlangShaderGenerator::TARGET,
     };
-    registerImplementation(elementNames, BlurNodeSlang::create);
+    registerImplementation(elementNames, []() -> ShaderNodeImplPtr {
+        return HwBlurNode::create(SlangSamplingIncludeFilename);
+    });
 
     // <!-- <ND_transformpoint> ->
     registerImplementation(
@@ -295,39 +185,7 @@ SlangShaderGenerator::SlangShaderGenerator()
         "IM_image_vector3_" + SlangShaderGenerator::TARGET,
         "IM_image_vector4_" + SlangShaderGenerator::TARGET,
     };
-    registerImplementation(elementNames, HwImageNodeSlang::create);
-
-    // <!-- <layer> -->
-    registerImplementation(
-        "IM_layer_bsdf_" + SlangShaderGenerator::TARGET,
-        ClosureLayerNode::create);
-    registerImplementation(
-        "IM_layer_vdf_" + SlangShaderGenerator::TARGET,
-        ClosureLayerNode::create);
-    // <!-- <lerp> -->
-    registerImplementation(
-        "IM_mix_bsdf_" + SlangShaderGenerator::TARGET,
-        ClosureMixNodeSlang::create);
-    registerImplementation(
-        "IM_mix_edf_" + SlangShaderGenerator::TARGET,
-        ClosureMixNodeSlang::create);
-    // <!-- <add> -->
-    registerImplementation(
-        "IM_add_bsdf_" + SlangShaderGenerator::TARGET, ClosureAddNode::create);
-    registerImplementation(
-        "IM_add_edf_" + SlangShaderGenerator::TARGET, ClosureAddNode::create);
-    // <!-- <multiply> -->
-    elementNames = {
-        "IM_multiply_bsdfC_" + SlangShaderGenerator::TARGET,
-        "IM_multiply_bsdfF_" + SlangShaderGenerator::TARGET,
-        "IM_multiply_edfC_" + SlangShaderGenerator::TARGET,
-        "IM_multiply_edfF_" + SlangShaderGenerator::TARGET,
-    };
-    registerImplementation(elementNames, ClosureMultiplyNode::create);
-
-    // <!-- <thin_film> -->
-    registerImplementation(
-        "IM_thin_film_bsdf_" + SlangShaderGenerator::TARGET, NopNode::create);
+    registerImplementation(elementNames, HwImageNode::create);
 
     // <!-- <surfacematerial> -->
     registerImplementation(
@@ -887,20 +745,10 @@ void SlangShaderGenerator::emitPixelStage(
             // No surface shader graph so just generate all
             // function calls in order.
             emitFunctionCalls(graph, context, stage);
-        }
-
-        // Emit final output
+        }  // Emit final output
         const ShaderOutput* outputConnection = outputSocket->getConnection();
         if (outputConnection) {
             string finalOutput = outputConnection->getVariable();
-            const string& channels = outputSocket->getChannels();
-            if (!channels.empty()) {
-                finalOutput = _syntax->getSwizzledVariable(
-                    finalOutput,
-                    outputConnection->getType(),
-                    channels,
-                    outputSocket->getType());
-            }
 
             if (graph.hasClassification(ShaderNode::Classification::SURFACE)) {
                 if (context.getOptions().hwTransparency) {
@@ -929,7 +777,7 @@ void SlangShaderGenerator::emitPixelStage(
                 }
             }
             else {
-                if (!outputSocket->getType()->isFloat4()) {
+                if (!outputSocket->getType().isFloat4()) {
                     toVec4(outputSocket->getType(), finalOutput);
                 }
                 emitLine(
@@ -942,7 +790,7 @@ void SlangShaderGenerator::emitPixelStage(
                     ? _syntax->getValue(
                           outputSocket->getType(), *outputSocket->getValue())
                     : _syntax->getDefaultValue(outputSocket->getType());
-            if (!outputSocket->getType()->isFloat4()) {
+            if (!outputSocket->getType().isFloat4()) {
                 string finalOutput = outputSocket->getVariable() + "_tmp";
                 emitLine(
                     _syntax->getTypeName(outputSocket->getType()) + " " +
@@ -995,19 +843,19 @@ void SlangShaderGenerator::emitLightFunctionDefinitions(
     }
 }
 
-void SlangShaderGenerator::toVec4(const TypeDesc* type, string& variable)
+void SlangShaderGenerator::toVec4(const TypeDesc& type, string& variable)
 {
-    if (type->isFloat3()) {
+    if (type.isFloat3()) {
         variable = "float4(" + variable + ", 1.0)";
     }
-    else if (type->isFloat2()) {
+    else if (type.isFloat2()) {
         variable = "float4(" + variable + ", 0.0, 1.0)";
     }
-    else if (*type == *Type::FLOAT || *type == *Type::INTEGER) {
+    else if (type == Type::FLOAT || type == Type::INTEGER) {
         variable =
             "float4(" + variable + ", " + variable + ", " + variable + ", 1.0)";
     }
-    else if (*type == *Type::BSDF || *type == *Type::EDF) {
+    else if (type == Type::BSDF || type == Type::EDF) {
         variable = "float4(" + variable + ", 1.0)";
     }
     else {
@@ -1024,7 +872,7 @@ void SlangShaderGenerator::emitVariableDeclaration(
     bool assignValue) const
 {
     // A file texture input needs special handling on SLANG
-    if (*variable->getType() == *Type::FILENAME) {
+    if (variable->getType() == Type::FILENAME) {
         // Samplers must always be uniforms
         string str = qualifier.empty() ? EMPTY_STRING : qualifier + " ";
         emitString(str + "Texture2D " + variable->getVariable(), stage);
@@ -1034,7 +882,7 @@ void SlangShaderGenerator::emitVariableDeclaration(
         // Varying parameters of type int must be flat qualified on output from
         // vertex stage and input to pixel stage. The only way to get these is
         // with geompropvalue_integer nodes.
-        if (qualifier.empty() && *variable->getType() == *Type::INTEGER &&
+        if (qualifier.empty() && variable->getType() == Type::INTEGER &&
             !assignValue &&
             variable->getName().rfind(HW::T_IN_GEOMPROP, 0) == 0) {
             str += SlangSyntax::FLAT_QUALIFIER + " ";
@@ -1043,7 +891,7 @@ void SlangShaderGenerator::emitVariableDeclaration(
                variable->getVariable();
 
         // If an array we need an array qualifier (suffix) for the variable name
-        if (variable->getType()->isArray() && variable->getValue()) {
+        if (variable->getType().isArray() && variable->getValue()) {
             str += _syntax->getArrayVariableSuffix(
                 variable->getType(), *variable->getValue());
         }
@@ -1087,15 +935,14 @@ ShaderNodeImplPtr SlangShaderGenerator::getImplementation(
         throw ExceptionShaderGenError(
             "NodeDef '" + nodedef.getName() + "' has no outputs defined");
     }
-
-    const TypeDesc* outputType = TypeDesc::get(outputs[0]->getType());
+    const TypeDesc outputType = context.getTypeDesc(outputs[0]->getType());
 
     if (implElement->isA<NodeGraph>()) {
         // Use a compound implementation.
-        if (*outputType == *Type::LIGHTSHADER) {
+        if (outputType == Type::LIGHTSHADER) {
             impl = LightCompoundNodeSlang::create();
         }
-        else if (outputType->isClosure()) {
+        else if (outputType.isClosure()) {
             impl = ClosureCompoundNodeSlang::create();
         }
         else {
@@ -1107,11 +954,11 @@ ShaderNodeImplPtr SlangShaderGenerator::getImplementation(
         impl = _implFactory.create(name);
         if (!impl) {
             // Fall back to source code implementation.
-            if (outputType->isClosure()) {
-                impl = ClosureSourceCodeNodeSlang::create();
+            if (outputType.isClosure()) {
+                impl = ClosureSourceCodeNode::create();
             }
             else {
-                impl = SourceCodeNodeSlang::create();
+                impl = SourceCodeNode::create();
             }
         }
     }
@@ -1137,8 +984,7 @@ void SlangShaderGenerator::emitLibraryInclude(
     auto file_path = name.asString(FilePath::FormatPosix);
 
     std::ranges::replace(file_path, '/', '.');
-
-    auto line = std::format("import {0}", file_path);
+    auto line = "import " + file_path;
     emitLine(line, stage);
 }
 

@@ -9,8 +9,7 @@
 
 MATERIALX_NAMESPACE_BEGIN
 
-namespace
-{
+namespace {
 
 const string LIGHT_DIRECTION_CALCULATION =
     "float3 L = light.position - position;\n"
@@ -18,14 +17,10 @@ const string LIGHT_DIRECTION_CALCULATION =
     "L /= distance;\n"
     "result.direction = L;\n";
 
-} // anonymous namespace
+}  // anonymous namespace
 
-LightNodeSlang::LightNodeSlang() :
-    _callEmission(HwShaderGenerator::ClosureContextType::EMISSION)
+LightNodeSlang::LightNodeSlang()
 {
-    // Emission context
-    _callEmission.addArgument(Type::EDF, ClosureContext::Argument(Type::VECTOR3, "light.direction"));
-    _callEmission.addArgument(Type::EDF, ClosureContext::Argument(Type::VECTOR3, "-L"));
 }
 
 ShaderNodeImplPtr LightNodeSlang::create()
@@ -33,41 +28,61 @@ ShaderNodeImplPtr LightNodeSlang::create()
     return std::make_shared<LightNodeSlang>();
 }
 
-void LightNodeSlang::createVariables(const ShaderNode&, GenContext& context, Shader& shader) const
+void LightNodeSlang::createVariables(
+    const ShaderNode&,
+    GenContext& context,
+    Shader& shader) const
 {
     ShaderStage& ps = shader.getStage(Stage::PIXEL);
 
     // Create uniform for intensity, exposure and direction
     VariableBlock& lightUniforms = ps.getUniformBlock(HW::LIGHT_DATA);
-    lightUniforms.add(Type::FLOAT, "intensity", Value::createValue<float>(1.0f));
+    lightUniforms.add(
+        Type::FLOAT, "intensity", Value::createValue<float>(1.0f));
     lightUniforms.add(Type::FLOAT, "exposure", Value::createValue<float>(0.0f));
-    lightUniforms.add(Type::VECTOR3, "direction", Value::createValue<Vector3>(Vector3(0.0f, 1.0f, 0.0f)));
+    lightUniforms.add(
+        Type::VECTOR3,
+        "direction",
+        Value::createValue<Vector3>(Vector3(0.0f, 1.0f, 0.0f)));
 
-    const SlangShaderGenerator& shadergen = static_cast<const SlangShaderGenerator&>(context.getShaderGenerator());
+    const SlangShaderGenerator& shadergen =
+        static_cast<const SlangShaderGenerator&>(context.getShaderGenerator());
     shadergen.addStageLightingUniforms(context, ps);
 }
 
-void LightNodeSlang::emitFunctionCall(const ShaderNode& node, GenContext& context, ShaderStage& stage) const
+void LightNodeSlang::emitFunctionCall(
+    const ShaderNode& node,
+    GenContext& context,
+    ShaderStage& stage) const
 {
     DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
     {
-        const SlangShaderGenerator& shadergen = static_cast<const SlangShaderGenerator&>(context.getShaderGenerator());
+        const SlangShaderGenerator& shadergen =
+            static_cast<const SlangShaderGenerator&>(
+                context.getShaderGenerator());
 
-        shadergen.emitBlock(LIGHT_DIRECTION_CALCULATION, FilePath(), context, stage);
+        shadergen.emitBlock(
+            LIGHT_DIRECTION_CALCULATION, FilePath(), context, stage);
         shadergen.emitLineBreak(stage);
 
         const ShaderInput* edfInput = node.getInput("edf");
         const ShaderNode* edf = edfInput->getConnectedSibling();
-        if (edf)
-        {
-            context.pushClosureContext(&_callEmission);
+        if (edf) {
+            shadergen.emitScopeBegin(stage);
+            shadergen.emitLine(
+                "ClosureData closureData = ClosureData(CLOSURE_TYPE_EMISSION, "
+                "vec3(0), -L, light.direction, vec3(0), 0)",
+                stage);
             shadergen.emitFunctionCall(*edf, context, stage);
-            context.popClosureContext();
-
+            shadergen.emitScopeEnd(stage);
             shadergen.emitLineBreak(stage);
 
-            shadergen.emitComment("Apply quadratic falloff and adjust intensity", stage);
-            shadergen.emitLine("result.intensity = " + edf->getOutput()->getVariable() + " / (distance * distance)", stage);
+            shadergen.emitComment(
+                "Apply quadratic falloff and adjust intensity", stage);
+            shadergen.emitLine(
+                "result.intensity = " + edf->getOutput()->getVariable() +
+                    " / (distance * distance)",
+                stage);
 
             const ShaderInput* intensity = node.getInput("intensity");
             const ShaderInput* exposure = node.getInput("exposure");
@@ -78,8 +93,9 @@ void LightNodeSlang::emitFunctionCall(const ShaderNode& node, GenContext& contex
             shadergen.emitLineEnd(stage);
 
             // Emit exposure adjustment only if it matters
-            if (exposure->getConnection() || (exposure->getValue() && exposure->getValue()->asA<float>() != 0.0f))
-            {
+            if (exposure->getConnection() ||
+                (exposure->getValue() &&
+                 exposure->getValue()->asA<float>() != 0.0f)) {
                 shadergen.emitLineBegin(stage);
                 shadergen.emitString("result.intensity *= pow(2, ", stage);
                 shadergen.emitInput(exposure, context, stage);
@@ -87,11 +103,9 @@ void LightNodeSlang::emitFunctionCall(const ShaderNode& node, GenContext& contex
                 shadergen.emitLineEnd(stage);
             }
         }
-        else
-        {
-            shadergen.emitLine("result.intensity = float3(0.0)", stage);
+        else {
+            shadergen.emitLine("result.intensity = vec3(0.0)", stage);
         }
     }
 }
-
 MATERIALX_NAMESPACE_END

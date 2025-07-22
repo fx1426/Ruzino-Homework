@@ -9,9 +9,6 @@
 #include <MaterialXGenShader/HwShaderGenerator.h>
 #include <MaterialXGenShader/ShaderGenerator.h>
 
-#include "Logger/Logger.h"
-#include "MaterialXGenShader/Nodes/ClosureCompoundNode.h"
-
 MATERIALX_NAMESPACE_BEGIN
 ShaderNodeImplPtr ClosureCompoundNodeSlang::create()
 {
@@ -598,6 +595,7 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
     DEFINE_SHADER_STAGE(stage, Stage::PIXEL)
     {
         const ShaderGenerator& shadergen = context.getShaderGenerator();
+        const Syntax& syntax = shadergen.getSyntax();
 
         bool isStandardSurface =
             _functionName.find("standard_surface") != string::npos;
@@ -607,19 +605,91 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
         // Emit functions for all child nodes
         shadergen.emitFunctionDefinitions(*_rootGraph, context, stage);
 
-        // Find any closure contexts used by this node
-        // and emit the function for each context.
-        vector<ClosureContext*> ccts;
-        shadergen.getClosureContexts(node, ccts);
-        if (ccts.empty()) {
-            emitFunctionDefinition(nullptr, context, stage);
-        }
-        else {
-            for (ClosureContext* cct : ccts) {
-                emitFunctionDefinition(cct, context, stage);
-            }
-        }  // Emit the sample fallback and standard surface sampling
+        string delim = "";
 
+        // Begin function signature
+        shadergen.emitLineBegin(stage);
+
+        shadergen.emitString("void " + _functionName  + "(", stage);
+
+        if (context.getShaderGenerator().nodeNeedsClosureData(node))
+        {
+            shadergen.emitString(delim + HW::CLOSURE_DATA_TYPE + " " + HW::CLOSURE_DATA_ARG + ", ", stage);
+        }
+
+        auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
+        if (!vertexData.empty()) {
+            shadergen.emitString(
+                delim + vertexData.getName() + " " + vertexData.getInstance(),
+                stage);
+            delim = ", ";
+        }
+
+        shadergen.emitString(delim + "SamplerState sampler", stage);
+
+        const string& type = syntax.getTypeName(Type::VECTOR3);
+        shadergen.emitString(delim + type + " " + HW::DIR_L, stage);
+        shadergen.emitString(", " + type + " " + HW::DIR_V, stage);
+        // eta
+        shadergen.emitString(delim + "uint eta_flipped", stage);
+
+        // Add all inputs
+        for (ShaderGraphInputSocket* inputSocket : _rootGraph->getInputSockets())
+        {
+            shadergen.emitString(delim + syntax.getTypeName(inputSocket->getType()) + " " + inputSocket->getVariable(), stage);
+            delim = ", ";
+        }
+
+        // Add all outputs
+        for (ShaderGraphOutputSocket* outputSocket : _rootGraph->getOutputSockets())
+        {
+            shadergen.emitString(delim + syntax.getOutputTypeName(outputSocket->getType()) + " " + outputSocket->getVariable(), stage);
+            delim = ", ";
+        }
+
+        // End function signature
+        shadergen.emitString(")", stage);
+        shadergen.emitLineEnd(stage, false);
+
+        // Begin function body
+        shadergen.emitFunctionBodyBegin(*_rootGraph, context, stage);
+
+        if (isStandardSurface) {
+            shadergen.emitLine("if (transmission > 0.0)", stage, false);
+            shadergen.emitLine("if (eta_flipped > 0.0)", stage, false);
+            shadergen.emitLine("specular_IOR = 1.0 / specular_IOR", stage);
+        }
+
+        // Emit all texturing nodes. These are inputs to the
+        // closure nodes and need to be emitted first.
+        shadergen.emitFunctionCalls(*_rootGraph, context, stage, ShaderNode::Classification::TEXTURE);
+
+        // Emit function calls for internal closures nodes connected to the graph sockets.
+        // These will in turn emit function calls for any dependent closure nodes upstream.
+        for (ShaderGraphOutputSocket* outputSocket : _rootGraph->getOutputSockets())
+        {
+            if (outputSocket->getConnection())
+            {
+                const ShaderNode* upstream = outputSocket->getConnection()->getNode();
+                if (upstream->getParent() == _rootGraph.get() &&
+                    (upstream->hasClassification(ShaderNode::Classification::CLOSURE) || upstream->hasClassification(ShaderNode::Classification::SHADER)))
+                {
+                    shadergen.emitFunctionCall(*upstream, context, stage);
+                }
+            }
+        }
+
+        // Emit final results
+        for (ShaderGraphOutputSocket* outputSocket : _rootGraph->getOutputSockets())
+        {
+            const string result = shadergen.getUpstreamResult(outputSocket, context);
+            shadergen.emitLine(outputSocket->getVariable() + " = " + result, stage);
+        }
+
+        // End function body
+        shadergen.emitFunctionBodyEnd(*_rootGraph, context, stage);
+
+        // Emit the sample fallback and standard surface sampling
         if (isStandardSurface) {
             shadergen.emitLine(
                 sample_source_code_standard_surface, stage, false);
@@ -633,138 +703,12 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
     }
 }
 
-void ClosureCompoundNodeSlang::emitFunctionDefinition(
-    ClosureContext* cct,
-    GenContext& context,
-    ShaderStage& stage) const
-{
-    const ShaderGenerator& shadergen = context.getShaderGenerator();
-    const Syntax& syntax = shadergen.getSyntax();
-
-    string delim = "";
-
-    // Begin function signature
-    shadergen.emitLineBegin(stage);
-    if (cct) {
-        // Use the first output for classifying node type for the closure
-        // context. This is only relevent for closures, and they only have a
-        // single output.
-        const TypeDesc* closureType = _rootGraph->getOutputSocket()->getType();
-
-        shadergen.emitString(
-            "void " + _functionName + cct->getSuffix(closureType) + "(", stage);
-
-        // Add any extra argument inputs first
-        for (const ClosureContext::Argument& arg :
-             cct->getArguments(closureType)) {
-            const string& type = syntax.getTypeName(arg.first);
-            shadergen.emitString(delim + type + " " + arg.second, stage);
-            delim = ", ";
-        }
-    }
-    else {
-        shadergen.emitString("void " + _functionName + "(", stage);
-    }
-
-    auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
-    if (!vertexData.empty()) {
-        shadergen.emitString(
-            delim + vertexData.getName() + " " + vertexData.getInstance(),
-            stage);
-        delim = ", ";
-    }
-
-    shadergen.emitString(delim + "SamplerState sampler", stage);
-
-    const string& type = syntax.getTypeName(Type::VECTOR3);
-    shadergen.emitString(delim + type + " " + HW::DIR_L, stage);
-    shadergen.emitString(", " + type + " " + HW::DIR_V, stage);
-    // eta
-    shadergen.emitString(delim + "uint eta_flipped", stage);
-
-    // Add all inputs
-    for (ShaderGraphInputSocket* inputSocket : _rootGraph->getInputSockets()) {
-        shadergen.emitString(
-            delim + syntax.getTypeName(inputSocket->getType()) + " " +
-                inputSocket->getVariable(),
-            stage);
-        delim = ", ";
-    }
-
-    // Add all outputs
-    for (ShaderGraphOutputSocket* outputSocket :
-         _rootGraph->getOutputSockets()) {
-        shadergen.emitString(
-            delim + syntax.getOutputTypeName(outputSocket->getType()) + " " +
-                outputSocket->getVariable(),
-            stage);
-        delim = ", ";
-    }
-
-    // End function signature
-    shadergen.emitString(")", stage);
-    shadergen.emitLineEnd(stage, false);
-
-    // Begin function body
-    shadergen.emitFunctionBodyBegin(*_rootGraph, context, stage);
-
-    if (cct) {
-        context.pushClosureContext(cct);
-    }
-    bool isStandardSurface =
-        _functionName.find("standard_surface") != string::npos;
-    if (isStandardSurface) {
-        shadergen.emitLine("if (transmission > 0.0)", stage, false);
-        shadergen.emitLine("if (eta_flipped > 0.0)", stage, false);
-        shadergen.emitLine("specular_IOR = 1.0 / specular_IOR", stage);
-    }
-    // Emit all texturing nodes. These are inputs to the
-    // closure nodes and need to be emitted first.
-    shadergen.emitFunctionCalls(
-        *_rootGraph, context, stage, ShaderNode::Classification::TEXTURE);
-
-    // Emit function calls for internal closures nodes connected to the graph
-    // sockets. These will in turn emit function calls for any dependent closure
-    // nodes upstream.
-    for (ShaderGraphOutputSocket* outputSocket :
-         _rootGraph->getOutputSockets()) {
-        if (outputSocket->getConnection()) {
-            const ShaderNode* upstream =
-                outputSocket->getConnection()->getNode();
-            if (upstream->getParent() == _rootGraph.get() &&
-                (upstream->hasClassification(
-                     ShaderNode::Classification::CLOSURE) ||
-                 upstream->hasClassification(
-                     ShaderNode::Classification::SHADER))) {
-                shadergen.emitFunctionCall(*upstream, context, stage);
-            }
-        }
-    }
-
-    if (cct) {
-        context.popClosureContext();
-    }
-
-    // Emit final results
-    for (ShaderGraphOutputSocket* outputSocket :
-         _rootGraph->getOutputSockets()) {
-        const string result =
-            shadergen.getUpstreamResult(outputSocket, context);
-        shadergen.emitLine(outputSocket->getVariable() + " = " + result, stage);
-    }
-
-    // End function body
-    shadergen.emitFunctionBodyEnd(*_rootGraph, context, stage);
-}
-
 void ClosureCompoundNodeSlang::emitFunctionCall(
     const ShaderNode& node,
     GenContext& context,
     ShaderStage& stage) const
 {
     const ShaderGenerator& shadergen = context.getShaderGenerator();
-    USTC_CG::log::info(
-        "Emitting closure compound function call for node: " + node.getName());
 
     DEFINE_SHADER_STAGE(stage, Stage::VERTEX)
     {
@@ -784,43 +728,13 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
         shadergen.emitLineBegin(stage);
         string delim = "";
 
+        // Emit function name.
+        shadergen.emitString(_functionName + "(", stage);
+
         // Check if we have a closure context to modify the function call.
-        ClosureContext* cct = context.getClosureContext();
-        if (cct) {
-            // Use the first output for classifying node type for the closure
-            // context. This is only relevent for closures, and they only have a
-            // single output.
-            const ShaderGraphOutputSocket* outputSocket =
-                _rootGraph->getOutputSocket();
-            const TypeDesc* closureType = outputSocket->getType();
-
-            // Check if extra parameters has been added for this node.
-            const ClosureContext::ClosureParams* params =
-                cct->getClosureParams(&node);
-            if (*closureType == *Type::BSDF && params) {
-                // Assign the parameters to the BSDF.
-                for (auto it : *params) {
-                    shadergen.emitLine(
-                        outputSocket->getVariable() + "." + it.first + " = " +
-                            shadergen.getUpstreamResult(it.second, context),
-                        stage);
-                }
-            }
-
-            // Emit function name.
-            shadergen.emitString(
-                _functionName + cct->getSuffix(closureType) + "(", stage);
-
-            // Emit extra argument.
-            for (const ClosureContext::Argument& arg :
-                 cct->getArguments(closureType)) {
-                shadergen.emitString(delim + arg.second, stage);
-                delim = ", ";
-            }
-        }
-        else {
-            // Emit function name.
-            shadergen.emitString(_functionName + "(", stage);
+        if (context.getShaderGenerator().nodeNeedsClosureData(node))
+        {
+            shadergen.emitString(delim + HW::CLOSURE_DATA_ARG + ", ", stage);
         }
 
         auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
@@ -833,6 +747,7 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
 
         shadergen.emitString(delim + HW::DIR_L + ", " + HW::DIR_V, stage);
         shadergen.emitString(delim + "eta_flipped", stage);
+        
         // Emit all inputs.
         for (ShaderInput* input : node.getInputs()) {
             shadergen.emitString(delim, stage);
@@ -846,7 +761,9 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
             shadergen.emitOutput(
                 node.getOutput(i), false, false, context, stage);
             delim = ", ";
-        }  // End function call
+        }
+        
+        // End function call
         shadergen.emitString(")", stage);
         shadergen.emitLineEnd(stage);
 
@@ -900,87 +817,52 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
                 "vertexInfo)",
                 stage);
         }
+        
+        // Use that direction to replace HW::DIR_L and re-evaluate the material
+        shadergen.emitLine(
+            "surfaceshader sampled_weight_out = "
+            "surfaceshader(float3(0.0),float3(0.0));",
+            stage);
+        shadergen.emitLineBegin(stage);
+        string delim2 = "";
+
+        // Emit function name.
+        shadergen.emitString(_functionName + "(", stage);
+
+        if (context.getShaderGenerator().nodeNeedsClosureData(node))
         {
-            // Use that direction to replace HW::DIR_L and re-evaluate the
-            // material
-            shadergen.emitLine(
-                "surfaceshader sampled_weight_out = "
-                "surfaceshader(float3(0.0),float3(0.0));",
-                stage);
-            shadergen.emitLineBegin(stage);
-            string delim = "";
-
-            // Check if we have a closure context to modify the function call.
-            ClosureContext* cct = context.getClosureContext();
-            if (cct) {
-                // Use the first output for classifying node type for the
-                // closure context. This is only relevent for closures, and they
-                // only have a single output.
-                const ShaderGraphOutputSocket* outputSocket =
-                    _rootGraph->getOutputSocket();
-                const TypeDesc* closureType = outputSocket->getType();
-
-                // Check if extra parameters has been added for this node.
-                const ClosureContext::ClosureParams* params =
-                    cct->getClosureParams(&node);
-                if (*closureType == *Type::BSDF && params) {
-                    // Assign the parameters to the BSDF.
-                    for (auto it : *params) {
-                        shadergen.emitLine(
-                            outputSocket->getVariable() + "." + it.first +
-                                " = " +
-                                shadergen.getUpstreamResult(it.second, context),
-                            stage);
-                    }
-                }
-
-                // Emit function name.
-                shadergen.emitString(
-                    _functionName + cct->getSuffix(closureType) + "(", stage);
-
-                // Emit extra argument.
-                for (const ClosureContext::Argument& arg :
-                     cct->getArguments(closureType)) {
-                    shadergen.emitString(delim + arg.second, stage);
-                    delim = ", ";
-                }
-            }
-            else {
-                // Emit function name.
-                shadergen.emitString(_functionName + "(", stage);
-            }
-
-            auto& vertexData = stage.getInputBlock(HW::VERTEX_DATA);
-            if (!vertexData.empty()) {
-                shadergen.emitString(delim + vertexData.getInstance(), stage);
-                delim = ", ";
-            }
-
-            shadergen.emitString(delim + "sampler", stage);
-
-            shadergen.emitString(
-                delim + "sampled_direction" + ", " + HW::DIR_V, stage);
-
-            shadergen.emitString(delim + "eta_flipped", stage);
-
-            // Emit all inputs.
-            for (ShaderInput* input : node.getInputs()) {
-                shadergen.emitString(delim, stage);
-                shadergen.emitInput(input, context, stage);
-                delim = ", ";
-            }
-
-            // Emit all outputs.
-            shadergen.emitString(delim, stage);
-            shadergen.emitString("sampled_weight_out", stage);
-            delim = ", ";
-
-            // End function call
-            shadergen.emitString(")", stage);
-            shadergen.emitLineEnd(stage);
-            shadergen.emitLine(
-                "sampled_weight = sampled_weight_out.color", stage);
+            shadergen.emitString(delim2 + HW::CLOSURE_DATA_ARG + ", ", stage);
         }
+
+        auto& vertexData2 = stage.getInputBlock(HW::VERTEX_DATA);
+        if (!vertexData2.empty()) {
+            shadergen.emitString(delim2 + vertexData2.getInstance(), stage);
+            delim2 = ", ";
+        }
+
+        shadergen.emitString(delim2 + "sampler", stage);
+
+        shadergen.emitString(
+            delim2 + "sampled_direction" + ", " + HW::DIR_V, stage);
+
+        shadergen.emitString(delim2 + "eta_flipped", stage);
+
+        // Emit all inputs.
+        for (ShaderInput* input : node.getInputs()) {
+            shadergen.emitString(delim2, stage);
+            shadergen.emitInput(input, context, stage);
+            delim2 = ", ";
+        }
+
+        // Emit all outputs.
+        shadergen.emitString(delim2, stage);
+        shadergen.emitString("sampled_weight_out", stage);
+
+        // End function call
+        shadergen.emitString(")", stage);
+        shadergen.emitLineEnd(stage);
+        shadergen.emitLine(
+            "sampled_weight = sampled_weight_out.color", stage);
     }
 }
 

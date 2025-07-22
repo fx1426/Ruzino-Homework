@@ -11,19 +11,21 @@
 MATERIALX_NAMESPACE_BEGIN
 
 /// Light node implementation for SLANG
-class HD_USTC_CG_API LightNodeSlang : public SlangImplementation
-{
-  public:
+class HD_USTC_CG_API LightNodeSlang : public SlangImplementation {
+   public:
     LightNodeSlang();
 
     static ShaderNodeImplPtr create();
 
-    void createVariables(const ShaderNode& node, GenContext& context, Shader& shader) const override;
+    void createVariables(
+        const ShaderNode& node,
+        GenContext& context,
+        Shader& shader) const override;
 
-    void emitFunctionCall(const ShaderNode& node, GenContext& context, ShaderStage& stage) const override;
-
-  private:
-    mutable ClosureContext _callEmission;
+    void emitFunctionCall(
+        const ShaderNode& node,
+        GenContext& context,
+        ShaderStage& stage) const override;
 };
 
 MATERIALX_NAMESPACE_END

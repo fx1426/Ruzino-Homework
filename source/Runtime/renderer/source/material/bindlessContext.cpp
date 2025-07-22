@@ -198,7 +198,7 @@ void BindlessContext::emitResourceBindings(
                     }
                     else {
                         log::warning(
-                            ("Unsupported uniform type: " + type->getName())
+                            ("Unsupported uniform type: " + type.getName())
                                 .c_str());
                         assert(false);
                     }
@@ -248,9 +248,8 @@ void BindlessContext::emitResourceBindings(
                     numComponents = 4;
                 }
                 else {
-                    log::warning(
-                        ("Unsupported uniform type: " + type->getName())
-                            .c_str());
+                    log::warning(("Unsupported uniform type: " + type.getName())
+                                     .c_str());
                 }
 
                 if (uniform->getVariable() == "Surface_opacityThreshold") {
@@ -277,7 +276,7 @@ void BindlessContext::emitResourceBindings(
         // Second, emit all sampler uniforms as separate uniforms with separate
         // layout bindings
         for (auto uniform : resources.getVariableOrder()) {
-            if (*uniform->getType() == *Type::FILENAME) {
+            if (uniform->getType() == Type::FILENAME) {
                 // generator.emitString(
                 //     "layout (binding=" +
                 //         std::to_string(
@@ -344,7 +343,7 @@ void BindlessContext::emitStructuredResourceBindings(
     // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_uniform_buffer_object.txt
 
     const size_t baseAlignment = 16;
-    std::unordered_map<const TypeDesc*, size_t> alignmentMap(
+    std::unordered_map<TypeDesc, size_t, TypeDesc::Hasher> alignmentMap(
         { { Type::FLOAT, baseAlignment / 4 },
           { Type::INTEGER, baseAlignment / 4 },
           { Type::BOOLEAN, baseAlignment / 4 },

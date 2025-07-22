@@ -28,7 +28,7 @@ void LightShaderNodeSlang::initialize(
     const InterfaceElement& element,
     GenContext& context)
 {
-    SourceCodeNodeSlang::initialize(element, context);
+    SourceCodeNode::initialize(element, context);
 
     if (_inlined) {
         throw ExceptionShaderGenError(
@@ -47,7 +47,7 @@ void LightShaderNodeSlang::initialize(
     NodeDefPtr nodeDef = impl.getNodeDef();
     for (InputPtr input : nodeDef->getActiveInputs()) {
         _lightUniforms.add(
-            TypeDesc::get(input->getType()),
+            context.getTypeDesc(input->getType()),
             input->getName(),
             input->getValue());
     }

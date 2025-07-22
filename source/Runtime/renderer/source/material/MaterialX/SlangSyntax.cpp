@@ -15,7 +15,7 @@ namespace {
 // TODO: Support options strings by converting to a corresponding enum integer
 class SlangStringTypeSyntax : public StringTypeSyntax {
    public:
-    SlangStringTypeSyntax() : StringTypeSyntax("int", "0", "0")
+    SlangStringTypeSyntax(const Syntax* parent) : StringTypeSyntax(parent, "int", "0", "0")
     {
     }
 
@@ -27,8 +27,8 @@ class SlangStringTypeSyntax : public StringTypeSyntax {
 
 class SlangArrayTypeSyntax : public ScalarTypeSyntax {
    public:
-    SlangArrayTypeSyntax(const string& name)
-        : ScalarTypeSyntax(name, EMPTY_STRING, EMPTY_STRING, EMPTY_STRING)
+    SlangArrayTypeSyntax(const Syntax* parent, const string& name)
+        : ScalarTypeSyntax(parent, name, EMPTY_STRING, EMPTY_STRING, EMPTY_STRING)
     {
     }
 
@@ -42,31 +42,14 @@ class SlangArrayTypeSyntax : public ScalarTypeSyntax {
         return EMPTY_STRING;
     }
 
-    string getValue(const StringVec& values, bool /*uniform*/) const override
-    {
-        if (values.empty()) {
-            throw ExceptionShaderGenError(
-                "No values given to construct an array value");
-        }
-
-        string result =
-            _name + "[" + std::to_string(values.size()) + "](" + values[0];
-        for (size_t i = 1; i < values.size(); ++i) {
-            result += ", " + values[i];
-        }
-        result += ")";
-
-        return result;
-    }
-
    protected:
     virtual size_t getSize(const Value& value) const = 0;
 };
 
 class SlangFloatArrayTypeSyntax : public SlangArrayTypeSyntax {
    public:
-    explicit SlangFloatArrayTypeSyntax(const string& name)
-        : SlangArrayTypeSyntax(name)
+    explicit SlangFloatArrayTypeSyntax(const Syntax* parent, const string& name)
+        : SlangArrayTypeSyntax(parent, name)
     {
     }
 
@@ -80,8 +63,8 @@ class SlangFloatArrayTypeSyntax : public SlangArrayTypeSyntax {
 
 class SlangIntegerArrayTypeSyntax : public SlangArrayTypeSyntax {
    public:
-    explicit SlangIntegerArrayTypeSyntax(const string& name)
-        : SlangArrayTypeSyntax(name)
+    explicit SlangIntegerArrayTypeSyntax(const Syntax* parent, const string& name)
+        : SlangArrayTypeSyntax(parent, name)
     {
     }
 
@@ -109,7 +92,8 @@ const StringVec SlangSyntax::VEC4_MEMBERS = { ".x", ".y", ".z", ".w" };
 // SlangSyntax methods
 //
 
-SlangSyntax::SlangSyntax()
+SlangSyntax::SlangSyntax(TypeSystemPtr typeSystem) :
+    Syntax(typeSystem)
 {
     // Add in all reserved words and keywords in SLANG
     registerReservedWords({ "centroid",
@@ -302,32 +286,50 @@ SlangSyntax::SlangSyntax()
     tokens["gl_"] = "gll";
     tokens["webgl_"] = "webgll";
     tokens["_webgl"] = "wwebgl";
-    registerInvalidTokens(tokens);
-
-    //
+    registerInvalidTokens(tokens);    //
     // Register syntax handlers for each data type.
     //
 
     registerTypeSyntax(
-        Type::FLOAT, std::make_shared<ScalarTypeSyntax>("float", "0.0", "0.0"));
+        Type::FLOAT,
+        std::make_shared<ScalarTypeSyntax>(
+            this,
+            "float",
+            "0.0",
+            "0.0"));
 
     registerTypeSyntax(
-        Type::FLOATARRAY, std::make_shared<SlangFloatArrayTypeSyntax>("float"));
+        Type::FLOATARRAY,
+        std::make_shared<SlangFloatArrayTypeSyntax>(
+            this,
+            "float"));
 
     registerTypeSyntax(
-        Type::INTEGER, std::make_shared<ScalarTypeSyntax>("int", "0", "0"));
+        Type::INTEGER,
+        std::make_shared<ScalarTypeSyntax>(
+            this,
+            "int",
+            "0",
+            "0"));
 
     registerTypeSyntax(
         Type::INTEGERARRAY,
-        std::make_shared<SlangIntegerArrayTypeSyntax>("int"));
+        std::make_shared<SlangIntegerArrayTypeSyntax>(
+            this,
+            "int"));
 
     registerTypeSyntax(
         Type::BOOLEAN,
-        std::make_shared<ScalarTypeSyntax>("bool", "false", "false"));
+        std::make_shared<ScalarTypeSyntax>(
+            this,
+            "bool",
+            "false",
+            "false"));
 
     registerTypeSyntax(
         Type::COLOR3,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "float3",
             "float3(0.0)",
             "float3(0.0)",
@@ -338,6 +340,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::COLOR4,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "float4",
             "float4(0.0)",
             "float4(0.0)",
@@ -348,6 +351,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::VECTOR2,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "float2",
             "float2(0.0)",
             "float2(0.0)",
@@ -358,6 +362,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::VECTOR3,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "float3",
             "float3(0.0)",
             "float3(0.0)",
@@ -368,6 +373,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::VECTOR4,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "float4",
             "float4(0.0)",
             "float4(0.0)",
@@ -378,23 +384,35 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::MATRIX33,
         std::make_shared<AggregateTypeSyntax>(
-            "float3x3", "float3x3(1.0)", "float3x3(1.0)"));
+            this,
+            "float3x3",
+            "float3x3(1.0)",
+            "float3x3(1.0)"));
 
     registerTypeSyntax(
         Type::MATRIX44,
         std::make_shared<AggregateTypeSyntax>(
-            "float4x4", "float4x4(1.0)", "float4x4(1.0)"));
+            this,
+            "float4x4",
+            "float4x4(1.0)",
+            "float4x4(1.0)"));
 
-    registerTypeSyntax(Type::STRING, std::make_shared<SlangStringTypeSyntax>());
+    registerTypeSyntax(
+        Type::STRING,
+        std::make_shared<SlangStringTypeSyntax>(this));
 
     registerTypeSyntax(
         Type::FILENAME,
         std::make_shared<ScalarTypeSyntax>(
-            "Texture2D", EMPTY_STRING, EMPTY_STRING));
+            this,
+            "Texture2D",
+            EMPTY_STRING,
+            EMPTY_STRING));
 
     registerTypeSyntax(
         Type::BSDF,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "BSDF",
             "BSDF(float3(0.0),float3(1.0), 0.0, 0.0)",
             EMPTY_STRING,
@@ -404,16 +422,25 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::EDF,
         std::make_shared<AggregateTypeSyntax>(
-            "EDF", "EDF(0.0)", "EDF(0.0)", "float3", "#define EDF float3"));
+            this,
+            "EDF",
+            "EDF(0.0)",
+            "EDF(0.0)",
+            "float3",
+            "#define EDF float3"));
 
     registerTypeSyntax(
         Type::VDF,
         std::make_shared<AggregateTypeSyntax>(
-            "BSDF", "BSDF(float3(0.0),float3(1.0), 0.0, 0.0)", EMPTY_STRING));
+            this,
+            "BSDF",
+            "BSDF(float3(0.0),float3(1.0), 0.0, 0.0)",
+            EMPTY_STRING));
 
     registerTypeSyntax(
         Type::SURFACESHADER,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "surfaceshader",
             "surfaceshader(float3(0.0),float3(0.0))",
             EMPTY_STRING,
@@ -423,6 +450,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::VOLUMESHADER,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "volumeshader",
             "volumeshader(float3(0.0),float3(0.0))",
             EMPTY_STRING,
@@ -432,6 +460,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::DISPLACEMENTSHADER,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "displacementshader",
             "displacementshader(float3(0.0),1.0)",
             EMPTY_STRING,
@@ -441,6 +470,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::LIGHTSHADER,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "lightshader",
             "lightshader(float3(0.0),float3(0.0))",
             EMPTY_STRING,
@@ -450,6 +480,7 @@ SlangSyntax::SlangSyntax()
     registerTypeSyntax(
         Type::MATERIAL,
         std::make_shared<AggregateTypeSyntax>(
+            this,
             "material",
             "material(float3(0.0),float3(0.0))",
             EMPTY_STRING,
@@ -459,14 +490,14 @@ SlangSyntax::SlangSyntax()
 
 bool SlangSyntax::typeSupported(const TypeDesc* type) const
 {
-    return type != Type::STRING;
+    return *type != Type::STRING;
 }
 
 bool SlangSyntax::remapEnumeration(
     const string& value,
-    const TypeDesc* type,
+    TypeDesc type,
     const string& enumNames,
-    std::pair<const TypeDesc*, ValuePtr>& result) const
+    std::pair<TypeDesc, ValuePtr>& result) const
 {
     // Early out if not an enum input.
     if (enumNames.empty()) {
@@ -474,9 +505,7 @@ bool SlangSyntax::remapEnumeration(
     }
 
     // Don't convert already supported types
-    // or filenames and arrays.
-    if (typeSupported(type) || *type == *Type::FILENAME ||
-        (type && type->isArray())) {
+    if (type != Type::STRING) {
         return false;
     }
 

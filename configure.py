@@ -69,7 +69,7 @@ def download_and_extract(url, extract_path, folder, targets, dry_run=False):
         print(f"Error extracting {zip_path}: {e}")
 
 
-openusd_version = "25.02a"
+openusd_version = "25.05.01"
 
 
 def process_usd(targets, dry_run=False, keep_original_files=True, copy_only=False):
