@@ -1,4 +1,5 @@
 add_subdirectory(Logger)
 add_subdirectory(nodes)
 add_subdirectory(RHI)
+add_subdirectory(Solver)
 add_subdirectory(GPUContext)

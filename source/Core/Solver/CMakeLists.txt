@@ -1,0 +1,6 @@
+USTC_CG_ADD_LIB(
+    Solver
+    SHARED
+    WITH_CUDA
+    PUBLIC_LIBS RHI
+)
