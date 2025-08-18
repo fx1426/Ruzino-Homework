@@ -125,10 +125,9 @@ class FEMSolver2D : public ElementSolver {
                 std::vector<int> ordered_vertices;
                 for (auto fv_it : face_vertices) {
                     ordered_vertices.push_back(fv_it.idx());
-                    tri_verts.push_back(
-                        pxr::GfVec2d(
-                            openmesh_->point(fv_it)[0],
-                            openmesh_->point(fv_it)[1]));
+                    tri_verts.push_back(pxr::GfVec2d(
+                        openmesh_->point(fv_it)[0],
+                        openmesh_->point(fv_it)[1]));
                 }
 
                 // Find the position of current vertex in the face
@@ -175,7 +174,7 @@ class FEMSolver2D : public ElementSolver {
         auto& vertex = openmesh_->point(openmesh_->vertex_handle(vertex_id));
         double x = vertex[0], y = vertex[1];
 
-        fem_bem::ExpressionD boundary_func(boundary_expr_);
+        fem_bem::Expression boundary_func(boundary_expr_);
         return static_cast<float>(
             boundary_func.evaluate_at({ { "x", x }, { "y", y } }));
     }

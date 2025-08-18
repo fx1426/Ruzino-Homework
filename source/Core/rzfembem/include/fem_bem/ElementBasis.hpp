@@ -22,7 +22,7 @@ namespace fem_bem {
     class ElementBasis {
        public:
         using value_type = T;
-        using expression_type = Expression<T>;
+        using expression_type = Expression;
 
         static constexpr unsigned problem_dimension = ProblemDimension;
         static constexpr unsigned element_dimension =
@@ -108,13 +108,13 @@ namespace fem_bem {
             MappingFunc mapping = nullptr,
             std::size_t intervals = 100) const
         {
-            Expression<T> expr = create_expression(expr_str);
+            Expression expr = create_expression(expr_str);
             return integrate_vertex_against(expr, mapping, intervals);
         }
 
         template<typename MappingFunc = std::nullptr_t>
         std::vector<T> integrate_vertex_against(
-            const Expression<T>& expr,
+            const Expression& expr,
             MappingFunc mapping = nullptr,
             std::size_t intervals = 100) const
         {
@@ -138,7 +138,7 @@ namespace fem_bem {
             std::size_t intervals = 100) const
         {
             if constexpr (element_dimension >= 2) {
-                Expression<T> expr = create_expression(expr_str);
+                Expression expr = create_expression(expr_str);
                 return integrate_edge_against(expr, mapping, intervals);
             }
             else {
@@ -148,7 +148,7 @@ namespace fem_bem {
 
         template<typename MappingFunc = std::nullptr_t>
         std::vector<T> integrate_edge_against(
-            const Expression<T>& expr,
+            const Expression& expr,
             MappingFunc mapping = nullptr,
             std::size_t intervals = 100) const
         {
@@ -178,7 +178,7 @@ namespace fem_bem {
             std::size_t intervals = 100) const
         {
             if constexpr (element_dimension >= 3) {
-                Expression<T> expr = create_expression(expr_str);
+                Expression expr = create_expression(expr_str);
                 return integrate_face_against(expr, mapping, intervals);
             }
             else {
@@ -188,7 +188,7 @@ namespace fem_bem {
 
         template<typename MappingFunc = std::nullptr_t>
         std::vector<T> integrate_face_against(
-            const Expression<T>& expr,
+            const Expression& expr,
             MappingFunc mapping = nullptr,
             std::size_t intervals = 100) const
         {
@@ -218,7 +218,7 @@ namespace fem_bem {
             std::size_t intervals = 100) const
         {
             if constexpr (element_dimension == 3) {
-                Expression<T> expr = create_expression(expr_str);
+                Expression expr = create_expression(expr_str);
                 return integrate_volume_against(expr, mapping, intervals);
             }
             else {
@@ -228,7 +228,7 @@ namespace fem_bem {
 
         template<typename MappingFunc = std::nullptr_t>
         std::vector<T> integrate_volume_against(
-            const Expression<T>& expr,
+            const Expression& expr,
             MappingFunc mapping = nullptr,
             std::size_t intervals = 100) const
         {
@@ -251,7 +251,7 @@ namespace fem_bem {
 
        private:
         // Create a new expression with all necessary variables pre-registered
-        Expression<T> create_expression(const std::string& expr_str) const
+        Expression create_expression(const std::string& expr_str) const
         {
             // Collect all possible variable names that might be needed
             std::vector<std::string> all_vars;
@@ -277,7 +277,7 @@ namespace fem_bem {
             all_vars.push_back("undefined_var");
 
             // Create expression with pre-defined variables
-            return Expression<T>(expr_str, all_vars);
+            return Expression(expr_str, all_vars);
         }
 
         // Setup barycentric coordinate variables based on element dimension
@@ -312,8 +312,8 @@ namespace fem_bem {
             std::size_t intervals) const
         {
             // Use the Expression class's integration methods
-            return shape_func.integrate_product_with(
-                expr, barycentric_names_, mapping, intervals);
+            return integrate_product_with(
+                shape_func, expr, barycentric_names_, mapping, intervals);
         }
 
        protected:

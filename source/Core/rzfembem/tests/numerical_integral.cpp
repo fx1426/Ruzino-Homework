@@ -101,7 +101,7 @@ TEST(IntegrateAgainstTest, WithMapping_3D)
                                               pxr::GfVec3d(0.0, 0.0, 1.0) };
 
     auto results =
-        fem3d->integrate_vertex_against_with_mapping("1", tetrahedron);
+        fem3d->integrate_vertex_against_with_mapping("1", tetrahedron, 80);
     ASSERT_EQ(results.size(), 1);
     EXPECT_NEAR(results[0], 1.0, 1e-3);  // ∫1 dV = 1 on reference tet
 
