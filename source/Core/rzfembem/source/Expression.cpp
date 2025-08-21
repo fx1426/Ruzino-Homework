@@ -176,7 +176,7 @@ namespace fem_bem {
         for (std::size_t i = 0; i < bound_values.size(); ++i) {
             const char* name = bound_values.get_name_at(i);
             const real& value = bound_values.get_value_at(i);
-            variables_.insert_or_assign(name, value);
+            bind_variable(name, value);
         }
 
         has_bound_variable_ = true;
@@ -184,7 +184,15 @@ namespace fem_bem {
 
     void Expression::bind_variable(const std::string& var_name, real value)
     {
-        variables_.insert_or_assign(var_name.c_str(), value);
+        if (is_compound_) {
+            for (auto& substitution : substitution_map_) {
+                substitution.second.bind_variable(var_name, value);
+            }
+        }
+        else {
+            variables_.insert_or_assign(var_name.c_str(), value);
+        }
+
         has_bound_variable_ = true;
     }
     bool Expression::has_bound_variables() const

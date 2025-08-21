@@ -105,7 +105,8 @@ namespace fem_bem {
         mutable std::unique_ptr<expression_type> compiled_expression_;
         mutable bool is_parsed_ = false;
 
-        // Unified variable storage - serves both as temp storage for exprtk and bound variables
+        // Unified variable storage - serves both as temp storage for exprtk and
+        // bound variables
         mutable ParameterMap<real> variables_;
 
         // Compound expression support
@@ -185,6 +186,9 @@ namespace fem_bem {
         std::size_t intervals = 100)
     {
         Expression final_expr = expr;
+        for (const auto& barycentric_name : barycentric_names) {
+            final_expr.bind_variable(barycentric_name, real(0));
+        }
 
         // If mapping is provided, compose it with the expression
         if constexpr (!std::is_same_v<MappingExpr, std::nullptr_t>) {
@@ -302,27 +306,27 @@ namespace fem_bem {
             }
 
             //// For missing barycentric coordinates, ensure they are set to 0
-            //if (barycentric_names.size() == 1) {
-            //    // 1D case: u1, and u2 = 1-u1 (implicitly)
-            //    values.insert_unchecked(
-            //        "u1", coords.size() > 0 ? coords[0] : real(0));
-            //}
-            //else if (barycentric_names.size() == 2) {
-            //    // 2D case: u1, u2, and u3 = 1-u1-u2 (implicitly)
-            //    values.insert_unchecked(
-            //        "u1", coords.size() > 0 ? coords[0] : real(0));
-            //    values.insert_unchecked(
-            //        "u2", coords.size() > 1 ? coords[1] : real(0));
-            //}
-            //else if (barycentric_names.size() == 3) {
-            //    // 3D case: u1, u2, u3, and u4 = 1-u1-u2-u3 (implicitly)
-            //    values.insert_unchecked(
-            //        "u1", coords.size() > 0 ? coords[0] : real(0));
-            //    values.insert_unchecked(
-            //        "u2", coords.size() > 1 ? coords[1] : real(0));
-            //    values.insert_unchecked(
-            //        "u3", coords.size() > 2 ? coords[2] : real(0));
-            //}
+            // if (barycentric_names.size() == 1) {
+            //     // 1D case: u1, and u2 = 1-u1 (implicitly)
+            //     values.insert_unchecked(
+            //         "u1", coords.size() > 0 ? coords[0] : real(0));
+            // }
+            // else if (barycentric_names.size() == 2) {
+            //     // 2D case: u1, u2, and u3 = 1-u1-u2 (implicitly)
+            //     values.insert_unchecked(
+            //         "u1", coords.size() > 0 ? coords[0] : real(0));
+            //     values.insert_unchecked(
+            //         "u2", coords.size() > 1 ? coords[1] : real(0));
+            // }
+            // else if (barycentric_names.size() == 3) {
+            //     // 3D case: u1, u2, u3, and u4 = 1-u1-u2-u3 (implicitly)
+            //     values.insert_unchecked(
+            //         "u1", coords.size() > 0 ? coords[0] : real(0));
+            //     values.insert_unchecked(
+            //         "u2", coords.size() > 1 ? coords[1] : real(0));
+            //     values.insert_unchecked(
+            //         "u3", coords.size() > 2 ? coords[2] : real(0));
+            // }
 
             return evaluator(values);
         };
