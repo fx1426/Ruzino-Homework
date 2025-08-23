@@ -347,31 +347,31 @@ namespace fem_bem {
         const std::string& variable_name) const
     {
         // Use more conservative step sizes for float precision
-        real h;
-        if (is_compound_ && outer_expression_) {
-            // Check if any of the substitutions are derivatives
-            bool has_derivative_substitution = false;
-            for (int i = 0; i < substitution_map_->size(); ++i) {
-                const auto& pair = substitution_map_->get_value_at(i);
-                if (pair.has_derivative_evaluator_) {
-                    has_derivative_substitution = true;
-                    break;
-                }
-            }
+        real h = real(1e-2);
+        //if (is_compound_ && outer_expression_) {
+        //    // Check if any of the substitutions are derivatives
+        //    bool has_derivative_substitution = false;
+        //    for (int i = 0; i < substitution_map_->size(); ++i) {
+        //        const auto& pair = substitution_map_->get_value_at(i);
+        //        if (pair.has_derivative_evaluator_) {
+        //            has_derivative_substitution = true;
+        //            break;
+        //        }
+        //    }
 
-            // For compound expressions with derivatives, use significantly
-            // larger step
-            h = has_derivative_substitution ? real(5e-3) : real(1e-4);
-        }
-        else if (has_derivative_evaluator_) {
-            // This is already a derivative, so we're computing second
-            // derivative
-            h = real(5e-3);
-        }
-        else {
-            // Simple expression
-            h = real(1e-4);
-        }
+        //    // For compound expressions with derivatives, use significantly
+        //    // larger step
+        //    h = has_derivative_substitution ? real(5e-3) : real(1e-4);
+        //}
+        //else if (has_derivative_evaluator_) {
+        //    // This is already a derivative, so we're computing second
+        //    // derivative
+        //    h = real(5e-3);
+        //}
+        //else {
+        //    // Simple expression
+        //    h = real(1e-4);
+        //}
 
         // For compound expressions, use numerical chain rule
         if (is_compound_ && outer_expression_) {

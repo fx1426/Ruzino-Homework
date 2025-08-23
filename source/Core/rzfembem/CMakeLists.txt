@@ -17,3 +17,5 @@ USTC_CG_ADD_LIB(
 )
 
 target_compile_options(RZFemBem INTERFACE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+
+add_subdirectory(nodes)

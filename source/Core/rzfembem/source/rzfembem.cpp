@@ -101,6 +101,34 @@ class FEMSolver2D : public ElementSolver {
         std::vector<Eigen::Triplet<float>> triplets;
 
         // First deal with the vertex based element.
+        auto expressions = basis_->get_vertex_expressions();
+
+        auto first = expressions[0];
+        auto gradient_first = first.gradient({ "u1", "u2" });
+        auto coor1 = expressions[1];
+        auto gradient_coor1 = coor1.gradient({ "u1", "u2" });
+        auto coor2 = expressions[2];
+        auto gradient_coor2 = coor2.gradient({ "u1", "u2" });
+
+        fem_bem::Expression final_expressions[3];
+
+        final_expressions[0] =
+            gradient_first[0] * fem_bem::Expression("j00") * gradient_first[0] +
+            gradient_first[0] * fem_bem::Expression("j01") * gradient_first[1] +
+            gradient_first[1] * fem_bem::Expression("j10") * gradient_first[0] +
+            gradient_first[1] * fem_bem::Expression("j11") * gradient_first[1];
+
+        final_expressions[1] =
+            gradient_first[0] * fem_bem::Expression("j00") * gradient_coor1[0] +
+            gradient_first[0] * fem_bem::Expression("j01") * gradient_coor1[1] +
+            gradient_first[1] * fem_bem::Expression("j10") * gradient_coor1[0] +
+            gradient_first[1] * fem_bem::Expression("j11") * gradient_coor1[1];
+
+        final_expressions[2] =
+            gradient_first[0] * fem_bem::Expression("j00") * gradient_coor2[0] +
+            gradient_first[0] * fem_bem::Expression("j01") * gradient_coor2[1] +
+            gradient_first[1] * fem_bem::Expression("j10") * gradient_coor2[0] +
+            gradient_first[1] * fem_bem::Expression("j11") * gradient_coor2[1];
 
         for (auto v_it : openmesh_->vertices()) {
             // This id
@@ -148,12 +176,10 @@ class FEMSolver2D : public ElementSolver {
                 // Now we assemble the stiffness matrix and load vector for the
                 // triangle
 
-                auto expressions = basis_->get_vertex_expressions();
-
                 assert(expressions.size() == 3);
                 auto triangle_area = compute_triangle_area(tri_verts);
 
-                // Calc Square of Jacobian Matrix
+                // Calc Square of Inverse Jacobian Matrix
                 auto v0 = openmesh_->point(openmesh_->vertex_handle(vertex_id));
                 auto v1 = openmesh_->point(
                     openmesh_->vertex_handle(face_vertex_ids[0]));
@@ -163,31 +189,36 @@ class FEMSolver2D : public ElementSolver {
                 auto d1 = v1 - v0;
                 auto d2 = v2 - v0;
 
-                auto j00 = d1[0] * d1[0] + d1[1] * d1[1];
-                auto j01 = d1[0] * d2[0] + d1[1] * d2[1];
-                auto j10 = d2[0] * d1[0] + d2[1] * d1[1];
-                auto j11 = d2[0] * d2[0] + d2[1] * d2[1];
+                // Jacobian matrix elements
+                auto jac_det = d1[0] * d2[1] - d1[1] * d2[0];
+                auto det_sq = jac_det * jac_det;
 
-                j00 = j01 = j10 = j11 = 1.0f;
+                // Inverse Jacobian squared elements
+                auto j00 = (d2[0] * d2[0] + d2[1] * d2[1]) / det_sq;
+                auto j01 = -(d2[0] * d2[0] + d1[1] * d1[1]) / det_sq;
+                auto j10 = j01;
+                auto j11 = (d1[0] * d1[0] + d1[1] * d1[1]) / det_sq;
+
 
                 auto calc_inner_product =
-                    [&expressions, j00, j01, j10, j11](int id) {
-                        auto first = expressions[0];
-                        auto gradient_first = first.gradient({ "u1", "u2" });
-                        auto coor = expressions[id];
-                        auto gradient_coor = coor.gradient({ "u1", "u2" });
-
+                    [j00, j01, j10, j11, &final_expressions](int id) {
+                        if (id < 3)
+                            final_expressions[id].bind_variables({
+                                { "j00", j00 },
+                                { "j01", j01 },
+                                { "j10", j10 },
+                                { "j11", j11 },
+                            });
                         auto integrated = fem_bem::integrate_over_simplex(
-                            gradient_first[0] * j00 * gradient_coor[0] +
-                                gradient_first[1] * j01 * gradient_coor[1] +
-                                gradient_first[0] * j10 * gradient_coor[0] +
-                                gradient_first[1] * j11 * gradient_coor[1],
-                            { "u1", "u2" },
-                            nullptr,
-                            2);
+                            final_expressions[id], { "u1", "u2" }, nullptr, 2);
                         return integrated;
                     };
 
+                int face_id;
+                if (vertex_id == 67 && face_vertex_ids[0] == 72)
+                    face_id = f_it.idx();
+                if (vertex_id == 72 && face_vertex_ids[1] == 67)
+                    face_id = f_it.idx();
                 triplets.emplace_back(
                     vertex_id,
                     vertex_id,

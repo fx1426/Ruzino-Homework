@@ -235,7 +235,7 @@ namespace fem_bem {
                         if (boundary_count == 1)
                             weight = real(0.5);
                         else if (boundary_count >= 2)
-                            weight = real(0.25);
+                            weight = real(1.0f / 6);
 
                         values.clear();
                         values.insert_unchecked(barycentric_names[0], u1);
