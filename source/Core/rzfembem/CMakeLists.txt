@@ -14,6 +14,7 @@ USTC_CG_ADD_LIB(
     WITH_CUDA
     PUBLIC_LIBS RZSolver exprtk geometry igl_core
     COMPILE_DEFS NOMINMAX
+    SKIP_DIRS nodes
 )
 
 target_compile_options(RZFemBem INTERFACE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)

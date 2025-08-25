@@ -62,20 +62,7 @@ target_link_libraries(imgui PUBLIC glfw Vulkan::Headers)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES=1)
 set_target_properties(imgui PROPERTIES FOLDER "external" ${OUTPUT_DIR})
 
-add_subdirectory(OpenMesh)
-set_target_properties(OpenMeshCore PROPERTIES FOLDER "external")
-set_target_properties(OpenMeshTools PROPERTIES FOLDER "external")
-
-target_compile_definitions(OpenMeshCore PUBLIC -D_USE_MATH_DEFINES=1)
-
 add_subdirectory(stb_image)
-
-
-
-# libigl
-set(LIBIGL_RESTRICTED_TRIANGLE ON CACHE BOOL "" FORCE)
-add_subdirectory(libigl)
-set_target_properties(igl_core PROPERTIES ${OUTPUT_DIR})
 
 # autodiff
 set(AUTODIFF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -89,19 +76,10 @@ set_target_properties(autodiff PROPERTIES ${OUTPUT_DIR})
 set_target_properties(glfw update_mappings PROPERTIES FOLDER "ThirdParty")
 set_target_properties(nvrhi PROPERTIES FOLDER "ThirdParty")
 set_target_properties(imgui PROPERTIES FOLDER "ThirdParty")
-set_target_properties(OpenMeshCore PROPERTIES FOLDER "ThirdParty")
-set_target_properties(OpenMeshTools PROPERTIES FOLDER "ThirdParty")
 
-set_target_properties(igl_core PROPERTIES FOLDER "ThirdParty")
 set_target_properties(autodiff PROPERTIES FOLDER "ThirdParty")
 set_target_properties(stb_image PROPERTIES FOLDER "ThirdParty")
 set_target_properties(uninstall PROPERTIES FOLDER "ThirdParty")
-
-# suppress warnings for third-party libraries
-if(MSVC)
-    target_compile_options(igl_core INTERFACE /wd4244 /wd4267)
-    target_compile_options(triangle PRIVATE /wd4311 /wd4302)
-endif()
 
 
 add_library(exprtk INTERFACE)
