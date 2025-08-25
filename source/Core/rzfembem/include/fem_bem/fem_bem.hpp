@@ -73,7 +73,7 @@ class RZFEMBEM_API ElementSolver {
         const std::string& expr,
         BoundaryCondition type,
         unsigned boundary_id) = 0;
-    virtual pxr::VtArray<float> solve() = 0;
+    virtual std::vector<float> solve() = 0;
 };
 
 RZFEMBEM_API std::shared_ptr<ElementSolver> create_element_solver(

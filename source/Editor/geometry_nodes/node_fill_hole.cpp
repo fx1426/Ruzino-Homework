@@ -7,7 +7,6 @@
 #include "GCore/util_openmesh_bind.h"
 #include "nodes/core/def/node_def.hpp"
 
-
 NODE_DEF_OPEN_SCOPE
 
 NODE_DECLARATION_FUNCTION(fill_hole)
@@ -112,12 +111,12 @@ NODE_EXECUTION_FUNCTION(fill_hole)
         //        (int)V.rows(), required_vertices, max_vertex_index);
 
         // Convert back to pxr format
-        pxr::VtArray<pxr::GfVec3f> output_vertices;
+        std::vector<glm::vec3> output_vertices;
         output_vertices.reserve(required_vertices);
 
         // Copy original vertices
         for (int i = 0; i < V.rows(); ++i) {
-            output_vertices.push_back(pxr::GfVec3f(V(i, 0), V(i, 1), V(i, 2)));
+            output_vertices.push_back(glm::vec3(V(i, 0), V(i, 1), V(i, 2)));
         }
         // Add new vertices for hole filling (these are the abstract vertices
         // mentioned in the igl doc)
@@ -129,11 +128,11 @@ NODE_EXECUTION_FUNCTION(fill_hole)
             int hole_index = i - V.rows();
             if (hole_index < static_cast<int>(boundary_loops.size())) {
                 const auto& hole = boundary_loops[hole_index];
-                pxr::GfVec3f centroid(0.0f, 0.0f, 0.0f);
+                glm::vec3 centroid(0.0f, 0.0f, 0.0f);
                 for (int vertex_idx : hole) {
                     if (vertex_idx >= 0 &&
                         vertex_idx < static_cast<int>(V.rows())) {
-                        centroid += pxr::GfVec3f(
+                        centroid += glm::vec3(
                             V(vertex_idx, 0),
                             V(vertex_idx, 1),
                             V(vertex_idx, 2));
@@ -146,11 +145,11 @@ NODE_EXECUTION_FUNCTION(fill_hole)
             }
             else {
                 // Fallback: place at origin
-                output_vertices.push_back(pxr::GfVec3f(0.0f, 0.0f, 0.0f));
+                output_vertices.push_back(glm::vec3(0.0f, 0.0f, 0.0f));
             }
         }
-        pxr::VtArray<int> output_indices;
-        pxr::VtArray<int> output_face_counts;
+        std::vector<int> output_indices;
+        std::vector<int> output_face_counts;
 
         output_indices.reserve(F_filled.rows() * 3);
         output_face_counts.reserve(F_filled.rows());
@@ -176,7 +175,7 @@ NODE_EXECUTION_FUNCTION(fill_hole)
         }
 
         // Calculate normals
-        pxr::VtArray<pxr::GfVec3f> normals;
+        std::vector<glm::vec3> normals;
         normals.reserve(output_indices.size());
 
         for (size_t i = 0; i < output_face_counts.size(); ++i) {
@@ -185,13 +184,13 @@ NODE_EXECUTION_FUNCTION(fill_hole)
             int i1 = output_indices[idx_start + 1];
             int i2 = output_indices[idx_start + 2];
 
-            pxr::GfVec3f v0 = output_vertices[i0];
-            pxr::GfVec3f v1 = output_vertices[i1];
-            pxr::GfVec3f v2 = output_vertices[i2];
+            glm::vec3 v0 = output_vertices[i0];
+            glm::vec3 v1 = output_vertices[i1];
+            glm::vec3 v2 = output_vertices[i2];
 
-            pxr::GfVec3f edge1 = v1 - v0;
-            pxr::GfVec3f edge2 = v2 - v0;
-            pxr::GfVec3f normal = pxr::GfCross(edge1, edge2).GetNormalized();
+            glm::vec3 edge1 = v1 - v0;
+            glm::vec3 edge2 = v2 - v0;
+            glm::vec3 normal = normalize(glm::cross(edge1, edge2));
 
             normals.push_back(normal);
             normals.push_back(normal);
@@ -202,7 +201,7 @@ NODE_EXECUTION_FUNCTION(fill_hole)
         const auto& original_texcoords = mesh_component->get_texcoords_array();
         if (!original_texcoords.empty() &&
             original_texcoords.size() == vertices.size()) {
-            pxr::VtArray<pxr::GfVec2f> output_texcoords;
+            std::vector<glm::vec2> output_texcoords;
             output_texcoords.reserve(output_vertices.size());
 
             // Copy existing texture coordinates
@@ -212,7 +211,7 @@ NODE_EXECUTION_FUNCTION(fill_hole)
 
             // Add default texture coordinates for new vertices (if any)
             for (size_t i = vertices.size(); i < output_vertices.size(); ++i) {
-                output_texcoords.push_back(pxr::GfVec2f(0.5f, 0.5f));
+                output_texcoords.push_back(glm::vec2(0.5f, 0.5f));
             }
 
             output_mesh->set_texcoords_array(output_texcoords);

@@ -1,3 +1,5 @@
+set(ENABLE_GEOM_USD_EXTENSION OFF CACHE BOOL "Enable USD extension for geometry module" FORCE)
+set(ENABLE_GPU_GEOM_ALGORITHM OFF CACHE BOOL "Enable GPU-based geometry algorithms" FORCE)
 add_subdirectory(geometry)
 add_subdirectory(geometry_nodes)
 add_subdirectory(simulation_nodes)

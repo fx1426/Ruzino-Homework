@@ -158,11 +158,11 @@ typedef OpenMesh::TriMesh_ArrayKernelT<> MyMesh;
 NODE_DECLARATION_FUNCTION(read_obj_pxr)
 {
     b.add_input<std::string>("Path").default_val("Default");
-    b.add_output<pxr::VtVec3fArray>("Vertices");
-    b.add_output<pxr::VtArray<int>>("FaceVertexCounts");
-    b.add_output<pxr::VtArray<int>>("FaceVertexIndices");
-    b.add_output<pxr::VtArray<pxr::GfVec3f>>("Normals");
-    b.add_output<pxr::VtArray<pxr::GfVec2f>>("Texcoords");
+    b.add_output<std::vector<glm::vec3>>("Vertices");
+    b.add_output<std::vector<int>>("FaceVertexCounts");
+    b.add_output<std::vector<int>>("FaceVertexIndices");
+    b.add_output<std::vector<glm::vec3>>("Normals");
+    b.add_output<std::vector<glm::vec2>>("Texcoords");
 }
 
 NODE_EXECUTION_FUNCTION(read_obj_pxr)
@@ -220,19 +220,19 @@ NODE_EXECUTION_FUNCTION(read_obj_pxr)
     mesh.request_vertex_texcoords2D();
 
     // 转换顶点数据
-    pxr::VtVec3fArray vertices(mesh.n_vertices());
+    std::vector<glm::vec3> vertices(mesh.n_vertices());
     int vertex_idx = 0;
     for (auto vh : mesh.vertices()) {
         auto point = mesh.point(vh);
-        vertices[vertex_idx] = pxr::GfVec3f(point[0], point[1], point[2]);
+        vertices[vertex_idx] = glm::vec3(point[0], point[1], point[2]);
         vertex_idx++;
     }
 
     // 转换面数据
     const int vertices_per_face = 3;  // 三角形网格
     const int num_faces = mesh.n_faces();
-    pxr::VtArray<int> faceVertexCounts(num_faces, vertices_per_face);
-    pxr::VtArray<int> faceVertexIndices(num_faces * vertices_per_face);
+    std::vector<int> faceVertexCounts(num_faces, vertices_per_face);
+    std::vector<int> faceVertexIndices(num_faces * vertices_per_face);
 
     int face_idx = 0;
     for (auto fh : mesh.faces()) {
@@ -246,25 +246,25 @@ NODE_EXECUTION_FUNCTION(read_obj_pxr)
     }
 
     // 转换法线数据
-    pxr::VtArray<pxr::GfVec3f> normals;
+    std::vector<glm::vec3> normals;
     if (mesh.has_vertex_normals()) {
         normals.resize(mesh.n_vertices());
         int normal_idx = 0;
         for (auto vh : mesh.vertices()) {
             auto normal = mesh.normal(vh);
-            normals[normal_idx] = pxr::GfVec3f(normal[0], normal[1], normal[2]);
+            normals[normal_idx] = glm::vec3(normal[0], normal[1], normal[2]);
             normal_idx++;
         }
     }
 
     // 转换纹理坐标数据
-    pxr::VtArray<pxr::GfVec2f> texcoords;
+    std::vector<glm::vec2> texcoords;
     if (mesh.has_vertex_texcoords2D()) {
         texcoords.resize(mesh.n_vertices());
         int texcoord_idx = 0;
         for (auto vh : mesh.vertices()) {
             auto texcoord = mesh.texcoord2D(vh);
-            texcoords[texcoord_idx] = pxr::GfVec2f(texcoord[0], texcoord[1]);
+            texcoords[texcoord_idx] = glm::vec2(texcoord[0], texcoord[1]);
             texcoord_idx++;
         }
     }

@@ -216,7 +216,7 @@ NODE_EXECUTION_FUNCTION(vertmesh_dist)
         for (int i = 0; i < faceVertexCount; i++) {
             faceVertexIndicesForFace.push_back(faceVertexIndices[start + i]);
         }
-        std::vector<pxr::GfVec3f> faceVertices;
+        std::vector<glm::vec3> faceVertices;
         for (int index : faceVertexIndicesForFace) {
             faceVertices.push_back(vertices[index]);
         }
@@ -349,7 +349,7 @@ NODE_EXECUTION_FUNCTION(meshmesh_dist)
                 faceVertexIndicesForFace.push_back(
                     faceVertexIndices[start + i]);
             }
-            std::vector<pxr::GfVec3f> faceVertices;
+            std::vector<glm::vec3> faceVertices;
             for (int index : faceVertexIndicesForFace) {
                 faceVertices.push_back(vertices[index]);
             }

@@ -9,16 +9,16 @@ NODE_DECLARATION_FUNCTION(print_debug_info)
     b.add_input<entt::meta_any>("Variable");
 }
 
-#define TypesToPrint float, VtArray<float>
+#define TypesToPrint float
 
 NODE_EXECUTION_FUNCTION(print_debug_info)
 {
     entt::meta_any storage = params.get_input<entt::meta_any>("Variable");
     using namespace pxr;
-#define PrintType(type)               \
-    if (storage.allow_cast<type>()) { \
-        std::ostringstream out;       \
-        out << storage.cast<type>();  \
+#define PrintType(type)                  \
+    if (storage.allow_cast<type>()) {    \
+        std::ostringstream out;          \
+        out << storage.cast<type>();     \
         spdlog::info(out.str().c_str()); \
     }
 

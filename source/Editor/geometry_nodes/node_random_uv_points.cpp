@@ -25,8 +25,8 @@ NODE_EXECUTION_FUNCTION(random_uv_points)
     auto points_component = std::make_shared<PointsComponent>(&geometry);
     geometry.attach_component(points_component);
 
-    pxr::VtArray<pxr::GfVec3f> points;
-    pxr::VtArray<float> widths;
+    std::vector<glm::vec3> points;
+    std::vector<float> widths;
 
     std::uniform_real_distribution<float> distX(
         0.f, 1.0f - std::numeric_limits<float>::epsilon());
@@ -36,7 +36,7 @@ NODE_EXECUTION_FUNCTION(random_uv_points)
     for (int i = 0; i < count; ++i) {
         float x = distX(engine);
         float y = distY(engine);
-        points.push_back(GfVec3f(x, y, 0.0f));
+        points.push_back(glm::vec3(x, y, 0.0f));
         widths.push_back(width);
     }
 

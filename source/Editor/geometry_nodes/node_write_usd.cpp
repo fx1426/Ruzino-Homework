@@ -1,3 +1,5 @@
+#ifdef GEOM_USD_EXTENSION
+
 #include <pxr/base/tf/stringUtils.h>
 #include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
@@ -11,6 +13,7 @@
 #include "GCore/Components/InstancerComponent.h"
 #include "GCore/Components/VolumeComponent.h"
 #include "GCore/geom_payload.hpp"
+#include "GCore/usd_extension.h"
 #include "geom_node_base.h"
 #include "pxr/base/gf/rotation.h"
 #include "pxr/usd/usd/payloads.h"
@@ -81,3 +84,4 @@ NODE_DECLARATION_REQUIRED(write_usd);
 
 NODE_DECLARATION_UI(write_usd);
 NODE_DEF_CLOSE_SCOPE
+#endif

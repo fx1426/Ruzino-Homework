@@ -4,6 +4,7 @@
 #include "GCore/algorithms/intersection.h"
 #include "GCore/geom_payload.hpp"
 #include "GUI/window.h"
+#include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
 #include "pxr/usd/usd/stage.h"
@@ -12,7 +13,6 @@
 #include "usd_nodejson.hpp"
 #include "widgets/usdtree/usd_fileviewer.h"
 #include "widgets/usdview/usdview_widget.hpp"
-#include "cmdparser.hpp"
 using namespace USTC_CG;
 
 int main(int argc, char* argv[])
@@ -34,8 +34,6 @@ int main(int argc, char* argv[])
         // Use default stage
         stage = create_global_stage();
     }
-
-    init(stage.get());
 
 #ifdef REAL_TIME
     window->register_function_before_frame(
@@ -107,8 +105,10 @@ int main(int argc, char* argv[])
             node_widget->SetCallBack(
                 [&stage, json_path, system, render_bare](Window*, IWidget*) {
                     GeomPayload geom_global_params;
+#ifdef GEOM_USD_EXTENSION
                     geom_global_params.stage = stage->get_usd_stage();
                     geom_global_params.prim_path = json_path;
+#endif
 
                     geom_global_params.has_simulation = false;
 
@@ -134,7 +134,10 @@ int main(int argc, char* argv[])
     window->run();
 
     unregister_cpp_type();
+
+#ifdef GPU_GEOM_ALGORITHM
     deinit_gpu_geometry_algorithms();
+#endif
 
     window.reset();
     stage.reset();

@@ -1,3 +1,4 @@
+#ifdef GPU_GEOM_ALGORITHM
 
 #include "GCore/algorithms/intersection.h"
 #include "nodes/core/def/node_def.hpp"
@@ -23,3 +24,5 @@ NODE_EXECUTION_FUNCTION(projective_dynamics)
 
 NODE_DECLARATION_UI(projective_dynamics);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

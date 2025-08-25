@@ -1,7 +1,11 @@
+#ifdef GEOM_USD_EXTENSION
+
+#include <pxr/base/gf/matrix4d.h>
 
 #include "GCore/Components/InstancerComponent.h"
 #include "GCore/Components/PointsComponent.h"
 #include "GCore/GOP.h"
+#include "glm/ext/matrix_transform.hpp"
 #include "nodes/core/def/node_def.hpp"
 
 NODE_DEF_OPEN_SCOPE
@@ -32,8 +36,9 @@ NODE_EXECUTION_FUNCTION(instance_on_points)
     }
 
     for (auto& point : points_vertices) {
-        auto instance = pxr::GfMatrix4d().SetTranslate(
-            pxr::GfVec3d(point[0], point[1], point[2]));
+        auto instance = glm::translate(
+            glm::identity<glm::mat4>(),
+            glm::vec3(point[0], point[1], point[2]));
         instancer->add_instance(instance);
     }
 
@@ -44,3 +49,5 @@ NODE_EXECUTION_FUNCTION(instance_on_points)
 
 NODE_DECLARATION_UI(instance_on_points);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

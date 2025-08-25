@@ -9,14 +9,14 @@ NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(set_vert_color)
 {
     b.add_input<Geometry>("Geometry");
-    b.add_input<pxr::VtVec3fArray>("Color");
+    b.add_input<std::vector<glm::vec3>>("Color");
     b.add_output<Geometry>("Geometry");
 }
 
 NODE_EXECUTION_FUNCTION(set_vert_color)
 {
     // Left empty.
-    auto color = params.get_input<pxr::VtArray<pxr::GfVec3f>>("Color");
+    auto color = params.get_input<std::vector<glm::vec3>>("Color");
     auto geometry = params.get_input<Geometry>("Geometry");
 
     auto mesh = geometry.get_component<MeshComponent>();

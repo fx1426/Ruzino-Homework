@@ -63,7 +63,7 @@ class FEMSolver2D : public ElementSolver {
         boundary_expr_ = expr;
     }
 
-    pxr::VtArray<float> solve() override
+    std::vector<float> solve() override
     {
         // Assemble system matrix and RHS
         auto [A, b] = assemble_system();
@@ -260,7 +260,7 @@ class FEMSolver2D : public ElementSolver {
             0.5 * std::abs((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)));
     }
 
-    pxr::VtArray<float> solve_linear_system(
+    std::vector<float> solve_linear_system(
         const Eigen::SparseMatrix<float>& A,
         const Eigen::VectorXf& b)
     {
@@ -283,8 +283,8 @@ class FEMSolver2D : public ElementSolver {
                 << result.final_residual << std::endl;
         }
 
-        // Convert to VtArray
-        pxr::VtArray<float> solution(x.size());
+        // Convert to std::vector
+        std::vector<float> solution(x.size());
         for (int i = 0; i < x.size(); i++) {
             solution[i] = x[i];
         }

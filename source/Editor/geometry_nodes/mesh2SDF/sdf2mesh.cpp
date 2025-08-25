@@ -1,3 +1,5 @@
+#ifdef GEOM_USD_EXTENSION
+
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/VolumeToMesh.h>
 
@@ -56,15 +58,15 @@ NODE_EXECUTION_FUNCTION(sdf2mesh)
     auto mesh_component = mesh_geometry.get_component<MeshComponent>();
 
     // Convert points
-    pxr::VtArray<pxr::GfVec3f> mesh_vertices;
+    std::vector<glm::vec3> mesh_vertices;
     mesh_vertices.reserve(points.size());
     for (const auto& point : points) {
         mesh_vertices.emplace_back(point[0], point[1], point[2]);
     }
 
     // Create face vertex counts and indices
-    pxr::VtArray<int> mesh_faceVertexCounts;
-    pxr::VtArray<int> mesh_faceVertexIndices;
+    std::vector<int> mesh_faceVertexCounts;
+    std::vector<int> mesh_faceVertexIndices;
 
     // Add quads
     mesh_faceVertexCounts.reserve(quads.size() + triangles.size());
@@ -98,3 +100,5 @@ NODE_EXECUTION_FUNCTION(sdf2mesh)
 
 NODE_DECLARATION_UI(sdf2mesh);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

@@ -1,6 +1,9 @@
+#ifdef GEOM_USD_EXTENSION
+
+#include <filesystem>
+
 #include "GCore/Components/MaterialComponent.h"
 #include "geom_node_base.h"
-#include <filesystem>
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(set_texture)
 {
@@ -34,14 +37,14 @@ NODE_EXECUTION_FUNCTION(set_texture)
     }
 #endif
 
-
     if (texture.empty()) {
         spdlog::warn("Path cannot be empty!");
         return false;
-    } // no path input
+    }  // no path input
     // expand the texture name to abs path
     std::filesystem::path texture_path(texture);
-    if (!texture_path.is_absolute()) texture_path = executable_path / texture_path;
+    if (!texture_path.is_absolute())
+        texture_path = executable_path / texture_path;
     spdlog::info("Exec path {}", executable_path.string());
     texture_path = texture_path.lexically_normal();
     spdlog::info("Normalized texture path: {}", texture_path.string());
@@ -62,7 +65,6 @@ NODE_EXECUTION_FUNCTION(set_texture)
     }
     material->textures.clear();
 
-
     material->textures.push_back(texture);
     geometry.attach_component(material);
 
@@ -72,3 +74,5 @@ NODE_EXECUTION_FUNCTION(set_texture)
 
 NODE_DECLARATION_UI(set_texture);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

@@ -68,15 +68,6 @@ set_target_properties(OpenMeshTools PROPERTIES FOLDER "external")
 
 target_compile_definitions(OpenMeshCore PUBLIC -D_USE_MATH_DEFINES=1)
 
-add_subdirectory(glm)
-
-set_target_properties(glm PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-set_target_properties(glm PROPERTIES ${OUTPUT_DIR})
-set(GLM_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/glm" CACHE STRING "")
-add_subdirectory(nanobind)
-target_compile_definitions(glm INTERFACE GLM_ENABLE_EXPERIMENTAL)
-set_target_properties(glm PROPERTIES LINKER_LANGUAGE CXX)
-
 add_subdirectory(stb_image)
 
 
@@ -100,7 +91,6 @@ set_target_properties(nvrhi PROPERTIES FOLDER "ThirdParty")
 set_target_properties(imgui PROPERTIES FOLDER "ThirdParty")
 set_target_properties(OpenMeshCore PROPERTIES FOLDER "ThirdParty")
 set_target_properties(OpenMeshTools PROPERTIES FOLDER "ThirdParty")
-set_target_properties(glm PROPERTIES FOLDER "ThirdParty")
 
 set_target_properties(igl_core PROPERTIES FOLDER "ThirdParty")
 set_target_properties(autodiff PROPERTIES FOLDER "ThirdParty")
@@ -116,6 +106,8 @@ endif()
 
 add_library(exprtk INTERFACE)
 target_include_directories(exprtk INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/exprtk")
+
+add_subdirectory(nanobind)
 
 # polyscope
 # add_subdirectory(polyscope)

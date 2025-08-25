@@ -1,3 +1,4 @@
+#ifdef GEOM_USD_EXTENSION
 
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/MeshToVolume.h>
@@ -22,7 +23,6 @@ NODE_EXECUTION_FUNCTION(mesh2sdf)
     geometry.apply_transform();
 
     auto mesh_component = geometry.get_component<MeshComponent>();
-    
 
     // Check if we have a valid mesh
     if (!mesh_component) {
@@ -108,3 +108,5 @@ NODE_EXECUTION_FUNCTION(mesh2sdf)
 
 NODE_DECLARATION_UI(mesh2sdf);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

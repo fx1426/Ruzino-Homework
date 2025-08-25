@@ -1,3 +1,5 @@
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -6,7 +8,6 @@
 #include "GCore/GOP.h"
 #include "GCore/algorithms/intersection.h"
 #include "GCore/geom_payload.hpp"
-#include <spdlog/spdlog.h>
 #include "nodes/core/api.hpp"
 #include "nodes/system/node_system.hpp"
 #include "stage/stage.hpp"
@@ -25,12 +26,6 @@ void print_usage(const char* program_name)
 
 int main(int argc, char* argv[])
 {
-    // #ifdef _DEBUG
-    //     log::SetMinSeverity(Severity::Debug);
-    // #endif
-    //
-    //     log::EnableOutputToConsole(true);
-
     // Parse command line arguments
     std::string input_json = "scratch_design.json";
     std::string output_usd = "scratch.usdc";
@@ -88,9 +83,10 @@ int main(int argc, char* argv[])
     auto stage = pxr::UsdStage::CreateNew(output_usd);
 
     GeomPayload geom_global_params;
+#ifdef GEOM_USD_EXTENSION
     geom_global_params.stage = stage;
     geom_global_params.prim_path = pxr::SdfPath("/geom");
-
+#endif
     system->set_global_params(geom_global_params);
 
     system->execute();
@@ -99,6 +95,9 @@ int main(int argc, char* argv[])
 
     system.reset();
     unregister_cpp_type();
+
+#ifdef GPU_GEOM_ALGORITHM
     deinit_gpu_geometry_algorithms();
+#endif
     return 0;
 }

@@ -311,7 +311,6 @@ int main(int argc, char* argv[])
             throw std::runtime_error(
                 "Failed to load USD stage from " + settings.usd_file);
         }
-        init(stage.get());
 
         // Find camera
         auto camera = FindFirstCamera(stage->get_usd_stage());
@@ -412,8 +411,9 @@ int main(int argc, char* argv[])
         hgi.reset();
         stage.reset();
         unregister_cpp_type();
+#ifdef GPU_GEOM_ALGORITHM
         deinit_gpu_geometry_algorithms();
-
+#endif
         return 0;
     }
     catch (const std::exception& e) {

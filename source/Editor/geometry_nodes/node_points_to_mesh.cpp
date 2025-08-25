@@ -1,3 +1,5 @@
+#ifdef GEOM_USD_EXTENSION
+
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
 #include <openvdb/tools/ParticlesToLevelSet.h>
@@ -19,8 +21,8 @@ using namespace openvdb;
 struct WrappingParticleList {
     using PosType = openvdb::Vec3R;
     WrappingParticleList(
-        const pxr::VtArray<pxr::GfVec3f>& points_vertices,
-        const pxr::VtArray<float>& points_widths)
+        const std::vector<glm::vec3>& points_vertices,
+        const std::vector<float>& points_widths)
         : points_vertices(points_vertices),
           points_widths(points_widths)
     {
@@ -55,8 +57,8 @@ struct WrappingParticleList {
     void getPosRadVel(size_t n, Vec3R& xyz, Real& radius, Vec3R& velocity)
         const;
 
-    const pxr::VtArray<pxr::GfVec3f>& points_vertices;
-    const pxr::VtArray<float>& points_widths;
+    const std::vector<glm::vec3>& points_vertices;
+    const std::vector<float>& points_widths;
 };
 
 NODE_EXECUTION_FUNCTION(points_to_mesh)
@@ -73,15 +75,15 @@ NODE_EXECUTION_FUNCTION(points_to_mesh)
     auto mesh_component = std::make_shared<MeshComponent>(&mesh_geometry);
     mesh_geometry.attach_component(mesh_component);
 
-    pxr::VtArray<pxr::GfVec3f> points_vertices = points->get_vertices();
-    pxr::VtArray<float> points_widths = points->get_width();
+    std::vector<glm::vec3> points_vertices = points->get_vertices();
+    std::vector<float> points_widths = points->get_width();
     if (points_widths.empty()) {
         points_widths.resize(points_vertices.size(), 0.1f);
     }
 
-    pxr::VtArray<pxr::GfVec3f> mesh_vertices;
-    pxr::VtArray<int> mesh_faceVertexCounts;
-    pxr::VtArray<int> mesh_faceVertexIndices;
+    std::vector<glm::vec3> mesh_vertices;
+    std::vector<int> mesh_faceVertexCounts;
+    std::vector<int> mesh_faceVertexIndices;
 
     auto pa = WrappingParticleList(points_vertices, points_widths);
 
@@ -136,3 +138,5 @@ NODE_EXECUTION_FUNCTION(points_to_mesh)
 
 NODE_DECLARATION_UI(points_to_mesh);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

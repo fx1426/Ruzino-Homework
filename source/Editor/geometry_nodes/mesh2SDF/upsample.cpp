@@ -1,3 +1,5 @@
+#ifdef GEOM_USD_EXTENSION
+
 #include <openvdb/openvdb.h>
 #include <openvdb/tools/GridTransformer.h>
 #include <openvdb/tools/Interpolation.h>
@@ -83,3 +85,5 @@ NODE_EXECUTION_FUNCTION(upsample)
 
 NODE_DECLARATION_UI(upsample);
 NODE_DEF_CLOSE_SCOPE
+
+#endif

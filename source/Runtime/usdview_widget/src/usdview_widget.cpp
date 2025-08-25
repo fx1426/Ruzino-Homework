@@ -4,9 +4,9 @@
 #include "widgets/usdview/usdview_widget.hpp"
 
 #include <pxr/imaging/hd/driver.h>
+#include <spdlog/spdlog.h>
 
 #include "GCore/geom_payload.hpp"
-#include <spdlog/spdlog.h>
 #include "RHI/Hgi/desc_conversion.hpp"
 #include "RHI/rhi.hpp"
 #include "free_camera.hpp"
@@ -339,8 +339,14 @@ void UsdviewEngine::OnFrame(float delta_time)
                 &outHitInstanceIndex,
                 &outInstancerContext)) {
             // Create and store the pick event
-            current_pick_event_ =
-                std::make_shared<PickEvent>(point, normal, path, instancer);
+
+#ifdef GEOM_USD_EXTENSION
+            current_pick_event_ = std::make_shared<PickEvent>(
+                glm::vec3(point[0], point[1], point[2]),
+                glm::vec3(normal[0], normal[1], normal[2]),
+                path,
+                instancer);
+#endif
 
             spdlog::info("Picked prim " + path.GetAsString());
             spdlog::info(

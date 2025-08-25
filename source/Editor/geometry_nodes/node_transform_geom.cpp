@@ -47,9 +47,9 @@ NODE_EXECUTION_FUNCTION(transform_geom)
         geometry.attach_component(xform);
     }
 
-    xform->translation.push_back(pxr::GfVec3f(t_x, t_y, t_z));
-    xform->scale.push_back(pxr::GfVec3f(s_x, s_y, s_z));
-    xform->rotation.push_back(pxr::GfVec3f(r_x, r_y, r_z));
+    xform->translation.push_back(glm::vec3(t_x, t_y, t_z));
+    xform->scale.push_back(glm::vec3(s_x, s_y, s_z));
+    xform->rotation.push_back(glm::vec3(r_x, r_y, r_z));
 
     params.set_output("Geometry", std::move(geometry));
     return true;

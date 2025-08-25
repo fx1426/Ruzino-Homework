@@ -34,7 +34,7 @@ TEST(FEMBEMProblem, Laplacian)
     solver->set_boundary_condition(
         "sin(atan2(y,x)*2)", BoundaryCondition::Dirichlet, 0);
 
-    pxr::VtArray<float> solution = solver->solve();
+    std::vector<float> solution = solver->solve();
 
     auto mesh_component = delauneyed.get_component<MeshComponent>();
 

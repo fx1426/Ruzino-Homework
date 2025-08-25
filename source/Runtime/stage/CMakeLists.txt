@@ -2,6 +2,7 @@ USTC_CG_ADD_LIB(
 	stage
 	SHARED
 	PRIVATE_LIBS 
+		geometry
 		spdlog::spdlog
 		usd
 		usdImaging

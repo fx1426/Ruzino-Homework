@@ -6,11 +6,11 @@ NODE_DECLARATION_FUNCTION(mesh_decompose)
 {
     b.add_input<Geometry>("Mesh");
 
-    b.add_output<pxr::VtVec3fArray>("Vertices");
-    b.add_output<pxr::VtArray<int>>("FaceVertexCounts");
-    b.add_output<pxr::VtArray<int>>("FaceVertexIndices");
-    b.add_output<pxr::VtVec3fArray>("Normals");
-    b.add_output<pxr::VtArray<pxr::GfVec2f>>("Texcoords");
+    b.add_output<std::vector<glm::vec3>>("Vertices");
+    b.add_output<std::vector<int>>("FaceVertexCounts");
+    b.add_output<std::vector<int>>("FaceVertexIndices");
+    b.add_output<std::vector<glm::vec3>>("Normals");
+    b.add_output<std::vector<glm::vec2>>("Texcoords");
 }
 
 NODE_EXECUTION_FUNCTION(mesh_decompose)

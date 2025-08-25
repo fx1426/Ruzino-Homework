@@ -7,7 +7,7 @@
 NODE_DEF_OPEN_SCOPE
 
 struct AddedPoints {
-    pxr::VtArray<pxr::GfVec3f> points;
+    std::vector<glm::vec3> points;
 
     static constexpr bool has_storage = false;
 };
@@ -25,7 +25,7 @@ NODE_EXECUTION_FUNCTION(geom_add_point)
 
      auto pick = params.get_global_payload<GeomPayload>().pick;
      if (pick) {
-         storage.points.push_back(pxr::GfVec3f(pick->point));
+         storage.points.push_back(glm::vec3(pick->point));
      }
 
      params.set_storage(storage);
@@ -36,7 +36,7 @@ NODE_EXECUTION_FUNCTION(geom_add_point)
      auto points_component = std::make_shared<PointsComponent>(&geometry);
      geometry.attach_component(points_component);
 
-     pxr::VtArray widths(storage.points.size(), width);
+     std::vector widths(storage.points.size(), width);
 
      points_component->set_vertices(storage.points);
      points_component->set_width(widths);

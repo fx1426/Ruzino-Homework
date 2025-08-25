@@ -1,4 +1,4 @@
-﻿#include "GCore/Components/CurveComponent.h"
+#include "GCore/Components/CurveComponent.h"
 #include "GCore/Components/MeshComponent.h"
 #include "geom_node_base.h"
 #include "pxr/base/gf/matrix3f.h"
@@ -28,7 +28,7 @@ NODE_EXECUTION_FUNCTION(curve_to_mesh)
     // Calculate the transformation
 
     // The curve must have a normal.
-    pxr::VtArray<GfVec3f> curve_normals = curve->get_curve_normals();
+    std::vector<glm::vec3> curve_normals = curve->get_curve_normals();
     // Only rotation is needed here.
 
     auto guide_curve_verts = curve->get_vertices();
@@ -40,15 +40,15 @@ NODE_EXECUTION_FUNCTION(curve_to_mesh)
 
     auto mesh = mesh_geom.get_component<MeshComponent>();
 
-    VtArray<pxr::GfVec2f> texcoords_array;
-    VtArray<int> face_vertex_counts;
-    VtArray<pxr::GfVec3f> verticies;
-    VtArray<int> face_vertex_indices;
-    VtArray<pxr::GfVec3f> normals;
+    std::vector<glm::vec2> texcoords_array;
+    std::vector<int> face_vertex_counts;
+    std::vector<glm::vec3> vertices;
+    std::vector<int> face_vertex_indices;
+    std::vector<glm::vec3> normals;
 
     for (int i = 0; i < guide_curve_verts.size(); ++i) {
-        GfVec3f normal = curve_normals[i].GetNormalized();
-        GfVec3f tangent;
+        glm::vec3 normal = normalize(curve_normals[i]);
+        glm::vec3 tangent;
 
         int this_vert_id = i;
         int next_vert_id = (i + 1) % vert_count;
@@ -77,30 +77,32 @@ NODE_EXECUTION_FUNCTION(curve_to_mesh)
             auto vec2 = guide_curve_verts[this_vert_id] -
                         guide_curve_verts[prev_vert_id];
 
-            auto l1 = vec1.Normalize();
-            auto l2 = vec2.Normalize();
+            auto l1 = length(vec1);
+            auto l2 = length(vec2);
+            vec1 = normalize(vec1);
+            vec2 = normalize(vec2);
             auto weight_1 = l2 / (l1 + l2);
 
             tangent = weight_1 * vec2 + (1 - weight_1) * vec1;
         }
-        tangent.Normalize();
-        auto bitangent = GfCross(normal, tangent);
+        tangent = normalize(tangent);
+        auto bitangent = cross(normal, tangent);
 
-        GfMatrix3f tbn;
+        glm::mat3 tbn;
 
-        tbn.SetColumn(2, tangent);
-        tbn.SetColumn(1, bitangent);
-        tbn.SetColumn(0, normal);
+        tbn[2] = tangent;
+        tbn[1] = bitangent;
+        tbn[0] = normal;
 
         for (int j = 0; j < profile_curve_verts.size(); ++j) {
             auto new_pos = tbn * profile_curve_verts[j] + guide_curve_verts[i];
-            verticies.push_back(new_pos);
+            vertices.push_back(new_pos);
 
             // Add normal for this vertex (transform profile normal by tbn)
             // Using profile position as approximation of normal direction
-            GfVec3f profile_normal = profile_curve_verts[j].GetNormalized();
-            GfVec3f transformed_normal = tbn * profile_normal;
-            transformed_normal.Normalize();
+            glm::vec3 profile_normal = normalize(profile_curve_verts[j]);
+            glm::vec3 transformed_normal = tbn * profile_normal;
+            transformed_normal = normalize(transformed_normal);
             normals.push_back(transformed_normal);
         }
         // Removed per-iteration face count; faces will be built after vertex
@@ -122,7 +124,7 @@ NODE_EXECUTION_FUNCTION(curve_to_mesh)
             face_vertex_counts.push_back(4);
         }
     }
-    mesh->set_vertices(verticies);
+    mesh->set_vertices(vertices);
     mesh->set_face_vertex_counts(face_vertex_counts);
     mesh->set_face_vertex_indices(face_vertex_indices);
     mesh->set_normals(normals);  // Set the calculated normals

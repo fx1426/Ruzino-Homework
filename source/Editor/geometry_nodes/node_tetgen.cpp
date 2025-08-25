@@ -125,19 +125,19 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
         output_geometry.attach_component(output_mesh);
 
         // Convert output points
-        pxr::VtArray<pxr::GfVec3f> output_points;
+        std::vector<glm::vec3> output_points;
         output_points.reserve(output.numberofpoints);
 
         for (int i = 0; i < output.numberofpoints; ++i) {
-            output_points.push_back(pxr::GfVec3f(
+            output_points.push_back(glm::vec3(
                 output.pointlist[i * 3],
                 output.pointlist[i * 3 + 1],
                 output.pointlist[i * 3 + 2]));
         }
 
         // Convert tetrahedra to mesh faces (surface of tetrahedra)
-        pxr::VtArray<int> output_indices;
-        pxr::VtArray<int> output_face_counts;
+        std::vector<int> output_indices;
+        std::vector<int> output_face_counts;
 
         // Each tetrahedron has 4 triangular faces
         for (int i = 0; i < output.numberoftetrahedra; ++i) {
@@ -170,7 +170,7 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
         }
 
         // Calculate normals for the faces
-        pxr::VtArray<pxr::GfVec3f> normals;
+        std::vector<glm::vec3> normals;
         normals.reserve(output_indices.size());
 
         for (size_t i = 0; i < output_face_counts.size(); ++i) {
@@ -179,13 +179,14 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
             int i1 = output_indices[idx_start + 1];
             int i2 = output_indices[idx_start + 2];
 
-            pxr::GfVec3f v0 = output_points[i0];
-            pxr::GfVec3f v1 = output_points[i1];
-            pxr::GfVec3f v2 = output_points[i2];
+            glm::vec3 v0 = output_points[i0];
+            glm::vec3 v1 = output_points[i1];
+            glm::vec3 v2 = output_points[i2];
 
-            pxr::GfVec3f edge1 = v1 - v0;
-            pxr::GfVec3f edge2 = v2 - v0;
-            pxr::GfVec3f normal = pxr::GfCross(edge1, edge2).GetNormalized();
+            glm::vec3 edge1 = v1 - v0;
+            glm::vec3 edge2 = v2 - v0;
+            glm::vec3 normal = glm::cross(edge1, edge2);
+            normal = glm::normalize(normal);
 
             normals.push_back(normal);
             normals.push_back(normal);

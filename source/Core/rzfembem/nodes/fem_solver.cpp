@@ -91,7 +91,7 @@ NODE_EXECUTION_FUNCTION(fem_solver)
 
     // 求解
     try {
-        pxr::VtArray<float> solution = solver->solve();
+        std::vector<float> solution = solver->solve();
         // 将解添加到网格组件中
         auto mesh_component = delauneyed.get_component<MeshComponent>();
         mesh_component->add_vertex_scalar_quantity("solution", solution);

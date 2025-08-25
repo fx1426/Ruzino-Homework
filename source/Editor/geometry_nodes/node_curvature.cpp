@@ -8,7 +8,7 @@ NODE_DECLARATION_FUNCTION(curvature)
     // Input-1: Original 3D mesh with boundary
     b.add_input<Geometry>("Input");
     // Output-1: The curvature at each vertex (Gauss curvature)
-    b.add_output<pxr::VtArray<float>>("Output");
+    b.add_output<std::vector<float>>("Output");
 }
 
 NODE_EXECUTION_FUNCTION(curvature)
@@ -40,7 +40,7 @@ NODE_EXECUTION_FUNCTION(curvature)
     // Store the output
     // One can use the function n_vertices(), n_faces(), n_halfedges() to get
     // the numbers of items
-    pxr::VtArray<float> rst(halfedge_mesh->n_vertices());
+    std::vector<float> rst(halfedge_mesh->n_vertices());
 
     // For each vertex, we compute the Gauss curvature
     // First, we need to iterate through all the vertices:

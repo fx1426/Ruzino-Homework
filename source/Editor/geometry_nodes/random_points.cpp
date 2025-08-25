@@ -33,7 +33,7 @@ NODE_EXECUTION_FUNCTION(random_points)
     auto points_component = std::make_shared<PointsComponent>(&points_geometry);
     points_geometry.attach_component(points_component);
 
-    pxr::VtVec3fArray vertices;
+    std::vector<glm::vec3> vertices;
 
     float x_min = params.get_input<float>("x_min");
     float x_max = params.get_input<float>("x_max");
@@ -50,11 +50,11 @@ NODE_EXECUTION_FUNCTION(random_points)
 
     const int num_points = params.get_input<int>("num_points");
 
-    pxr::VtArray<float> widths(num_points, params.get_input<float>("width"));
+    std::vector<float> widths(num_points, params.get_input<float>("width"));
     vertices.resize(num_points);
 
     for (int i = 0; i < num_points; i++) {
-        vertices[i] = pxr::GfVec3f(dist_x(rng), dist_y(rng), dist_z(rng));
+        vertices[i] = glm::vec3(dist_x(rng), dist_y(rng), dist_z(rng));
     }
 
     points_component->set_vertices(vertices);

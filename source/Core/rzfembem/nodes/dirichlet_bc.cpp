@@ -12,7 +12,7 @@ NODE_DECLARATION_FUNCTION(dirichlet_bc)
     b.add_input<std::string>("Expression");
     b.add_input<Geometry>("Geometry");
     b.add_input<fem_bem::ElementBasisHandle>("Element Basis");
-    b.add_output<pxr::VtArray<float>>("Dirichlet BC");
+    b.add_output<std::vector<float>>("Dirichlet BC");
 }
 
 NODE_EXECUTION_FUNCTION(dirichlet_bc)

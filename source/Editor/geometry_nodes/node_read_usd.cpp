@@ -1,4 +1,5 @@
 // #define __GNUC__
+#ifdef GEOM_USD_EXTENSION
 
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/rotation.h>
@@ -9,7 +10,6 @@
 #include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
-#include <pxr/usd/usdSkel/animQuery.h>
 #include <pxr/usd/usdSkel/cache.h>
 #include <pxr/usd/usdSkel/skeleton.h>
 
@@ -62,6 +62,8 @@ NODE_EXECUTION_FUNCTION(read_usd)
         std::make_shared<MeshComponent>(&geometry);
     geometry.attach_component(mesh);
 
+    auto mesh_usd_view = mesh->get_usd_view();
+
     pxr::UsdTimeCode time = pxr::UsdTimeCode(t);
     if (t == 0) {
         time = pxr::UsdTimeCode::Default();
@@ -106,54 +108,44 @@ NODE_EXECUTION_FUNCTION(read_usd)
         pxr::UsdGeomMesh usdgeom = pxr::UsdGeomMesh::Get(stage, sdf_path);
 
         if (usdgeom) {
-#if USE_USD_SCRATCH_BUFFER
-            mesh->set_mesh_geom(usdgeom);
-#else
-            {
-                pxr::VtArray<pxr::GfVec3f> points;
-                if (usdgeom.GetPointsAttr())
-                    usdgeom.GetPointsAttr().Get(&points, time);
-                mesh->set_vertices(points);
+            pxr::VtArray<pxr::GfVec3f> points;
+            if (usdgeom.GetPointsAttr())
+                usdgeom.GetPointsAttr().Get(&points, time);
+            mesh_usd_view.set_vertices(points);
 
-                pxr::VtArray<int> counts;
-                if (usdgeom.GetFaceVertexCountsAttr())
-                    usdgeom.GetFaceVertexCountsAttr().Get(&counts, time);
-                mesh->set_face_vertex_counts(counts);
+            pxr::VtArray<int> counts;
+            if (usdgeom.GetFaceVertexCountsAttr())
+                usdgeom.GetFaceVertexCountsAttr().Get(&counts, time);
 
-                pxr::VtArray<int> indices;
-                if (usdgeom.GetFaceVertexIndicesAttr())
-                    usdgeom.GetFaceVertexIndicesAttr().Get(&indices, time);
-                mesh->set_face_vertex_indices(indices);
+            pxr::VtArray<int> indices;
+            if (usdgeom.GetFaceVertexIndicesAttr())
+                usdgeom.GetFaceVertexIndicesAttr().Get(&indices, time);
+            mesh_usd_view.set_face_topology(counts, indices);
 
-                pxr::VtArray<pxr::GfVec3f> norms;
-                if (usdgeom.GetNormalsAttr())
-                    usdgeom.GetNormalsAttr().Get(&norms, time);
-                mesh->set_normals(norms);
+            pxr::VtArray<pxr::GfVec3f> norms;
+            if (usdgeom.GetNormalsAttr())
+                usdgeom.GetNormalsAttr().Get(&norms, time);
+            mesh_usd_view.set_normals(norms);
 
-                pxr::VtArray<pxr::GfVec3f> colors;
-                if (usdgeom.GetDisplayColorAttr())
-                    usdgeom.GetDisplayColorAttr().Get(&colors, time);
-                mesh->set_display_color(colors);
+            pxr::VtArray<pxr::GfVec3f> colors;
+            if (usdgeom.GetDisplayColorAttr())
+                usdgeom.GetDisplayColorAttr().Get(&colors, time);
+            mesh_usd_view.set_display_colors(colors);
 
-                {
-                    pxr::UsdGeomPrimvarsAPI primVarAPI(usdgeom);
-                    auto primvar = primVarAPI.GetPrimvar(pxr::TfToken("UVMap"));
-                    if (primvar) {
-                        pxr::VtArray<pxr::GfVec2f> texcoords;
-                        primvar.Get(&texcoords, time);
-                        mesh->set_texcoords_array(texcoords);
-                    }
-
-                    primvar = primVarAPI.GetPrimvar(pxr::TfToken("st"));
-                    if (primvar) {
-                        pxr::VtArray<pxr::GfVec2f> texcoords;
-                        primvar.Get(&texcoords, time);
-                        mesh->set_texcoords_array(texcoords);
-                    }
-                }
+            pxr::UsdGeomPrimvarsAPI primVarAPI(usdgeom);
+            auto primvar = primVarAPI.GetPrimvar(pxr::TfToken("UVMap"));
+            if (primvar) {
+                pxr::VtArray<pxr::GfVec2f> texcoords;
+                primvar.Get(&texcoords, time);
+                mesh_usd_view.set_uv_coordinates(texcoords);
             }
 
-#endif
+            primvar = primVarAPI.GetPrimvar(pxr::TfToken("st"));
+            if (primvar) {
+                pxr::VtArray<pxr::GfVec2f> texcoords;
+                primvar.Get(&texcoords, time);
+                mesh_usd_view.set_uv_coordinates(texcoords);
+            }
 
             pxr::GfMatrix4d final_transform =
                 usdgeom.ComputeLocalToWorldTransform(time);
@@ -168,9 +160,9 @@ NODE_EXECUTION_FUNCTION(read_usd)
                 // TODO: rotation not read.
 
                 xform_component->translation.push_back(
-                    pxr::GfVec3f(translation));
-                xform_component->rotation.push_back(pxr::GfVec3f(0.0f));
-                xform_component->scale.push_back(pxr::GfVec3f(1.0f));
+                    glm::vec3(translation[0], translation[1], translation[2]));
+                xform_component->rotation.push_back(glm::vec<3, float>((0.0f)));
+                xform_component->scale.push_back(glm::vec<3, float>((1.0f)));
             }
             using namespace pxr;
             UsdSkelBindingAPI binding = UsdSkelBindingAPI(usdgeom);
@@ -238,3 +230,5 @@ NODE_EXECUTION_FUNCTION(read_usd)
 
 NODE_DECLARATION_UI(read_usd);
 NODE_DEF_CLOSE_SCOPE
+
+#endif
