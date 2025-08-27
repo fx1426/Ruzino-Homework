@@ -25,7 +25,6 @@
 #include <string.h>
 
 #include <functional>
-#include <glm/glm.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -37,9 +36,6 @@ USTC_CG_NAMESPACE_OPEN_SCOPE
 namespace console {
 
 class Command;
-class Variable;
-template<typename T>
-class AutoVariable;
 
 //
 // Base Console Object
@@ -62,10 +58,6 @@ class Object {
         m_Description = description;
     }
 
-    virtual Variable* AsVariable()
-    {
-        return nullptr;
-    }
     virtual Command* AsCommand()
     {
         return nullptr;
@@ -128,237 +120,6 @@ class Command : public Object {
 };
 
 //
-// Console Variables
-//
-// Console variables are unique typed data elements associated to a given name.
-// Two common usage patterns:
-//
-//   - Static mode: the type of the variable is known and template traits
-//     specialization can be used to automatically access the data. This mode
-//     is implemented with the "AutoVariable" class. AutoVariables can be
-//     instanciated directly in code, typically as global/static variables. They
-//     are strong-typed, lightweight, incur negligible performance penalty, and
-//     can be freely copied.
-//
-//     ex:
-//        cvarInt var = AutoVariable("myvar", "my variable description", 123);
-//        int i = var.GetValue();
-//
-//     Convenience conversion operators are defined so that variables can be
-//     used as if they were values:
-//        cvarInt var = ...;
-//        int i = var;
-//        var = 5;
-//
-//   - Dynamic mode: the type of the variable is not know to the code, so
-//     type-casting is implemented as an interface of virtual functions. The
-//     typical use case is the implementation of a console interpreter and any
-//     other run-time or user-driven access. This mode is implemented with the
-//     "Variable" class.
-//
-//     ex:
-//         if (cvar* var = FindVariable("myvar"))
-//             if (var->IsInt())
-//                 int i = var->GetInt();
-//     note: some accessors have specializations to cast between types
-//     (ex. GetString() on a bool typed variable returns "true" or "false"
-//     strings)
-//
-
-struct VariableType {
-    enum Type : uint8_t {
-        TYPE_UNKNOWN = 0,
-        TYPE_BOOL,
-        TYPE_INT,
-        TYPE_INT2,
-        TYPE_INT3,
-        TYPE_FLOAT,
-        TYPE_FLOAT2,
-        TYPE_FLOAT3,
-        TYPE_FLOAT4,
-        TYPE_STRING
-    };
-    template<typename T>
-    static Type IsA()
-    {
-        return TYPE_UNKNOWN;
-    }
-};
-
-struct VariableState {
-    // Tracks where the origin of the most recent change to the
-    // value of a console variable.
-    enum SetBy : uint8_t { UNSET = 0, CODE, INI, CONSOLE };
-
-    // XXXX mk: C++ 20 has in-line initialization for bit-fields...
-    VariableState()
-    {
-        memset(this, 0, sizeof(VariableState));
-    }
-    VariableState(VariableType::Type type, SetBy setby)
-        : read_only(false),
-          cheat(false),
-          type(type),
-          setby(setby)
-    {
-    }
-    VariableState(bool ronly, bool cheat, VariableType::Type type, SetBy setby)
-        : read_only(ronly),
-          cheat(cheat),
-          type(type),
-          setby(setby)
-    {
-    }
-
-    bool operator==(VariableState const& other) const
-    {
-        return *((uint32_t const*)this) == *((uint32_t const*)(&other));
-    }
-    bool operator!=(VariableState const& other) const
-    {
-        return !(*this == other);
-    }
-
-    bool IsInitalized() const;
-
-    // Returns true if the setter is allowed to modify the value.
-    // note: if the 'cheat' state is true, the variable can be initialized from
-    // 'CODE', but it cannot be modified from either the 'CONSOLE' or 'INI'
-    // sources
-    bool CanSetValue(SetBy origin = CONSOLE) const;
-
-    uint32_t read_only : 1;
-    uint32_t cheat : 1;
-    uint32_t type : 5;
-    uint32_t setby : 2;
-};
-
-class Variable : public Object {
-   public:
-    // state
-
-    typedef VariableState::SetBy SetBy;
-
-    VariableState GetState() const
-    {
-        return m_State;
-    }
-
-    void SetReadOnly(bool ronly)
-    {
-        m_State.read_only = ronly;
-    }
-
-    void SetCheat()
-    {
-        m_State.cheat = true;
-    }
-
-   public:
-    // Value accessors for each type. Ex.
-    //     bool IsInt() const;
-    //     int GetInt() const;
-    //     void SetInt(int value, SetBy setby=SETBY_CODE);
-
-#define DEFINE_TYPED_ACCESSORS(name, type) \
-    virtual bool Is##name() const = 0;     \
-    virtual type Get##name() const = 0;    \
-    virtual void Set##name(type value, SetBy setby = SetBy::CODE) = 0;
-
-#define DEFINE_TYPED_REF_ACCESSORS(name, type) \
-    virtual bool Is##name() const = 0;         \
-    virtual type const& Get##name() const = 0; \
-    virtual void Set##name(type const& value, SetBy setby = SetBy::CODE) = 0;
-
-    DEFINE_TYPED_ACCESSORS(Bool, bool);
-
-    DEFINE_TYPED_ACCESSORS(Int, int);
-    DEFINE_TYPED_ACCESSORS(Int2, glm::ivec2);
-    DEFINE_TYPED_ACCESSORS(Int3, glm::ivec3);
-
-    DEFINE_TYPED_ACCESSORS(Float, float);
-    DEFINE_TYPED_ACCESSORS(Float2, glm::vec2);
-    DEFINE_TYPED_ACCESSORS(Float3, glm::vec3);
-    DEFINE_TYPED_ACCESSORS(Float4, glm::vec4);
-
-    DEFINE_TYPED_REF_ACCESSORS(String, std::string);
-
-    // attenmpt to parse value from string
-    virtual bool SetValueFromString(
-        std::string_view s,
-        SetBy setby = SetBy::CODE) = 0;
-    virtual bool SetValueFromString(
-        std::string const& s,
-        SetBy setby = SetBy::CODE) = 0;
-
-    virtual std::string GetValueAsString() const = 0;
-
-   public:
-    // callback
-
-    typedef std::function<void(Variable& cvar)> Callback;
-
-    void SetOnChangeCallback(Callback onChange);
-
-    void ExecuteOnChangeCallback();
-
-   protected:
-    friend class ObjectDictionary;
-
-    Variable(char const* description, VariableState state)
-        : Object(description),
-          m_State(state)
-    {
-    }
-
-    Callback m_OnChange;
-    VariableState m_State;
-};
-
-template<typename TVar>
-class VariableImpl;
-
-template<typename T>
-class AutoVariable {
-   public:
-    // note: registering a console object with null or empty name string will
-    // result in fatal error
-    AutoVariable(
-        char const* name,
-        char const* description,
-        T const& defaultValue,
-        bool read_only = false,
-        bool cheat = false);
-
-    std::string const& GetName() const;
-
-    void SetDescription(std::string const& description);
-
-    std::string const& GetDescription() const;
-
-    VariableState GetState() const;
-
-    T GetValue() const;
-
-    void SetValue(T const& value);
-
-    void SetOnChangeCallback(Variable::Callback onChange);
-
-    void ExecuteOnChangeCallback();
-
-    Variable* operator&();
-
-    operator T() const;
-
-    AutoVariable<T>& operator=(const T& value);
-
-   private:
-    friend class VariableImpl<T>;
-
-    VariableImpl<T>& m_Variable;
-};
-
-//
 // Object functions
 //
 
@@ -379,8 +140,6 @@ std::vector<Object*> MatchObjects(char const* regex = ".*");
 
 Command* FindCommand(std::string_view name);
 
-Variable* FindVariable(std::string_view name);
-
 // note: ini files can only modify values of existing consolve variables
 void ParseIniFile(char const* inidata, char const* filename);
 
@@ -388,19 +147,5 @@ void ParseIniFile(char const* inidata, char const* filename);
 void ResetAll();
 
 }  // end namespace console
-
-typedef console::Variable cvar;
-
-typedef console::AutoVariable<bool> cvarBool;
-typedef console::AutoVariable<int> cvarInt;
-typedef console::AutoVariable<float> cvarFloat;
-typedef console::AutoVariable<glm::ivec2> cvarInt2;
-typedef console::AutoVariable<glm::ivec3> cvarInt3;
-typedef console::AutoVariable<glm::uvec2> cvarUint2;
-typedef console::AutoVariable<glm::uvec3> cvarUint3;
-typedef console::AutoVariable<glm::vec2> cvarFloat2;
-typedef console::AutoVariable<glm::vec3> cvarFloat3;
-typedef console::AutoVariable<glm::vec4> cvarFloat4;
-typedef console::AutoVariable<std::string> cvarString;
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

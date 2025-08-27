@@ -196,20 +196,6 @@ Interpreter::Result Interpreter::Execute(std::string_view const cmdline)
             auto [status, output] = cmd->Execute(args);
             return { status, output };
         }
-        else if (auto* var = cobj->AsVariable()) {
-            if (args.size() == 1) {
-                return { true, var->GetValueAsString() };
-            }
-            else {
-                // string_view starting at the beginning of the 2nd arg & ending
-                // at end of cmdline
-                std::string_view value = {
-                    args[1].data(),
-                    (size_t)((cmdline.data() + cmdline.size()) - args[1].data())
-                };
-                return { var->SetValueFromString(value), {} };
-            }
-        }
     }
     else
         spdlog::error(
