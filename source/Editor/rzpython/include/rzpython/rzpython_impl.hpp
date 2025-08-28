@@ -1,13 +1,10 @@
 #pragma once
 
 #include <nanobind/nanobind.h>
-#include <nanobind/stl/vector.h>
-#include <nanobind/stl/string.h>
-#include <nanobind/ndarray.h>
 
 #include <stdexcept>
+#include <type_traits>
 #include <unordered_map>
-#include <vector>
 
 #include "api.h"
 
@@ -24,10 +21,19 @@ RZPYTHON_EXTERN RZPYTHON_API std::unordered_map<std::string, nb::object>
     bound_objects;
 RZPYTHON_API PyObject* call_raw(const std::string& code);
 
+// Helper to determine if we should use eval or file input mode
+template<typename T>
+constexpr bool is_void_type()
+{
+    return std::is_void_v<T>;
+}
+
 // Generic template implementation using nanobind casting
 template<typename T>
 T call(const std::string& code)
 {
+    static_assert(!std::is_void_v<T>, "Use call<void>() for void return type");
+
     PyObject* py_result = call_raw(code);
     if (!py_result) {
         throw std::runtime_error(
@@ -37,9 +43,9 @@ T call(const std::string& code)
     try {
         // Use nanobind to convert the Python object to the desired C++ type
         nb::object nb_result = nb::steal(py_result);  // Takes ownership
-        
-        // For pointer types, nanobind usually binds objects as pointers
-        // So we can directly cast to the pointer type
+
+        // Let nanobind handle all the type conversions automatically
+        // This works for primitives, STL containers, ndarrays, etc.
         T result = nb::cast<T>(nb_result);
         return result;
     }
@@ -88,6 +94,8 @@ void send(const std::string& name, const T& value)
 
     try {
         // Create nanobind object from the C++ value
+        // This automatically handles conversion of STL containers, ndarrays,
+        // etc.
         nb::object py_obj = nb::cast(value);
 
         // Store in our map to keep it alive
@@ -98,7 +106,8 @@ void send(const std::string& name, const T& value)
     }
     catch (const std::exception& e) {
         throw std::runtime_error(
-            "Failed to send value to Python variable '" + name + "': " + e.what());
+            "Failed to send value to Python variable '" + name +
+            "': " + e.what());
     }
 }
 

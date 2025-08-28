@@ -97,72 +97,6 @@ void import(const std::string& module_name)
     Py_DECREF(module);
 }
 
-// Template specializations for call function
-template<>
-int call<int>(const std::string& code)
-{
-    if (!initialized) {
-        throw std::runtime_error("Python interpreter not initialized");
-    }
-
-    PyObject* result =
-        PyRun_String(code.c_str(), Py_eval_input, main_dict, main_dict);
-    if (!result) {
-        PyErr_Print();
-        throw std::runtime_error("Failed to execute Python code: " + code);
-    }
-
-    if (!PyLong_Check(result)) {
-        Py_DECREF(result);
-        throw std::runtime_error("Expected int return type");
-    }
-
-    int value = PyLong_AsLong(result);
-    Py_DECREF(result);
-    return value;
-}
-
-template<>
-float call<float>(const std::string& code)
-{
-    if (!initialized) {
-        throw std::runtime_error("Python interpreter not initialized");
-    }
-
-    PyObject* result =
-        PyRun_String(code.c_str(), Py_eval_input, main_dict, main_dict);
-    if (!result) {
-        PyErr_Print();
-        throw std::runtime_error("Failed to execute Python code: " + code);
-    }
-
-    if (!PyFloat_Check(result) && !PyLong_Check(result)) {
-        Py_DECREF(result);
-        throw std::runtime_error("Expected float return type");
-    }
-
-    float value = PyFloat_AsDouble(result);
-    Py_DECREF(result);
-    return value;
-}
-
-template<>
-void call<void>(const std::string& code)
-{
-    if (!initialized) {
-        throw std::runtime_error("Python interpreter not initialized");
-    }
-
-    PyObject* result =
-        PyRun_String(code.c_str(), Py_file_input, main_dict, main_dict);
-    if (!result) {
-        PyErr_Print();
-        throw std::runtime_error("Failed to execute Python code: " + code);
-    }
-
-    Py_DECREF(result);
-}
-
 // Internal helper for raw Python object return
 PyObject* call_raw(const std::string& code)
 {
@@ -180,199 +114,23 @@ PyObject* call_raw(const std::string& code)
     return result;  // Caller is responsible for DECREF
 }
 
-// Template specializations for std::vector types
+// Only keep specializations for void (which needs different PyRun_String mode)
+// and primitive types that need special handling
 template<>
-std::vector<int> call<std::vector<int>>(const std::string& code)
+void call<void>(const std::string& code)
 {
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
+    if (!initialized) {
+        throw std::runtime_error("Python interpreter not initialized");
     }
 
-    try {
-        // Use nanobind to convert the Python object to std::vector<int>
-        nb::object nb_result = nb::steal(py_result);  // Takes ownership
-        std::vector<int> result = nb::cast<std::vector<int>>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to std::vector<int>: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-std::vector<float> call<std::vector<float>>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
+    PyObject* result =
+        PyRun_String(code.c_str(), Py_file_input, main_dict, main_dict);
+    if (!result) {
+        PyErr_Print();
+        throw std::runtime_error("Failed to execute Python code: " + code);
     }
 
-    try {
-        // Use nanobind to convert the Python object to std::vector<float>
-        nb::object nb_result = nb::steal(py_result);  // Takes ownership
-        std::vector<float> result = nb::cast<std::vector<float>>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to std::vector<float>: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-std::vector<std::string> call<std::vector<std::string>>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        // Use nanobind to convert the Python object to std::vector<std::string>
-        nb::object nb_result = nb::steal(py_result);  // Takes ownership
-        std::vector<std::string> result =
-            nb::cast<std::vector<std::string>>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to std::vector<std::string>: " +
-            std::string(e.what()));
-    }
-}
-
-// Template specializations for ndarray types
-template<>
-numpy_array_f32 call<numpy_array_f32>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        numpy_array_f32 result = nb::cast<numpy_array_f32>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to numpy_array_f32: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-numpy_array_f64 call<numpy_array_f64>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        numpy_array_f64 result = nb::cast<numpy_array_f64>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to numpy_array_f64: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-torch_tensor_f32 call<torch_tensor_f32>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        torch_tensor_f32 result = nb::cast<torch_tensor_f32>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to torch_tensor_f32: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-torch_tensor_f64 call<torch_tensor_f64>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        torch_tensor_f64 result = nb::cast<torch_tensor_f64>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to torch_tensor_f64: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-cuda_array_f32 call<cuda_array_f32>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        cuda_array_f32 result = nb::cast<cuda_array_f32>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to cuda_array_f32: " +
-            std::string(e.what()));
-    }
-}
-
-template<>
-cuda_array_f64 call<cuda_array_f64>(const std::string& code)
-{
-    PyObject* py_result = call_raw(code);
-    if (!py_result) {
-        throw std::runtime_error(
-            "Failed to get result from Python code: " + code);
-    }
-
-    try {
-        nb::object nb_result = nb::steal(py_result);
-        cuda_array_f64 result = nb::cast<cuda_array_f64>(nb_result);
-        return result;
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error(
-            "Failed to convert Python result to cuda_array_f64: " +
-            std::string(e.what()));
-    }
+    Py_DECREF(result);
 }
 
 }  // namespace python

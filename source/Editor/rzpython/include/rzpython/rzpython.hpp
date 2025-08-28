@@ -2,8 +2,9 @@
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+
 #include <string>
-#include <vector>
+
 #include "api.h"
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
@@ -45,39 +46,13 @@ RZPYTHON_API void import(const std::string& module_name);
 // Internal helper for dynamic type conversion
 RZPYTHON_API PyObject* call_raw(const std::string& code);
 
-// Call Python code and get return values of specific types
+// Generic call function - implemented in header for template instantiation
 template<typename T>
 T call(const std::string& code);
 
-// Specializations for common types
-template<>
-RZPYTHON_API int call<int>(const std::string& code);
-template<>
-RZPYTHON_API float call<float>(const std::string& code);
+// Only void needs special handling (different PyRun_String mode)
 template<>
 RZPYTHON_API void call<void>(const std::string& code);
-
-// Specializations for std::vector types
-template<>
-RZPYTHON_API std::vector<int> call<std::vector<int>>(const std::string& code);
-template<>
-RZPYTHON_API std::vector<float> call<std::vector<float>>(const std::string& code);
-template<>
-RZPYTHON_API std::vector<std::string> call<std::vector<std::string>>(const std::string& code);
-
-// Specializations for ndarray types
-template<>
-RZPYTHON_API numpy_array_f32 call<numpy_array_f32>(const std::string& code);
-template<>
-RZPYTHON_API numpy_array_f64 call<numpy_array_f64>(const std::string& code);
-template<>
-RZPYTHON_API torch_tensor_f32 call<torch_tensor_f32>(const std::string& code);
-template<>
-RZPYTHON_API torch_tensor_f64 call<torch_tensor_f64>(const std::string& code);
-template<>
-RZPYTHON_API cuda_array_f32 call<cuda_array_f32>(const std::string& code);
-template<>
-RZPYTHON_API cuda_array_f64 call<cuda_array_f64>(const std::string& code);
 
 // Bind C++ object to Python variable name
 template<typename T>
