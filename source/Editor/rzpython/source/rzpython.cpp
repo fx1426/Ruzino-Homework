@@ -92,9 +92,6 @@ void finalize()
 
     // Clear our bound objects
     try {
-        for (const auto& pair : bound_objects) {
-            PyDict_DelItemString(main_dict, pair.first.c_str());
-        }
         bound_objects.clear();
     }
     catch (...) {

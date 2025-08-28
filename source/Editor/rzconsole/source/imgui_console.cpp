@@ -276,12 +276,22 @@ void ImGui_Console::ExecCommand(char const* cmdline)
     if (!cmd.empty()) {
         this->Print("> %s", cmd.data());
 
-        if (auto result = m_Interpreter->Execute(cmd); result.status) {
-            if (!result.output.empty())
-                printLines(*this, result.output.c_str());
-
+        auto result = m_Interpreter->Execute(cmd);
+        
+        // Always show something - even if execution failed
+        if (!result.output.empty()) {
+            printLines(*this, result.output);
+        }
+        
+        if (result.status) {
+            // Success - add to history
             m_History.push_back(cmd.data());
             m_HistoryPos = -1;
+        } else {
+            // Failure - show error message if output is empty
+            if (result.output.empty()) {
+                this->Print("Command failed with no output");
+            }
         }
     }
 }

@@ -74,7 +74,7 @@ PythonInterpreter::~PythonInterpreter()
 
 bool PythonInterpreter::ShouldHandleCommand(std::string_view command) const
 {
-    // Changed logic: Handle as Python unless it's a registered console command
+    // Only handle as Python if interpreter is initialized
     if (!python_initialized_) {
         return false;
     }
@@ -87,17 +87,22 @@ bool PythonInterpreter::ShouldHandleCommand(std::string_view command) const
 
     std::string first_token(tokens[0]);
 
-    // Check if it's a registered console command first
+    // Don't handle if it's a registered console command
     if (console::FindCommand(first_token)) {
         return false;  // Let console handle it
     }
 
-    // Check if it's our Python-specific commands
+    // Don't handle our Python-specific commands (they're console commands now)
     if (first_token == "python" || first_token == "exec") {
         return false;  // Let console handle it
     }
 
-    // Everything else should be handled as Python
+    // Don't handle 'help' command
+    if (first_token == "help") {
+        return false;
+    }
+
+    // Handle everything else as Python code
     return true;
 }
 
@@ -176,63 +181,125 @@ PythonInterpreter::Result PythonInterpreter::ExecutePythonCode(
     std::string_view code)
 {
     if (!python_initialized_) {
-        return { false, "Python interpreter not initialized" };
+        return { false, "Python interpreter not initialized\n" };
     }
 
     try {
-        // Capture Python output by redirecting stdout
+        std::string code_str(code);
+
+        // Simple and robust output capture
         python::call<void>(
             "import sys\n"
             "from io import StringIO\n"
-            "_old_stdout = sys.stdout\n"
-            "sys.stdout = StringIO()");
+            "_console_stdout = StringIO()\n"
+            "_console_stderr = StringIO()\n"
+            "_original_stdout = sys.stdout\n"
+            "_original_stderr = sys.stderr\n"
+            "sys.stdout = _console_stdout\n"
+            "sys.stderr = _console_stderr\n");
 
         bool is_expression = false;
-        std::string result_output;
+        std::string captured_output;
+        std::string error_output;
 
         try {
-            // First try as expression to get immediate result
-            std::string expr_code = "(" + std::string(code) + ")";
+            // First try as expression
             PyObject* result = PyRun_String(
-                expr_code.c_str(), Py_eval_input, main_dict, main_dict);
+                code_str.c_str(),
+                Py_eval_input,
+                python::main_dict,
+                python::main_dict);
 
-            if (result && result != Py_None) {
-                // Successfully evaluated as expression
-                python::call<void>("_expr_result = " + expr_code);
-                python::call<void>("print(repr(_expr_result))");
+            if (result) {
                 is_expression = true;
+                // If it's not None, print the result
+                if (result != Py_None) {
+                    PyObject* repr_result = PyObject_Repr(result);
+                    if (repr_result) {
+                        const char* repr_str = PyUnicode_AsUTF8(repr_result);
+                        if (repr_str) {
+                            captured_output = std::string(repr_str) + "\n";
+                        }
+                        Py_DECREF(repr_result);
+                    }
+                }
                 Py_DECREF(result);
             }
             else {
                 // Clear the error and try as statement
                 PyErr_Clear();
-                if (result)
-                    Py_DECREF(result);
-                throw std::runtime_error("Not an expression");
+
+                PyObject* stmt_result = PyRun_String(
+                    code_str.c_str(),
+                    Py_file_input,
+                    python::main_dict,
+                    python::main_dict);
+
+                if (stmt_result) {
+                    // Statement executed successfully
+                    Py_DECREF(stmt_result);
+                }
+                else {
+                    // Get the error
+                    if (PyErr_Occurred()) {
+                        PyErr_Print();  // This will print to our captured
+                                        // stderr
+                    }
+                }
             }
+
+            // Get captured output
+            try {
+                std::string stdout_content =
+                    python::call<std::string>("_console_stdout.getvalue()");
+                std::string stderr_content =
+                    python::call<std::string>("_console_stderr.getvalue()");
+
+                // Combine stdout and stderr
+                if (!stdout_content.empty()) {
+                    captured_output += stdout_content;
+                }
+                if (!stderr_content.empty()) {
+                    if (!captured_output.empty() &&
+                        captured_output.back() != '\n') {
+                        captured_output += "\n";
+                    }
+                    captured_output += stderr_content;
+                }
+            }
+            catch (const std::exception& e) {
+                captured_output +=
+                    "Error getting output: " + std::string(e.what()) + "\n";
+            }
+
+            // Restore stdout/stderr
+            python::call<void>(
+                "sys.stdout = _original_stdout\n"
+                "sys.stderr = _original_stderr\n");
+
+            // Check if there were any errors
+            bool has_error =
+                !python::call<std::string>("_console_stderr.getvalue()")
+                     .empty();
+
+            return { !has_error, captured_output };
         }
-        catch (...) {
-            // Execute as statement
-            python::call<void>(std::string(code));
+        catch (const std::exception& e) {
+            // Make sure to restore stdout/stderr
+            try {
+                python::call<void>(
+                    "sys.stdout = _original_stdout\n"
+                    "sys.stderr = _original_stderr\n");
+            }
+            catch (...) {
+            }
+
+            return { false,
+                     std::string("Python execution error: ") + e.what() +
+                         "\n" };
         }
-
-        // Get captured output
-        std::string captured_output =
-            python::call<std::string>("sys.stdout.getvalue()");
-
-        // Restore stdout
-        python::call<void>("sys.stdout = _old_stdout");
-
-        return { true, captured_output };
     }
     catch (const std::exception& e) {
-        // Make sure to restore stdout even on error
-        try {
-            python::call<void>("sys.stdout = _old_stdout");
-        }
-        catch (...) {
-            // Ignore cleanup errors
-        }
         return { false, std::string("Python error: ") + e.what() + "\n" };
     }
 }

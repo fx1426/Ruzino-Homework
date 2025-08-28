@@ -1,6 +1,8 @@
 #pragma once
-
 #include <nanobind/nanobind.h>
+#include <nanobind/ndarray.h>
+#include <nanobind/stl/string.h>
+#include <nanobind/stl/vector.h>
 
 #include <stdexcept>
 #include <string>
@@ -8,6 +10,7 @@
 #include <unordered_map>
 
 #include "api.h"
+
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
@@ -46,18 +49,21 @@ T call(const std::string& code)
     }
 
     try {
-        // Use nanobind to convert the Python object to the desired C++ type
-        nb::object nb_result = nb::steal(py_result);  // Takes ownership
-
-        // Let nanobind handle all the type conversions automatically
-        // This works for primitives, STL containers, ndarrays, etc.
-        T result = nb::cast<T>(nb_result);
+        // Use direct nanobind casting - don't steal ownership yet
+        T result = nb::cast<T>(nb::handle(py_result));
+        Py_DECREF(py_result);  // Now we can safely decref
         return result;
     }
-    catch (const std::exception& e) {
+    catch (const nb::cast_error& e) {
+        Py_DECREF(py_result);
         throw std::runtime_error(
             "Failed to convert Python result to C++ type: " +
             std::string(e.what()));
+    }
+    catch (const std::exception& e) {
+        Py_DECREF(py_result);
+        throw std::runtime_error(
+            "Failed to convert Python result: " + std::string(e.what()));
     }
 }
 
@@ -87,7 +93,7 @@ void reference(const std::string& name, T* obj)
     }
 
     try {
-        // Create nanobind object wrapper
+        // Create nanobind object wrapper with proper policy
         nb::object py_obj = nb::cast(obj, nb::rv_policy::reference);
 
         // Store in our map to keep it alive
@@ -95,6 +101,10 @@ void reference(const std::string& name, T* obj)
 
         // Add to Python's main dict
         PyDict_SetItemString(main_dict, name.c_str(), py_obj.ptr());
+    }
+    catch (const nb::cast_error& e) {
+        throw std::runtime_error(
+            "Failed to bind object '" + name + "': " + e.what());
     }
     catch (const std::exception& e) {
         throw std::runtime_error(
@@ -111,15 +121,19 @@ void send(const std::string& name, const T& value)
 
     try {
         // Create nanobind object from the C++ value
-        // This automatically handles conversion of STL containers, ndarrays,
-        // etc.
-        nb::object py_obj = nb::cast(value);
+        // Use copy policy for values
+        nb::object py_obj = nb::cast(value, nb::rv_policy::copy);
 
         // Store in our map to keep it alive
         bound_objects[name] = py_obj;
 
         // Add to Python's main dict
         PyDict_SetItemString(main_dict, name.c_str(), py_obj.ptr());
+    }
+    catch (const nb::cast_error& e) {
+        throw std::runtime_error(
+            "Failed to send value to Python variable '" + name +
+            "': " + e.what());
     }
     catch (const std::exception& e) {
         throw std::runtime_error(
