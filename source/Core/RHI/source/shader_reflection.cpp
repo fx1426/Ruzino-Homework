@@ -30,7 +30,7 @@ unsigned ShaderReflectionInfo::get_binding_space(const std::string& path)
         }
     }
     
-    spdlog::warn("Binding space not found: %s (base: %s)", path.c_str(), base_name.c_str());
+    // spdlog::warn("Binding space not found: %s (base: %s)", path.c_str(), base_name.c_str());
     return -1;
 }
 
