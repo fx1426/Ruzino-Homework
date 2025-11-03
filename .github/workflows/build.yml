@@ -30,6 +30,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Continue"
           $WarningPreference = "SilentlyContinue"
+          $VerbosePreference = "SilentlyContinue"
           
           $configureHash = (Get-FileHash configure.py).Hash
           Write-Output "configure-hash=$configureHash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -53,8 +54,9 @@ jobs:
               $releaseExists = $false
               
               # Try to view the release
-              & gh release view $tagName --repo ${{ github.repository }} > $null 2>&1
-              if ($?) {
+              $output = & gh release view $tagName --repo ${{ github.repository }} 2>$null
+              $exitCode = $?
+              if ($exitCode) {
                 Write-Output "Found release with tag: $tagName"
                 $releaseExists = $true
               } else {
@@ -77,8 +79,9 @@ jobs:
             $releaseExists = $false
             
             # Try to view the release
-            & gh release view $tagName --repo ${{ github.repository }} > $null 2>&1
-            if ($?) {
+            $output = & gh release view $tagName --repo ${{ github.repository }} 2>$null
+            $exitCode = $?
+            if ($exitCode) {
               Write-Output "Found release with tag: $tagName"
               $releaseExists = $true
             } else {
@@ -101,6 +104,8 @@ jobs:
             Write-Output "needs-rebuild=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
             Write-Output "SDK is up to date, will restore from Release"
           }
+          
+          exit 0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
