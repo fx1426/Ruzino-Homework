@@ -71,7 +71,8 @@ jobs:
 
       - name: Setup MSVC Build Tools
         shell: powershell
-        run: & .github/scripts/init-msvc.ps1
+        run: |
+          & .github/scripts/init-msvc.ps1
 
       - name: Enable Windows long path support
         shell: powershell
@@ -359,7 +360,8 @@ jobs:
 
       - name: Setup MSVC Build Tools
         shell: powershell
-        run: & .github/scripts/init-msvc.ps1
+        run: |
+          & .github/scripts/init-msvc.ps1
 
       - name: Configure CMake (No CUDA)
         shell: cmd
@@ -495,7 +497,8 @@ jobs:
 
       - name: Setup MSVC Build Tools
         shell: powershell
-        run: & .github/scripts/init-msvc.ps1
+        run: |
+          & .github/scripts/init-msvc.ps1
 
       - name: Configure CMake (With CUDA)
         if: steps.cuda-check.outputs.cuda-available == 'true'
