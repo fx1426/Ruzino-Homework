@@ -333,6 +333,11 @@ def pack_sdk(dry_run=False):
     python_dir_forward_slash = python_dir_backward_slash.replace("\\", "/")
     framework3d_dir_backward_slash = os.getcwd().replace("/", "\\")
     framework3d_dir_forward_slash = framework3d_dir_backward_slash.replace("\\", "/")
+    
+    # Define replacements for GridBuilder.h
+    gridbuilder_replacements = {
+        "std::result_of": "std::invoke_result_t"
+    }
 
     def copy_file(src_file, dst_file):
         if dry_run:
@@ -372,6 +377,18 @@ def pack_sdk(dry_run=False):
             # Also normalize any remaining paths with placeholders that have backslashes
             filedata = re.sub(r'(\$\{(?:FRAMEWORK3D_DIR|Python3_ROOT_DIR)\}[^;\s\]]*)', 
                             lambda m: m.group(1).replace('\\', '/'), filedata)
+            
+            # Handle GridBuilder.h replacements
+            # Only replace in the specific path: SDK\OpenUSD\<variant>\include\nanovdb\util\GridBuilder.h
+            if ("GridBuilder.h" in dst_file and 
+                "include" in dst_file and 
+                "nanovdb" in dst_file and 
+                "util" in dst_file and
+                "OpenUSD" in dst_file):
+                for old_text, new_text in gridbuilder_replacements.items():
+                    if old_text in filedata:
+                        filedata = filedata.replace(old_text, new_text)
+                        print(f"Replaced '{old_text}' with '{new_text}' in {dst_file}")
 
             if filedata != filedata_0:
                 with open(dst_file, "w", encoding="utf-8") as file:
