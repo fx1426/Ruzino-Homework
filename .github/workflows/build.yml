@@ -1,4 +1,4 @@
-name: Build and Test (Advanced)
+name: Build
 
 on:
   push:
