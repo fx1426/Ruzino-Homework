@@ -27,6 +27,29 @@ def copytree_common_to_binaries(folder, target="Debug", dst=None, dry_run=False)
         print(f"Copied {folder} to {dst_path}")
 
 
+def copy_imgui_ini_to_binaries(targets, dry_run=False):
+    """Copy imgui.ini from tests/application/ to each target in Binaries/"""
+    src_file = os.path.join(os.path.dirname(__file__), "tests", "application", "imgui.ini")
+    
+    if not os.path.exists(src_file):
+        print(f"  ⚠ imgui.ini not found at {src_file}, skipping")
+        return
+    
+    for target in targets:
+        target_dir = os.path.join(os.getcwd(), "Binaries", target)
+        dst_file = os.path.join(target_dir, "imgui.ini")
+        
+        if dry_run:
+            print(f"  [DRY RUN] Would copy imgui.ini to Binaries/{target}/")
+        else:
+            os.makedirs(target_dir, exist_ok=True)
+            try:
+                shutil.copy2(src_file, dst_file)
+                print(f"  ✓ Copied imgui.ini to Binaries/{target}/")
+            except Exception as e:
+                print(f"  ✗ Failed to copy imgui.ini to Binaries/{target}/: {e}")
+
+
 def copy_python_dlls_to_binaries(targets, dry_run=False):
     """Copy entire Python directory contents from SDK/python to Binaries/{target}/ for each target"""
     sdk_python_dir = os.path.join(os.path.dirname(__file__), "SDK", "python")
@@ -369,6 +392,9 @@ def extract_and_setup_sdk(sdk_zip_path, targets=None, dry_run=False):
         
         # Copy CUDA runtime DLLs if available
         copy_cuda_runtime_dlls_to_binaries(targets, dry_run=dry_run)
+        
+        # Copy imgui.ini to Binaries
+        copy_imgui_ini_to_binaries(targets, dry_run=dry_run)
         
         print("✓ SDK structure setup complete")
         return True
@@ -892,6 +918,9 @@ def main():
         copy_python_dlls_to_binaries(targets, dry_run=dry_run)
         # Also copy CUDA runtime DLLs if available
         copy_cuda_runtime_dlls_to_binaries(targets, dry_run=dry_run)
+    
+    # Always copy imgui.ini to Binaries
+    copy_imgui_ini_to_binaries(targets, dry_run=dry_run)
 
 
 if __name__ == "__main__":

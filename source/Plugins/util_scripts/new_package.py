@@ -6,7 +6,7 @@ import subprocess
 
 
 def create_directory_structure(
-    package_name, base_path, create_nodes, create_renderer_nodes
+    package_name, base_path, create_nodes, create_renderer_nodes, create_geometry_nodes
 ):
     """创建包的目录结构"""
     package_path = base_path / package_name
@@ -21,6 +21,9 @@ def create_directory_structure(
 
     if create_renderer_nodes:
         directories.append(package_path / "renderer_nodes")
+
+    if create_geometry_nodes:
+        directories.append(package_path / "geometry_nodes")
 
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
@@ -73,17 +76,19 @@ USTC_CG_NAMESPACE_CLOSE_SCOPE
 
 
 def generate_main_cmake(
-    package_name, package_path, public_libs, create_nodes, create_renderer_nodes
+    package_name, package_path, public_libs, create_nodes, create_renderer_nodes, create_geometry_nodes
 ):
     """生成主CMakeLists.txt文件"""
     libs_str = " ".join(public_libs) if public_libs else ""
 
-    # 始终跳过 nodes 和 renderer_nodes 目录，防止主库扫描这些目录中的 cpp
+    # 始终跳过 nodes, renderer_nodes 和 geometry_nodes 目录，防止主库扫描这些目录中的 cpp
     skip_dirs = []
     if create_nodes:
         skip_dirs.append("nodes")
     if create_renderer_nodes:
         skip_dirs.append("renderer_nodes")
+    if create_geometry_nodes:
+        skip_dirs.append("geometry_nodes")
 
     skip_str = " ".join(skip_dirs) if skip_dirs else ""
 
@@ -105,6 +110,8 @@ def generate_main_cmake(
         cmake_content += "\nadd_subdirectory(nodes)\n"
     if create_renderer_nodes:
         cmake_content += "add_subdirectory(renderer_nodes)\n"
+    if create_geometry_nodes:
+        cmake_content += "add_subdirectory(geometry_nodes)\n"
 
     cmake_file = package_path / "CMakeLists.txt"
     with open(cmake_file, "w", encoding="utf-8") as f:
@@ -150,6 +157,24 @@ def generate_renderer_nodes_cmake(package_name, package_path, dep_libs, json_dir
     print(f"Generated renderer_nodes CMakeLists.txt at: {cmake_file}")
 
 
+def generate_geometry_nodes_cmake(package_name, package_path, dep_libs, json_dir):
+    """生成geometry_nodes/CMakeLists.txt文件"""
+    libs_str = " ".join(dep_libs) if dep_libs else package_name
+
+    cmake_content = f"""add_nodes(
+\tTARGET_NAME {package_name}_geometry_nodes
+\tJSON_DIR {json_dir}
+\tDEP_LIBS {libs_str}
+)
+"""
+
+    cmake_file = package_path / "geometry_nodes" / "CMakeLists.txt"
+    with open(cmake_file, "w", encoding="utf-8") as f:
+        f.write(cmake_content)
+
+    print(f"Generated geometry_nodes CMakeLists.txt at: {cmake_file}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Create a new package with directory structure and configuration files."
@@ -187,6 +212,11 @@ def main():
         action="store_true",
         help="Don't create renderer_nodes subdirectory and CMakeLists.txt",
     )
+    parser.add_argument(
+        "--no-geometry-nodes",
+        action="store_true",
+        help="Don't create geometry_nodes subdirectory and CMakeLists.txt",
+    )
 
     args = parser.parse_args()
 
@@ -198,16 +228,17 @@ def main():
     
     package_name = args.package_name
 
-    # 确定是否创建 nodes 和 renderer_nodes
+    # 确定是否创建 nodes, renderer_nodes 和 geometry_nodes
     create_nodes = not args.no_nodes
     create_renderer_nodes = not args.no_renderer_nodes
+    create_geometry_nodes = not args.no_geometry_nodes
 
     print(f"Creating package: {package_name}")
     print(f"Base path: {base_path}")
 
     # 创建目录结构
     package_path = create_directory_structure(
-        package_name, base_path, create_nodes, create_renderer_nodes
+        package_name, base_path, create_nodes, create_renderer_nodes, create_geometry_nodes
     )
 
     # 生成api.h
@@ -223,6 +254,7 @@ def main():
         args.public_libs,
         create_nodes,
         create_renderer_nodes,
+        create_geometry_nodes,
     )
 
     # 生成nodes CMakeLists.txt
@@ -232,6 +264,12 @@ def main():
     # 生成renderer_nodes CMakeLists.txt
     if create_renderer_nodes:
         generate_renderer_nodes_cmake(
+            package_name, package_path, args.dep_libs, args.json_dir
+        )
+
+    # 生成geometry_nodes CMakeLists.txt
+    if create_geometry_nodes:
+        generate_geometry_nodes_cmake(
             package_name, package_path, args.dep_libs, args.json_dir
         )
 
@@ -246,6 +284,10 @@ def main():
     if create_renderer_nodes:
         print(
             f"4. Add renderer node implementations to: {package_path / 'renderer_nodes'}"
+        )
+    if create_geometry_nodes:
+        print(
+            f"5. Add geometry node implementations to: {package_path / 'geometry_nodes'}"
         )
 
 
