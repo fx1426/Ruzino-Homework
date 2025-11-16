@@ -503,13 +503,23 @@ jobs:
             Write-Output "WARNING: Download error - $_"
           }
 
-      - name: Extract SDK and setup structure for builds
+      - name: Extract SDK and setup structure for Debug build
         shell: cmd
         run: |
-          REM Extract SDK and setup Binaries structure using configure.py
+          REM Extract SDK and setup Binaries structure for Debug variant
+          python configure.py --extract-sdk SDK/SDK.zip --build_variant Debug
+          if %ERRORLEVEL% neq 0 (
+            echo Failed to extract SDK for Debug
+            exit /b %ERRORLEVEL%
+          )
+
+      - name: Extract SDK and setup structure for Release build
+        shell: cmd
+        run: |
+          REM Extract SDK and setup Binaries structure for Release variant
           python configure.py --extract-sdk SDK/SDK.zip --build_variant Release
           if %ERRORLEVEL% neq 0 (
-            echo Failed to extract SDK
+            echo Failed to extract SDK for Release
             exit /b %ERRORLEVEL%
           )
 
@@ -576,7 +586,7 @@ jobs:
             echo Continuing anyway - system PATH may have compiler
           )
 
-      - name: Configure CMake (With CUDA)
+      - name: Configure CMake Debug (With CUDA)
         if: steps.cuda-check.outputs.cuda-available == 'true'
         shell: cmd
         run: |
@@ -589,7 +599,60 @@ jobs:
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           )
           
-          set buildDir=build_cuda
+          set buildDir=build_cuda_debug
+          if exist "%buildDir%" (
+            rmdir /s /q "%buildDir%"
+          )
+          mkdir "%buildDir%"
+          cd /d "%buildDir%"
+          
+          cmake -G Ninja ^
+            -DCMAKE_BUILD_TYPE=Debug ^
+            -DUSTC_CG_WITH_CUDA=ON ^
+            -DCMAKE_CUDA_ARCHITECTURES=75;86;89 ^
+            -DCMAKE_INSTALL_PREFIX="../install_cuda_debug" ^
+            ..
+          
+          if %ERRORLEVEL% neq 0 (
+            echo CMake configuration failed for Debug
+            exit /b %ERRORLEVEL%
+          )
+
+      - name: Build Debug (With CUDA)
+        id: build-cuda-debug
+        if: steps.cuda-check.outputs.cuda-available == 'true'
+        shell: cmd
+        run: |
+          REM Initialize MSVC environment
+          if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          )
+          
+          cd /d build_cuda_debug
+          cmake --build . --config Debug -j
+          if %ERRORLEVEL% neq 0 (
+            echo Debug build failed with error code %ERRORLEVEL%
+            exit /b %ERRORLEVEL%
+          )
+
+      - name: Configure CMake Release (With CUDA)
+        if: steps.cuda-check.outputs.cuda-available == 'true'
+        shell: cmd
+        run: |
+          REM Initialize MSVC environment
+          if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
+          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          )
+          
+          set buildDir=build_cuda_release
           if exist "%buildDir%" (
             rmdir /s /q "%buildDir%"
           )
@@ -600,16 +663,16 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DUSTC_CG_WITH_CUDA=ON ^
             -DCMAKE_CUDA_ARCHITECTURES=75;86;89 ^
-            -DCMAKE_INSTALL_PREFIX="../install_cuda" ^
+            -DCMAKE_INSTALL_PREFIX="../install_cuda_release" ^
             ..
           
           if %ERRORLEVEL% neq 0 (
-            echo CMake configuration failed
+            echo CMake configuration failed for Release
             exit /b %ERRORLEVEL%
           )
 
-      - name: Build (With CUDA)
-        id: build-cuda
+      - name: Build Release (With CUDA)
+        id: build-cuda-release
         if: steps.cuda-check.outputs.cuda-available == 'true'
         shell: cmd
         run: |
@@ -622,10 +685,10 @@ jobs:
             call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           )
           
-          cd /d build_cuda
+          cd /d build_cuda_release
           cmake --build . --config Release -j
           if %ERRORLEVEL% neq 0 (
-            echo Build failed with error code %ERRORLEVEL%
+            echo Release build failed with error code %ERRORLEVEL%
             exit /b %ERRORLEVEL%
           )
 
