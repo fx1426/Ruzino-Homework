@@ -503,16 +503,6 @@ jobs:
             Write-Output "WARNING: Download error - $_"
           }
 
-      - name: Extract SDK and setup structure for Debug build
-        shell: cmd
-        run: |
-          REM Extract SDK and setup Binaries structure for Debug variant
-          python configure.py --extract-sdk SDK/SDK.zip --build_variant Debug
-          if %ERRORLEVEL% neq 0 (
-            echo Failed to extract SDK for Debug
-            exit /b %ERRORLEVEL%
-          )
-
       - name: Extract SDK and setup structure for Release build
         shell: cmd
         run: |
@@ -586,59 +576,6 @@ jobs:
             echo Continuing anyway - system PATH may have compiler
           )
 
-      - name: Configure CMake Debug (With CUDA)
-        if: steps.cuda-check.outputs.cuda-available == 'true'
-        shell: cmd
-        run: |
-          REM Initialize MSVC environment
-          if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
-          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          )
-          
-          set buildDir=build_cuda_debug
-          if exist "%buildDir%" (
-            rmdir /s /q "%buildDir%"
-          )
-          mkdir "%buildDir%"
-          cd /d "%buildDir%"
-          
-          cmake -G Ninja ^
-            -DCMAKE_BUILD_TYPE=Debug ^
-            -DUSTC_CG_WITH_CUDA=ON ^
-            -DCMAKE_CUDA_ARCHITECTURES=75;86;89 ^
-            -DCMAKE_INSTALL_PREFIX="../install_cuda_debug" ^
-            ..
-          
-          if %ERRORLEVEL% neq 0 (
-            echo CMake configuration failed for Debug
-            exit /b %ERRORLEVEL%
-          )
-
-      - name: Build Debug (With CUDA)
-        id: build-cuda-debug
-        if: steps.cuda-check.outputs.cuda-available == 'true'
-        shell: cmd
-        run: |
-          REM Initialize MSVC environment
-          if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat"
-          ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" (
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          )
-          
-          cd /d build_cuda_debug
-          cmake --build . --config Debug -j
-          if %ERRORLEVEL% neq 0 (
-            echo Debug build failed with error code %ERRORLEVEL%
-            exit /b %ERRORLEVEL%
-          )
-
       - name: Configure CMake Release (With CUDA)
         if: steps.cuda-check.outputs.cuda-available == 'true'
         shell: cmd
@@ -663,7 +600,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release ^
             -DUSTC_CG_WITH_CUDA=ON ^
             -DCMAKE_CUDA_ARCHITECTURES=75;86;89 ^
-            -DCMAKE_INSTALL_PREFIX="../install_cuda_release" ^
+            -DCMAKE_INSTALL_PREFIX="../install_cuda" ^
             ..
           
           if %ERRORLEVEL% neq 0 (
@@ -671,8 +608,8 @@ jobs:
             exit /b %ERRORLEVEL%
           )
 
-      - name: Build Release (With CUDA)
-        id: build-cuda-release
+      - name: Build (With CUDA)
+        id: build-cuda
         if: steps.cuda-check.outputs.cuda-available == 'true'
         shell: cmd
         run: |
