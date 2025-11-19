@@ -1,4 +1,4 @@
-#include "GUI/text_editor_widget_wrapper.hpp"
+#include "GUI/text_editor_widget.hpp"
 
 #include <string>
 
@@ -79,6 +79,28 @@ void TextEditorWidget::SetFontSize(float size)
 float TextEditorWidget::GetFontSize() const
 {
     return font_size_;
+}
+
+void TextEditorWidget::SetReadOnly(bool readonly)
+{
+    if (editor_) {
+        editor_->SetReadOnly(readonly);
+    }
+}
+
+bool TextEditorWidget::IsReadOnly() const
+{
+    if (editor_) {
+        return editor_->IsReadOnly();
+    }
+    return false;
+}
+
+void TextEditorWidget::UpdateText(const std::string& text)
+{
+    if (editor_) {
+        editor_->SetText(text);
+    }
 }
 
 void TextEditorWidget::SetLanguage(Language lang)

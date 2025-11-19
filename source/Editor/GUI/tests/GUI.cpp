@@ -2,7 +2,7 @@
 #include <nvrhi/nvrhi.h>
 
 #include "GUI/image_widget.hpp"
-#include "GUI/text_editor_widget_wrapper.hpp"
+#include "GUI/text_editor_widget.hpp"
 #include "GUI/widget.h"
 #include "GUI/window.h"
 #include "RHI/rhi.hpp"

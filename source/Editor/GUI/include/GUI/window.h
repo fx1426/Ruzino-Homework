@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "GUI/api.h"
 #include "widget.h"
@@ -13,6 +14,18 @@ struct GLFWwindow;
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
 class DockingImguiRenderer;
+
+// Simple event system for widget communication
+class GUI_API WindowEventSystem {
+   public:
+    using EventCallback = std::function<void(const std::string& event_data)>;
+    
+    void subscribe(const std::string& event_name, EventCallback callback);
+    void emit(const std::string& event_name, const std::string& event_data = "");
+    
+   private:
+    std::unordered_map<std::string, std::vector<EventCallback>> subscribers_;
+};
 
 // Represents a window in a GUI application, providing basic functionalities
 // such as initialization and rendering.
@@ -38,6 +51,9 @@ class GUI_API Window {
         const std::vector<std::string> &menu_item);
     IWidget *get_widget(const std::string &unique_name) const;
     std::vector<IWidget *> get_widgets() const;
+    
+    // Event system access
+    WindowEventSystem& events() { return event_system_; }
 
     void close();
 
@@ -53,6 +69,7 @@ class GUI_API Window {
    protected:
     std::unique_ptr<DockingImguiRenderer> imguiRenderPass;
     float elapsedTimeSeconds = 0.0f;
+    WindowEventSystem event_system_;
     friend class DockingImguiRenderer;
 };
 

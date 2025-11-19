@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 #include "GUI/window.h"
+#include "MCore/MaterialXDocumentViewer.hpp"
 #include "MCore/MaterialXNodeTree.hpp"
 #include "MCore/MaterialXNodeTreeWidget.h"
 #include "gtest/gtest.h"
@@ -57,15 +58,12 @@ int main()
         system_->node_tree_descriptor());
 
     system_->init(std::move(tree));
+    
+    // Get the MaterialX node tree for the document viewer
+    auto* mtlx_tree = static_cast<MaterialXNodeTree*>(system_->get_node_tree());
 
     Window window;
-    // window.register_function_after_frame([](Window* window) {
-    //     static int frame_count = 0;
-    //     frame_count++;
-    //     if (frame_count > 100) {
-    //         window->close();
-    //     }
-    // });
+    
     FileBasedNodeWidgetSettings widget_desc;
     widget_desc.system = system_;
     system_->set_node_tree_executor(create_node_tree_executor({}));
@@ -75,5 +73,35 @@ int main()
         std::move(std::make_unique<MaterialXNodeTreeWidget>(widget_desc));
 
     window.register_widget(std::move(node_widget));
+    
+    // Add the MaterialX document viewer widget
+    auto document_viewer = std::make_unique<MaterialXDocumentViewer>(
+        mtlx_tree,
+        "MaterialX Document");
+    
+    auto* viewer_ptr = document_viewer.get();
+    window.register_widget(std::move(document_viewer));
+    
+    // Subscribe to node graph change events
+    window.events().subscribe("materialx_graph_changed", [viewer_ptr](const std::string&) {
+        viewer_ptr->RefreshDocument();
+    });
+    
+    // Register callback to emit events when node tree changes
+    window.register_function_after_frame([](Window* window) {
+        // Emit event when nodes are modified
+        // This will be called after any node tree modifications
+        static bool first_frame = true;
+        if (first_frame) {
+            first_frame = false;
+            return;
+        }
+        
+        // You can emit this event whenever the graph is modified
+        // For now, we'll just emit it every frame for demo purposes
+        // In production, MaterialXNodeTreeWidget should emit this when graph changes
+        window->events().emit("materialx_graph_changed");
+    });
+    
     window.run();
 }

@@ -14,6 +14,22 @@
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
+// WindowEventSystem implementation
+void WindowEventSystem::subscribe(const std::string& event_name, EventCallback callback)
+{
+    subscribers_[event_name].push_back(callback);
+}
+
+void WindowEventSystem::emit(const std::string& event_name, const std::string& event_data)
+{
+    auto it = subscribers_.find(event_name);
+    if (it != subscribers_.end()) {
+        for (auto& callback : it->second) {
+            callback(event_data);
+        }
+    }
+}
+
 class DockingImguiRenderer final : public ImGui_Renderer {
     friend class Window;
 

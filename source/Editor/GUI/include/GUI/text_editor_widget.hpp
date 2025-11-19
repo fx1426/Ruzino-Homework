@@ -34,6 +34,13 @@ class GUI_API TextEditorWidget : public IWidget {
     };
     void SetLanguage(Language lang);
 
+    // Read-only mode
+    void SetReadOnly(bool readonly);
+    bool IsReadOnly() const;
+    
+    // Update text without triggering callbacks
+    void UpdateText(const std::string& text);
+
     // Text binding - bind to an external string for editing
     void BindText(std::string* text_ptr);
     void UnbindText();
