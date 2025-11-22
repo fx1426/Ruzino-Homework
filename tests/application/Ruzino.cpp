@@ -4,6 +4,7 @@
 #include <rzconsole/spdlog_console_sink.h>
 #include <spdlog/spdlog.h>
 
+#include <filesystem>
 #include <rzpython/interpreter.hpp>
 #include <rzpython/rzpython.hpp>
 
@@ -14,12 +15,14 @@
 #include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
+#include "pxr/base/tf/setenv.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/sphere.h"
 #include "stage/stage.hpp"
 #include "usd_nodejson.hpp"
 #include "widgets/usdtree/usd_fileviewer.h"
 #include "widgets/usdview/usdview_widget.hpp"
+
 
 using namespace USTC_CG;
 
@@ -156,6 +159,17 @@ int main(int argc, char* argv[])
 #endif
     spdlog::set_pattern("%^[%T] %n: %v%$");
     auto window = std::make_unique<Window>();
+
+    // Set MaterialX standard library path using USD's TfSetenv (preferred
+    // method)
+    std::string mtlx_stdlib = "libraries";
+    if (std::filesystem::exists(mtlx_stdlib)) {
+        pxr::TfSetenv("PXR_MTLX_STDLIB_SEARCH_PATHS", mtlx_stdlib.c_str());
+        spdlog::info("Set PXR_MTLX_STDLIB_SEARCH_PATHS={}", mtlx_stdlib);
+    }
+    else {
+        spdlog::warn("MaterialX stdlib not found at {}", mtlx_stdlib);
+    }
 
     python::initialize();
     // Check for command line arguments to specify USD file

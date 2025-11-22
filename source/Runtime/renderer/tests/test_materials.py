@@ -15,6 +15,14 @@ binary_dir = os.path.abspath(os.path.join(tests_dir, "..", "..", "..", "..", "Bi
 os.environ['PXR_USD_WINDOWS_DLL_PATH'] = binary_dir
 print(f"Set PXR_USD_WINDOWS_DLL_PATH={binary_dir}")
 
+# Set MaterialX standard library path for USD MaterialX plugin
+mtlx_stdlib = os.path.join(binary_dir, "libraries")
+if os.path.exists(mtlx_stdlib):
+    os.environ['PXR_MTLX_STDLIB_SEARCH_PATHS'] = mtlx_stdlib
+    print(f"Set PXR_MTLX_STDLIB_SEARCH_PATHS={mtlx_stdlib}")
+else:
+    print(f"Warning: MaterialX stdlib not found at {mtlx_stdlib}")
+
 # Add to Python path
 sys.path.insert(0, binary_dir)
 
