@@ -122,12 +122,9 @@ class PythonConsoleWidgetFactory : public IWidgetFactory {
         opts.show_info = true;
         opts.show_warnings = true;
         opts.show_errors = true;
-        opts.capture_log = true;
+        opts.capture_log = false;
 
         auto console = std::make_unique<ImGui_Console>(interpreter, opts);
-
-        // Setup console logging AFTER creating the console
-        setup_console_logging(console.get());
 
         // Add some initial messages
         console->Print("=== Python Interactive Console ===");
