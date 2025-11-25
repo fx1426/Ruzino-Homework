@@ -538,9 +538,24 @@ VtValue Hd_USTC_CG_RenderDelegate::GetRenderSetting(TfToken const& key) const
 
 #ifdef USTC_CG_DIRECT_VK_DISPLAY
     if (key == TfToken("VulkanColorAov")) {
-        if (_renderParam->presented_texture) {
-            return VtValue(reinterpret_cast<const void*>(
-                &_renderParam->presented_texture));
+        // Legacy: return default texture for backward compatibility
+        if (!_renderParam->default_texture_name.empty()) {
+            auto it = _renderParam->presented_textures.find(_renderParam->default_texture_name);
+            if (it != _renderParam->presented_textures.end() && it->second) {
+                // Safe: map element addresses are stable until erase/rehash
+                return VtValue(reinterpret_cast<const void*>(&it->second));
+            }
+        }
+    }
+    
+    // New: support querying named textures
+    // Format: "VulkanColorAov:<texture_name>"
+    std::string key_str = key.GetString();
+    if (key_str.rfind("VulkanColorAov:", 0) == 0) {
+        std::string texture_name = key_str.substr(15);  // Skip "VulkanColorAov:"
+        auto it = _renderParam->presented_textures.find(texture_name);
+        if (it != _renderParam->presented_textures.end() && it->second) {
+            return VtValue(reinterpret_cast<const void*>(&it->second));
         }
     }
 #endif

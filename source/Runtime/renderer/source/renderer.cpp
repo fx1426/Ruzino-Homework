@@ -55,7 +55,8 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
 {
     _completedSamples.store(0);
 
-    render_param->presented_texture = nullptr;
+    render_param->default_texture_name.clear();
+    render_param->presented_textures.clear();
 
     for (auto& material_thread : render_param->material_loading_threads) {
         material_thread.join();
@@ -106,6 +107,7 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
     for (size_t i = 0; i < _aovBindings.size(); ++i) {
         std::string present_name;
         nvrhi::TextureHandle texture = nullptr;
+        std::string found_node_ui_name;  // Track which node provided the texture
 
         if (_aovBindings[i].aovName == HdAovTokens->depth) {
             present_name = "present_depth";
@@ -130,6 +132,7 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             };
             try_fetch_info(present_name.c_str(), texture);
             if (texture) {
+                found_node_ui_name = node->ui_name;  // Save node name when found
                 break;
             }
         }
@@ -137,16 +140,27 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             auto rb = static_cast<Hd_USTC_CG_RenderBuffer*>(
                 _aovBindings[i].renderBuffer);
 #ifdef USTC_CG_DIRECT_VK_DISPLAY
-            render_param->presented_texture = texture;
+            // Store texture with node's UI name for later retrieval
+            std::string texture_name = found_node_ui_name.empty() ? 
+                present_name : found_node_ui_name;
+            render_param->presented_textures[texture_name] = texture;
+            
+            // Keep backward compatibility: first texture becomes default
+            if (render_param->default_texture_name.empty()) {
+                render_param->default_texture_name = texture_name;
+            }
 #else
             rb->Present(texture);
 #endif
             rb->SetConverged(true);
         }
 
-        else if (!render_param->presented_texture) {
-            render_param->presented_texture = create_empty_texture(
+        else if (render_param->default_texture_name.empty()) {
+            // Create empty texture if nothing was presented
+            auto empty_tex = create_empty_texture(
                 GfVec2i{ 16, 16 }, nvrhi::Format::RGBA32_FLOAT);
+            render_param->presented_textures["_empty"] = empty_tex;
+            render_param->default_texture_name = "_empty";
         }
     }
 

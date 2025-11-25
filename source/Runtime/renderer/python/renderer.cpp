@@ -144,10 +144,24 @@ public:
         engine_->StopRenderer();
     }
     
-    // Get output texture data
-    std::vector<float> get_output_texture() {
-        auto hacked_handle = engine_->GetRendererSetting(pxr::TfToken("VulkanColorAov"));
+    // Get output texture data (legacy CPU copy)
+    // name: optional texture name (uses default if empty)
+    std::vector<float> get_output_texture(const std::string& name = "") {
+        pxr::TfToken token_key;
+        
+        if (name.empty()) {
+            // Legacy: get default texture
+            token_key = pxr::TfToken("VulkanColorAov");
+        } else {
+            // New: get named texture
+            token_key = pxr::TfToken("VulkanColorAov:" + name);
+        }
+        
+        auto hacked_handle = engine_->GetRendererSetting(token_key);
         if (!hacked_handle.IsHolding<const void*>()) {
+            if (!name.empty()) {
+                throw std::runtime_error("Failed to get output texture '" + name + "'");
+            }
             throw std::runtime_error("Failed to get output texture");
         }
         
@@ -194,6 +208,58 @@ public:
         RHI::get_device()->unmapStagingTexture(staging_texture);
         return result;
     }
+
+#ifdef USTC_CG_WITH_CUDA
+    // Get output texture as CUDA buffer (zero-copy to GPU)
+    // name: optional texture name (uses default if empty)
+    cuda::CUDALinearBufferHandle get_output_cuda_buffer(const std::string& name = "") {
+        pxr::TfToken token_key;
+        
+        if (name.empty()) {
+            // Legacy: get default texture
+            token_key = pxr::TfToken("VulkanColorAov");
+        } else {
+            // New: get named texture
+            token_key = pxr::TfToken("VulkanColorAov:" + name);
+        }
+        
+        auto hacked_handle = engine_->GetRendererSetting(token_key);
+        if (!hacked_handle.IsHolding<const void*>()) {
+            if (!name.empty()) {
+                throw std::runtime_error("Failed to get output texture '" + name + "'");
+            }
+            throw std::runtime_error("Failed to get output texture");
+        }
+        
+        auto bare_pointer = hacked_handle.Get<const void*>();
+        auto texture = *static_cast<nvrhi::ITexture**>(const_cast<void*>(bare_pointer));
+        
+        // Determine element size based on format
+        uint32_t element_size = 0;
+        const auto& desc = texture->getDesc();
+        switch (desc.format) {
+            case nvrhi::Format::RGBA32_FLOAT:
+                element_size = 16;
+                break;
+            case nvrhi::Format::RGB32_FLOAT:
+                element_size = 12;
+                break;
+            case nvrhi::Format::RG32_FLOAT:
+                element_size = 8;
+                break;
+            case nvrhi::Format::R32_FLOAT:
+                element_size = 4;
+                break;
+            default:
+                element_size = 16; // Default to RGBA32
+                break;
+        }
+        
+        // Use existing CUDA texture conversion
+        return cuda::copy_texture_to_linear_buffer_with_cleanup(
+            RHI::get_device(), texture, element_size);
+    }
+#endif
     
     int width() const { return width_; }
     int height() const { return height_; }
@@ -227,7 +293,15 @@ NB_MODULE(hd_USTC_CG_py, m)
         .def("render", &HydraRenderer::render,
              "Render one frame")
         .def("get_output_texture", &HydraRenderer::get_output_texture,
-             "Get the rendered texture as a float array (RGBA, row-major)")
+             nb::arg("name") = "",
+             "Get the rendered texture as a float array (RGBA, row-major). "
+             "Optional name parameter to get specific named texture from present nodes.")
+#ifdef USTC_CG_WITH_CUDA
+        .def("get_output_cuda_buffer", &HydraRenderer::get_output_cuda_buffer,
+             nb::arg("name") = "",
+             "Get the rendered texture as CUDA buffer (GPU memory, zero-copy). "
+             "Optional name parameter to get specific named texture from present nodes.")
+#endif
         .def_prop_ro("width", &HydraRenderer::width)
         .def_prop_ro("height", &HydraRenderer::height);
 

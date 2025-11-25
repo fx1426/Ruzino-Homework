@@ -23,6 +23,8 @@
 //
 #pragma once
 #include <future>
+#include <map>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -83,7 +85,13 @@ class Hd_USTC_CG_RenderParam final : public HdRenderParam {
     NodeSystem *node_system;
     std::unique_ptr<Hd_USTC_CG_RenderInstanceCollection> InstanceCollection;
 
-    nvrhi::TextureHandle presented_texture;
+    // Support multiple named output textures from present nodes
+    std::map<std::string, nvrhi::TextureHandle> presented_textures;
+    
+    // Legacy: name of default texture in presented_textures (for backward compatibility)
+    // This avoids duplication - just stores which texture is the default one
+    std::string default_texture_name;
+    
     LensSystem *lens_system = nullptr;
 
     std::vector<std::thread> texture_loading_threads;

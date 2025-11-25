@@ -28,6 +28,6 @@ Texture2D t_BindlessTextures[] : register(t0, space2);
 // Index calculation: (uaddressmode * 3) + filtertype
 // 0=wrap, 1=clamp, 2=mirror for address modes
 // 0=point, 1=linear, 2=aniso for filter types
-SamplerState samplers[9] : register(s2);
+SamplerState samplers[9];
 
 #endif
