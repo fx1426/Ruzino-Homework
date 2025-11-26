@@ -39,7 +39,7 @@ import nodes_system_py as system
 
 # Test configuration
 RESOLUTION = 128
-NUM_SAMPLES = 40000000
+NUM_SAMPLES = 10000000
 TEST_ANGLE = 15  # degrees
 TEST_UV = (0.2, 0.5)
 

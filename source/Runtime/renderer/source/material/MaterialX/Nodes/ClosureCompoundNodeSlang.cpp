@@ -213,12 +213,11 @@ float3 sample_standard_surface(
     out float pdf
 )
 {
-    // Apply specular rotation to tangent
+    // Create base layer shading frame
     float3 rotated_tangent;
     float rotation_angle = specular_rotation * 360.0;
     mx_rotate_vector3(tangent, rotation_angle, normal, rotated_tangent);
     
-    // Create shading frame with rotated tangent and preserved handedness
     bool valid;
     ShadingFrame sf = ShadingFrame.createSafe(normal, float4(rotated_tangent, 1.0), valid);
     
@@ -226,24 +225,45 @@ float3 sample_standard_surface(
     float3 V_local = sf.toLocal(V);
     float NdotV = clamp(V_local.z, M_FLOAT_EPS, 1.0);
 
-    // Compute anisotropic roughness
+    // Compute base layer anisotropic roughness
     float2 alpha;
     mx_roughness_anisotropy(specular_roughness, specular_anisotropy, alpha);
     
-    // Compute material properties
+    // Compute coat layer properties with its own shading frame
+    float3 coat_rotated_tangent;
+    float coat_rotation_angle = coat_rotation * 360.0;
+    mx_rotate_vector3(tangent, coat_rotation_angle, coat_normal, coat_rotated_tangent);
+    coat_rotated_tangent = normalize(coat_rotated_tangent);
+    
+    bool coat_valid;
+    ShadingFrame coat_sf = ShadingFrame.createSafe(coat_normal, float4(coat_rotated_tangent, 1.0), coat_valid);
+    float3 V_coat_local = coat_sf.toLocal(V);
+    float coat_NdotV = clamp(V_coat_local.z, M_FLOAT_EPS, 1.0);
+    
+    float coat_weight = clamp(coat, 0.0, 1.0);
+    float2 coat_alpha;
+    mx_roughness_anisotropy(coat_roughness, coat_anisotropy, coat_alpha);
+    float coat_fresnel = fresnel_dielectric(coat_NdotV, coat_IOR);
+    
+    // Compute base layer properties
     float eta = eta_flipped != 0 ? (1.0 / specular_IOR) : specular_IOR;
-    float fresnel = fresnel_dielectric(NdotV, eta);
+    float base_fresnel = fresnel_dielectric(NdotV, eta);
     
-    // Metal path weights
+    // Layered sampling weights
+    // Coat reflects: coat * F_coat
+    // Base receives: (1 - coat * F_coat) of the incoming light
+    float coat_reflection_prob = coat_weight * coat_fresnel;
+    float coat_sample_weight = coat_reflection_prob;
+    float base_sample_weight = 1.0 - coat_sample_weight;
+    
+    // Base layer weights (same as before, but scaled by base_sample_weight)
     float metal_weight = metalness;
-    float metal_reflection_weight = 1.0; // Metal只有reflection分量
-    
-    // Non-metal path weights
     float nonmetal_weight = 1.0 - metalness;
-    float diffuse_weight = base * (1.0 - fresnel) * luminance(base_color) * (1 - transmission);
-    float reflection_weight = fresnel * specular;
-    float transmission_weight = (1.0 - fresnel) * transmission * luminance(transmission_color);
+    float diffuse_weight = base * (1.0 - base_fresnel) * luminance(base_color) * (1 - transmission);
+    float reflection_weight = base_fresnel * specular;
+    float transmission_weight = (1.0 - base_fresnel) * transmission * luminance(transmission_color);
     
+    // Normalize base layer weights
     float total_nonmetal_weight = diffuse_weight + reflection_weight + transmission_weight;
     if (total_nonmetal_weight > M_FLOAT_EPS) {
         diffuse_weight /= total_nonmetal_weight;
@@ -251,56 +271,93 @@ float3 sample_standard_surface(
         transmission_weight /= total_nonmetal_weight;
     }
     
-    // Sample component based on first level branching
+    // Sample component: coat vs base
     float component_sample = random_float(seed);
     float3 L_local;
-    bool sampled_metal = (component_sample < metal_weight);
+    bool sampled_coat = (component_sample < coat_sample_weight);
     
-    if (sampled_metal) {
-        // Sample metal reflection
+    if (sampled_coat) {
+        // Sample coat layer in its own coordinate frame
         float2 u = random_float2(seed);
-        L_local = sample_specular_reflection(u, V_local, alpha, pdf);
+        float3 L_coat_local = sample_specular_reflection(u, V_coat_local, coat_alpha, pdf);
         
         if (pdf <= 0.0) {
             pdf = 0.0;
             return float3(0.0);
         }
+        
+        // Transform from coat frame to world, then to base frame
+        float3 L_world = coat_sf.fromLocal(L_coat_local);
+        L_local = sf.toLocal(L_world);
     }
     else {
-        // Sample non-metal component
-        float nonmetal_sample = (component_sample - metal_weight) / nonmetal_weight;
+        // Sample base layer
+        float base_sample = (component_sample - coat_sample_weight) / base_sample_weight;
+        bool sampled_metal = (base_sample < metal_weight);
         
-        if (nonmetal_sample < diffuse_weight) {
-            // Sample diffuse
-            float2 u = random_float2(seed);
-            L_local = sample_diffuse_lobe(u, pdf);
-        }
-        else if (nonmetal_sample < diffuse_weight + reflection_weight) {
-            // Sample non-metal reflection
+        if (sampled_metal) {
+            // Sample metal reflection
             float2 u = random_float2(seed);
             L_local = sample_specular_reflection(u, V_local, alpha, pdf);
+            
+            if (pdf <= 0.0) {
+                pdf = 0.0;
+                return float3(0.0);
+            }
         }
         else {
-            // Sample transmission
-            float2 u = random_float2(seed);
-            L_local = sample_transmission(u, V_local, alpha, eta, pdf);
-        }
-        
-        if (pdf <= 0.0) {
-            pdf = 0.0;
-            return float3(0.0);
+            // Sample non-metal component
+            float nonmetal_sample = (base_sample - metal_weight) / nonmetal_weight;
+            
+            if (nonmetal_sample < diffuse_weight) {
+                // Sample diffuse
+                float2 u = random_float2(seed);
+                L_local = sample_diffuse_lobe(u, pdf);
+            }
+            else if (nonmetal_sample < diffuse_weight + reflection_weight) {
+                // Sample non-metal reflection
+                float2 u = random_float2(seed);
+                L_local = sample_specular_reflection(u, V_local, alpha, pdf);
+            }
+            else {
+                // Sample transmission
+                float2 u = random_float2(seed);
+                L_local = sample_transmission(u, V_local, alpha, eta, pdf);
+            }
+            
+            if (pdf <= 0.0) {
+                pdf = 0.0;
+                return float3(0.0);
+            }
         }
     }
     
-    // Calculate MIS PDF: both paths need to compute their probability for the sampled direction
+    // Calculate MIS PDF: compute PDF for coat and base layers
+    float coat_pdf = 0.0;
+    float base_pdf = 0.0;
+    
+    // Coat PDF (computed in coat's coordinate frame)
+    // Transform L from base frame to world, then to coat frame
+    float3 L_world = sf.fromLocal(L_local);
+    float3 L_coat_local = coat_sf.toLocal(L_world);
+    
+    if (L_coat_local.z > -M_FLOAT_EPS) {
+        float3 H_coat = normalize(V_coat_local + L_coat_local);
+        float VdotH_coat = max(dot(V_coat_local, H_coat), M_FLOAT_EPS);
+        
+        float D = mx_ggx_NDF(H_coat, coat_alpha);
+        float G1 = mx_ggx_smith_G1_aniso(coat_NdotV, V_coat_local.x, V_coat_local.y, coat_alpha.x, coat_alpha.y);
+        float vndf_pdf = D * G1 * VdotH_coat / coat_NdotV;
+        coat_pdf = vndf_pdf / (4.0 * VdotH_coat);
+    }
+    
+    // Base layer PDF (metal + nonmetal)
     float metal_pdf = 0.0;
     float nonmetal_pdf = 0.0;
     
     // Metal path PDF (only has reflection component)
-    // Use consistent threshold with sampling: allow directions very close to horizontal
     if (L_local.z > -M_FLOAT_EPS) {
         float3 H = normalize(V_local + L_local);
-        float NdotH = max(H.z, M_FLOAT_EPS);
         float VdotH = max(dot(V_local, H), M_FLOAT_EPS);
         
         float D = mx_ggx_NDF(H, alpha);
@@ -321,7 +378,6 @@ float3 sample_standard_surface(
             
             // Reflection PDF
             float3 H = normalize(V_local + L_local);
-            float NdotH = max(H.z, M_FLOAT_EPS);
             float VdotH = max(dot(V_local, H), M_FLOAT_EPS);
             
             float D = mx_ggx_NDF(H, alpha);
@@ -331,7 +387,6 @@ float3 sample_standard_surface(
         }
         else if (L_local.z < -M_FLOAT_EPS) {
             // Transmission PDF - compute for downward directions
-            // For transmission, the half vector is computed differently
             float3 H = normalize(V_local + L_local * eta);
             
             // Ensure half vector points toward the incident side
@@ -349,14 +404,17 @@ float3 sample_standard_surface(
             // Transform to transmission direction with proper Jacobian
             float denom = VdotH + LdotH / eta;
             float jacobian = (eta * eta * LdotH) / (denom * denom);
-            transmission_pdf = vndf_pdf * jacobian / (4.0 * VdotH);
+            transmission_pdf = vndf_pdf * jacobian;
         }
         
         nonmetal_pdf = diffuse_pdf * diffuse_weight + reflection_pdf * reflection_weight + transmission_pdf * transmission_weight;
     }
     
-    // Final MIS PDF combining both paths
-    pdf = metal_pdf * metal_weight + nonmetal_pdf * nonmetal_weight;
+    // Combine base layer PDFs
+    base_pdf = metal_pdf * metal_weight + nonmetal_pdf * nonmetal_weight;
+    
+    // Final MIS PDF: coat + base
+    pdf = coat_pdf * coat_sample_weight + base_pdf * base_sample_weight;
     pdf = max(pdf, M_FLOAT_EPS);
 
     // Transform to world space
