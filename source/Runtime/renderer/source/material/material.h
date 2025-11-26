@@ -62,6 +62,7 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
         HioImageSharedPtr image;
         nvrhi::TextureHandle texture;
         DescriptorHandle descriptor;
+        bool isSRGB = false;  // Track whether this texture should use sRGB format
     };
 
     std::unordered_map<std::string, TextureResource> textureResources;

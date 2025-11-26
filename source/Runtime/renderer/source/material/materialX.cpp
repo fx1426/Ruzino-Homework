@@ -187,6 +187,13 @@ void Hd_USTC_CG_MaterialX::BuildGPUTextures(
                 desc.width = image->GetWidth();
                 desc.height = image->GetHeight();
                 desc.format = RHI::ConvertFromHioFormat(image->GetFormat());
+                
+                // Force linear format for non-sRGB textures (like normal maps)
+                if (!texture_resource.second.isSRGB) {
+                    if (desc.format == nvrhi::Format::SRGBA8_UNORM) {
+                        desc.format = nvrhi::Format::RGBA8_UNORM;
+                    }
+                }
 
                 desc.initialState = nvrhi::ResourceStates::ShaderResource;
                 desc.isRenderTarget = false;
@@ -287,10 +294,11 @@ void Hd_USTC_CG_MaterialX::CollectTextures(
         VtValue sourceColorSpace = netInterface.GetNodeParameterValue(
             textureNodeName, _tokens->sourceColorSpace);
 
+        bool isSRGB = false;
         if (sourceColorSpace.IsHolding<std::string>()) {
             std::string colorSpace = sourceColorSpace.Get<std::string>();
             if (colorSpace == "srgb_texture") {
-                texturePaths[textureNodeName.GetString()] = path;
+                isSRGB = true;
             }
         }
 
@@ -316,6 +324,7 @@ void Hd_USTC_CG_MaterialX::CollectTextures(
 
         textureResources[textureNodeName.GetString()].filePath = path;
         textureResources[textureNodeName.GetString()].image = image;
+        textureResources[textureNodeName.GetString()].isSRGB = isSRGB;
     }
 }
 

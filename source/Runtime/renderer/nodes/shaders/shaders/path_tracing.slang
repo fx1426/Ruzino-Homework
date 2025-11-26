@@ -302,21 +302,16 @@ void ClosestHit(
     uint eta_flipped = 0;
     if (dot(WorldRayDirection(), vertex.normalW) >= 0.0) {
         vertex.normalW = -vertex.normalW;
+        vertex.tangentW = -vertex.tangentW;
         eta_flipped = 1;
     }
-    float3 visualize = float3(vertex.texC, 0.0);
-    visualize = dot(vertex.normalW, WorldRayDirection());
-    visualize = vertex.normalW.xyz * 0.5 + 0.5;  // Visualize tangent space
-    //visualize = vertex.tangentW.xyz * 0.5 + 0.5;
-
-    payload.color = visualize;  // For debugging, visualize texture
-    return;
 
     // Create shading frame
     bool valid;
     ShadingFrame sf =
-        ShadingFrame.createSafe(vertex.normalW, float4(1, 0, 0, 1), valid);
-    vertex.tangentW.xyz = sf.T;
+        ShadingFrame.createSafe(vertex.normalW, vertex.tangentW, valid);
+
+    // vertex.tangentW.xyz = sf.T;
 
     // coordinates return;
 
@@ -344,11 +339,29 @@ void ClosestHit(
 
     float pdf = callData.pdf;
 
-    if (pdf <= 0.0) {
+    if (pdf == 0.0) {
         payload.seed = callData.seed;
         payload.terminated = true;
         return;
     }
+
+    // float3 visualize = float3(vertex.texC, 0.0);
+    // visualize = dot(vertex.normalW, WorldRayDirection());
+    // visualize = vertex.normalW.xyz * 0.5 + 0.5;  // Visualize tangent space
+    // visualize = vertex.tangentW.xyz * 0.5 + 0.5;
+
+    // float3 normal = normalize(vertex.normalW);
+    // float3 tangent = normalize(vertex.tangentW.xyz);
+    // // visualize = sf.B * 0.5 + 0.5;
+    // // visualize = sf.N * 0.5 + 0.5;
+    // // visualize = sf.T * 0.5 + 0.5;
+
+    // // visualize = callData.sampledDir * 0.5 + 0.5;  // For debugging, visualize
+    // if (eta_flipped) {
+    //     visualize = float3(1, 0, 0);
+    // }
+    // payload.color = visualize;  // For debugging, visualize texture
+    // return;
 
     float3 ray_dir = callData.sampledDir;
     float3 local_ray_dir =

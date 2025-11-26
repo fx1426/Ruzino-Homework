@@ -89,17 +89,15 @@ float3 sample_diffuse_lobe(float2 u, out float pdf)
 float3 sample_specular_reflection(float2 u, float3 V, float2 alpha, out float pdf)
 {
     // Sample microfacet normal using GGX VNDF distribution
+    // VNDF already ensures H is in the correct hemisphere for V
     float3 H = mx_ggx_importance_sample_VNDF(u, V, alpha);
-    // Ensure half vector points toward the incident side
-    if (H.z < 0.0) {
-        H = -H;
-    }
     
     // Reflect view direction around microfacet normal
     float3 L = reflect(-V, H);
     
     // Check if the reflection is valid (above surface)
-    if (L.z <= 0.0) {
+    // Use a small epsilon to tolerate numerical errors, especially for grazing angles
+    if (L.z <= -M_FLOAT_EPS) {
         pdf = 0.0;
         return float3(0.0);
     }
@@ -124,8 +122,9 @@ float3 sample_transmission(float2 u, float3 V, float2 alpha, float eta, out floa
     // Sample microfacet normal using GGX VNDF distribution
     float3 H = mx_ggx_importance_sample_VNDF(u, V, alpha);
     
-    // Ensure half vector points toward the incident side
-    if (H.z < 0.0) {
+    // For transmission, ensure half vector points toward the incident side
+    // This is necessary because refraction uses a different half-vector convention
+    if (dot(V, H) < 0.0) {
         H = -H;
     }
     
@@ -219,7 +218,7 @@ float3 sample_standard_surface(
     float rotation_angle = specular_rotation * 360.0;
     mx_rotate_vector3(tangent, rotation_angle, normal, rotated_tangent);
     
-    // Create shading frame with rotated tangent
+    // Create shading frame with rotated tangent and preserved handedness
     bool valid;
     ShadingFrame sf = ShadingFrame.createSafe(normal, float4(rotated_tangent, 1.0), valid);
     
@@ -298,7 +297,8 @@ float3 sample_standard_surface(
     float nonmetal_pdf = 0.0;
     
     // Metal path PDF (only has reflection component)
-    if (L_local.z > M_FLOAT_EPS) {
+    // Use consistent threshold with sampling: allow directions very close to horizontal
+    if (L_local.z > -M_FLOAT_EPS) {
         float3 H = normalize(V_local + L_local);
         float NdotH = max(H.z, M_FLOAT_EPS);
         float VdotH = max(dot(V_local, H), M_FLOAT_EPS);
@@ -315,9 +315,9 @@ float3 sample_standard_surface(
         float reflection_pdf = 0.0;
         float transmission_pdf = 0.0;
         
-        if (L_local.z > M_FLOAT_EPS) {
-            // Diffuse PDF
-            diffuse_pdf = L_local.z * M_1_PI;
+        if (L_local.z > -M_FLOAT_EPS) {
+            // Diffuse PDF (only valid for directions above surface)
+            diffuse_pdf = max(L_local.z, 0.0) * M_1_PI;
             
             // Reflection PDF
             float3 H = normalize(V_local + L_local);
@@ -417,7 +417,8 @@ float3 sample_specular_reflection(float2 u, float3 V, float roughness, out float
     float3 L = reflect(-V, H);
     
     // Check if the reflection is valid (above surface)
-    if (L.z <= 0.0) {
+    // Use a small epsilon to tolerate numerical errors, especially for grazing angles
+    if (L.z <= -M_FLOAT_EPS) {
         pdf = 0.0;
         return float3(0.0);
     }
@@ -547,7 +548,8 @@ float3 sample_preview_surface(
     float nonmetal_pdf = 0.0;
 
     // Metal path PDF (only has reflection component)
-    if (L_local.z > M_FLOAT_EPS) {
+    // Use consistent threshold with sampling: allow directions very close to horizontal
+    if (L_local.z > -M_FLOAT_EPS) {
         float3 H = normalize(V_local + L_local);
         float NdotH = max(H.z, M_FLOAT_EPS);
         float VdotH = max(dot(V_local, H), M_FLOAT_EPS);
@@ -560,9 +562,9 @@ float3 sample_preview_surface(
     }
 
     // Non-metal path PDF (compute diffuse and reflection components)
-    if (total_nonmetal_weight > M_FLOAT_EPS && L_local.z > M_FLOAT_EPS) {
-        // Diffuse PDF
-        float diffuse_pdf = L_local.z * M_1_PI;
+    if (total_nonmetal_weight > M_FLOAT_EPS && L_local.z > -M_FLOAT_EPS) {
+        // Diffuse PDF (only valid for directions above surface)
+        float diffuse_pdf = max(L_local.z, 0.0) * M_1_PI;
         
         // Reflection PDF
         float3 H = normalize(V_local + L_local);
