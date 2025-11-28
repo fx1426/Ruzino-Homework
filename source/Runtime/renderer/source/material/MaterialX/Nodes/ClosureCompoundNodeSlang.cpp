@@ -213,13 +213,23 @@ float3 sample_standard_surface(
     out float pdf
 )
 {
+    // Fix normal orientation if view direction and shading normal are on opposite sides
+    // This can happen when normal map causes large perturbations
+    float3 shading_normal = normal;
+    float3 shading_tangent = tangent;
+    if (dot(V, normal) < 0.0) {
+        shading_normal = -normal;
+        shading_tangent = -tangent;
+    }
+    
+    
     // Create base layer shading frame
     float3 rotated_tangent;
     float rotation_angle = specular_rotation * 360.0;
-    mx_rotate_vector3(tangent, rotation_angle, normal, rotated_tangent);
+    mx_rotate_vector3(shading_tangent, rotation_angle, shading_normal, rotated_tangent);
     
     bool valid;
-    ShadingFrame sf = ShadingFrame.createSafe(normal, float4(rotated_tangent, 1.0), valid);
+    ShadingFrame sf = ShadingFrame.createSafe(shading_normal, float4(rotated_tangent, 1.0), valid);
     
     // Transform view direction to local space
     float3 V_local = sf.toLocal(V);
@@ -230,13 +240,27 @@ float3 sample_standard_surface(
     mx_roughness_anisotropy(specular_roughness, specular_anisotropy, alpha);
     
     // Compute coat layer properties with its own shading frame
+    float3 coat_shading_normal = coat_normal;
+    float3 coat_shading_tangent = tangent;
+    if (dot(V, coat_normal) < 0.0) {
+        coat_shading_normal = -coat_normal;
+        coat_shading_tangent = -tangent;
+    }
+
+    if(eta_flipped != 0) {
+        coat_shading_normal = -coat_shading_normal;
+        coat_shading_tangent = -coat_shading_tangent;
+        shading_normal = -shading_normal;
+        shading_tangent = -shading_tangent;
+    }
+    
     float3 coat_rotated_tangent;
     float coat_rotation_angle = coat_rotation * 360.0;
-    mx_rotate_vector3(tangent, coat_rotation_angle, coat_normal, coat_rotated_tangent);
+    mx_rotate_vector3(coat_shading_tangent, coat_rotation_angle, coat_shading_normal, coat_rotated_tangent);
     coat_rotated_tangent = normalize(coat_rotated_tangent);
     
     bool coat_valid;
-    ShadingFrame coat_sf = ShadingFrame.createSafe(coat_normal, float4(coat_rotated_tangent, 1.0), coat_valid);
+    ShadingFrame coat_sf = ShadingFrame.createSafe(coat_shading_normal, float4(coat_rotated_tangent, 1.0), coat_valid);
     float3 V_coat_local = coat_sf.toLocal(V);
     float coat_NdotV = clamp(V_coat_local.z, M_FLOAT_EPS, 1.0);
     

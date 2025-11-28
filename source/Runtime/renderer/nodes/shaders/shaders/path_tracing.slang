@@ -20,7 +20,6 @@ struct RayPayload {
     float3 color;        // Accumulated color
     float3 throughput;   // Path throughput
     float3 hitPosition;  // Hit position in world space
-    float3 hitNormal;    // Hit normal in world space
     uint depth;          // Current ray bounce depth
     uint seed;           // Random seed for this ray
     bool terminated;     // Flag to indicate if path is terminated
@@ -28,6 +27,13 @@ struct RayPayload {
 
 struct ShadowPayload {
     bool isVisible;  // Whether light is visible or occluded
+};
+
+struct LightSample {
+    float3 direction;  // Normalized direction to light
+    float3 intensity;  // Light intensity
+    float pdf;         // PDF of selecting this light and sampling point
+    bool valid;        // Whether the sample is valid
 };
 
 [shader("raygeneration")]
@@ -59,11 +65,14 @@ void RayGen()
     random_seeds[DispatchRaysIndex().x] = payload.seed;
 }
 
-// Sample a random light and return its contribution
-float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
+// Sample a random light and return its direction, intensity, and PDF
+LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
 {
+    LightSample sample;
+    sample.valid = false;
+
     if (lightCount == 0)
-        return float3(0, 0, 0);
+        return sample;
 
     // Count non-dome lights (dome lights are handled by miss shader)
     uint sampleableLightCount = 0;
@@ -74,7 +83,7 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
     }
 
     if (sampleableLightCount == 0)
-        return float3(0, 0, 0);
+        return sample;
 
     // Randomly select a non-dome light
     uint targetLight = uint(random_float(seed) * sampleableLightCount);
@@ -91,24 +100,20 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
     }
 
     LightData light = lightBuffer[lightIndex];
-
-    float3 lightContrib = float3(0, 0, 0);
+    float lightPdf =
+        1.0 / float(sampleableLightCount);  // PDF for light selection
     float3 lightDir;
     float lightDistance;
-    float lightPdf =
-        1.0 / float(sampleableLightCount);  // Uniform light selection probability for non-dome lights
+    float areaPdf = 1.0;
 
     // Sample the selected light based on its type
     if (light.type == uint(LightType::Point)) {
-        // Point light
         lightDir = light.posW - hitPos;
         lightDistance = length(lightDir);
         lightDir /= lightDistance;
 
-        // Check if light is visible
         float NdotL = max(0.0, dot(hitNormal, lightDir));
         if (NdotL > 0.0) {
-            // Trace shadow ray
             RayDesc shadowRay;
             shadowRay.Origin = hitPos + hitNormal * 0.001;
             shadowRay.Direction = lightDir;
@@ -121,23 +126,22 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
                 SceneBVH,
                 RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH,
                 0xFF,
-                1,  // Shadow hit group index
+                1,
                 0,
-                1,  // Shadow miss index
+                1,
                 shadowRay,
                 shadowPayload);
 
             if (shadowPayload.isVisible) {
-                // Compute lighting with inverse square falloff
                 float attenuation = 1.0 / (lightDistance * lightDistance);
-                lightContrib = light.intensity * attenuation * NdotL / lightPdf;
+                sample.direction = lightDir;
+                sample.intensity = light.intensity * attenuation;
+                sample.pdf = lightPdf;
+                sample.valid = true;
             }
         }
     }
     else if (light.type == uint(LightType::Sphere)) {
-        // Sphere light - sample a random point on the sphere
-        // For now, treat as point light at center
-        // TODO: Proper sphere light sampling
         lightDir = light.posW - hitPos;
         lightDistance = length(lightDir);
         lightDir /= lightDistance;
@@ -164,14 +168,16 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
 
             if (shadowPayload.isVisible) {
                 float attenuation = 1.0 / (lightDistance * lightDistance);
-                lightContrib = light.intensity * attenuation * NdotL / lightPdf;
+                sample.direction = lightDir;
+                sample.intensity = light.intensity * attenuation;
+                sample.pdf = lightPdf;
+                sample.valid = true;
             }
         }
     }
     else if (light.type == uint(LightType::Distant)) {
-        // Distant/Directional light
         lightDir = -light.dirW;
-        lightDistance = 1e10;  // Very large distance
+        lightDistance = 1e10;
 
         float NdotL = max(0.0, dot(hitNormal, lightDir));
         if (NdotL > 0.0) {
@@ -194,18 +200,18 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
                 shadowPayload);
 
             if (shadowPayload.isVisible) {
-                lightContrib = light.intensity * NdotL / lightPdf;
+                sample.direction = lightDir;
+                sample.intensity = light.intensity;
+                sample.pdf = lightPdf;
+                sample.valid = true;
             }
         }
     }
     else if (light.type == uint(LightType::Rect)) {
-        // Rectangle area light - sample a random point on the rectangle
         float u = random_float(seed);
         float v = random_float(seed);
 
         float3 localPoint = float3((u - 0.5), (v - 0.5), 0.0);
-
-        // Transform to world space using tangent and bitangent
         float3 lightSamplePos = light.posW + localPoint.x * light.tangent +
                                 localPoint.y * light.bitangent;
 
@@ -213,15 +219,14 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
         lightDistance = length(lightDir);
         lightDir /= lightDistance;
 
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        float LdotN = max(0.0, dot(-lightDir, light.dirW));  // Light's normal
+        float LdotN = max(0.0, dot(-lightDir, light.dirW));
 
-        if (NdotL > 0.0 && LdotN > 0.0) {
+        if (LdotN > 0.0) {
             RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Origin = hitPos + hitNormal * 0.0001;
             shadowRay.Direction = lightDir;
             shadowRay.TMin = 0.0;
-            shadowRay.TMax = lightDistance - 0.001;
+            shadowRay.TMax = lightDistance - 0.0001;
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
@@ -236,25 +241,20 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
                 shadowPayload);
 
             if (shadowPayload.isVisible) {
-                // Geometric term: NdotL * LdotN / distance^2
-                float geometricTerm =
-                    (NdotL * LdotN) / (lightDistance * lightDistance);
-                // PDF = 1 / area (uniform sampling on rectangle)
-                float areaPdf = 1.0 / light.surfaceArea;
-                lightContrib =
-                    light.intensity * geometricTerm / (lightPdf * areaPdf);
+                float geometricTerm = (LdotN) / (lightDistance * lightDistance);
+                areaPdf = 1.0 / light.surfaceArea;
+                sample.direction = lightDir;
+                sample.intensity = light.intensity * geometricTerm;
+                sample.pdf = lightPdf * areaPdf;
+                sample.valid = true;
             }
         }
     }
     else if (light.type == uint(LightType::Disc)) {
-        // Disc area light - sample a random point on the disc
-        float r = sqrt(random_float(seed));  // sqrt for uniform distribution
+        float r = sqrt(random_float(seed));
         float theta = 2.0 * 3.14159265359 * random_float(seed);
 
-        // Sample point on disc in local space
         float2 localPoint = float2(r * cos(theta), r * sin(theta));
-
-        // Transform to world space
         float3 lightSamplePos = light.posW + localPoint.x * light.tangent +
                                 localPoint.y * light.bitangent;
 
@@ -267,10 +267,10 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
 
         if (NdotL > 0.0 && LdotN > 0.0) {
             RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.001;
+            shadowRay.Origin = hitPos + hitNormal * 0.0001;
             shadowRay.Direction = lightDir;
             shadowRay.TMin = 0.0;
-            shadowRay.TMax = max(0.0, lightDistance - 0.001);
+            shadowRay.TMax = max(0.0, lightDistance - 0.0001);
 
             ShadowPayload shadowPayload;
             shadowPayload.isVisible = true;
@@ -287,14 +287,16 @@ float3 sampleLights(float3 hitPos, float3 hitNormal, float3 V, inout uint seed)
             if (shadowPayload.isVisible) {
                 float geometricTerm =
                     (NdotL * LdotN) / (lightDistance * lightDistance);
-                float areaPdf = 1.0 / light.surfaceArea;
-                lightContrib =
-                    light.intensity * geometricTerm / (lightPdf * areaPdf);
+                areaPdf = 1.0 / light.surfaceArea;
+                sample.direction = lightDir;
+                sample.intensity = light.intensity * geometricTerm;
+                sample.pdf = lightPdf * areaPdf;
+                sample.valid = true;
             }
         }
     }
 
-    return lightContrib;
+    return sample;
 }
 
 [shader("closesthit")]
@@ -348,10 +350,14 @@ void ClosestHit(
 
     var material_header = materialHeaderBuffer[material_id];
 
-    // Evaluate material
+    // Sample a light source for direct lighting
+    LightSample lightSample =
+        sampleLights(vertex.posW, vertex.faceNormalW, seed);
+
+    // Evaluate material with light direction
     CallableData callData;
     callData.vertexInfo = vertex;
-    callData.L = float3(0, 0, 0);
+    callData.L = lightSample.direction;  // L is now direction
     callData.V = -WorldRayDirection();
     callData.color = float4(0, 0, 0, 1);
     callData.seed = seed;
@@ -367,51 +373,18 @@ void ClosestHit(
         return;
     }
 
-    // float3 visualize = float3(vertex.texC, 0.0);
-    // visualize = dot(vertex.normalW, WorldRayDirection());
-    // visualize = vertex.normalW.xyz * 0.5 + 0.5;  // Visualize tangent space
-    // visualize = vertex.tangentW.xyz * 0.5 + 0.5;
-
-    // float3 normal = normalize(vertex.normalW);
-    // float3 tangent = normalize(vertex.tangentW.xyz);
-    // // visualize = sf.B * 0.5 + 0.5;
-    // // visualize = sf.N * 0.5 + 0.5;
-    // // visualize = sf.T * 0.5 + 0.5;
-
-    // // visualize = callData.sampledDir * 0.5 + 0.5;  // For debugging, visualize
-    // if (eta_flipped) {
-    //     visualize = float3(1, 0, 0);
-    // }
-    // payload.color = visualize;  // For debugging, visualize texture
-    // return;
+    // Add direct lighting contribution: light_intensity * BRDF * NdotL / PDF
+    if (lightSample.valid) {
+        float3 directContrib =
+            lightSample.intensity * callData.color.xyz / lightSample.pdf;
+        payload.color += payload.throughput * directContrib;
+    }
 
     float3 ray_dir = callData.sampledDir;
-    float3 local_ray_dir =
-        sf.toLocal(ray_dir);  // Check if this is transmission or reflection
+    float3 local_ray_dir = sf.toLocal(ray_dir);
     bool isTransmission = local_ray_dir.z < 0.0;  // if (isTransmission) {
-    //     // payload.color = float3(1,0,0);  // For debugging, visualize
-    //     transmission
-    //     // payload.seed = callData.seed;
-    //     // payload.terminated = true;
-    //     // return;
-    //     payload.throughput = 1.0f;
-    // }    {
+
     float cosine_factor = abs(local_ray_dir.z);
-
-    // For transmission, don't apply cosine factor to avoid double-counting
-    // if (isTransmission) {
-    //     payload.throughput *= callData.throughput / pdf;
-
-    //     payload.throughput *= 1.0f;
-    //     if (any(isnan(callData.throughput)) ||
-    //         any(isinf(callData.throughput)) || pdf <= 0.0) {
-    //         payload.terminated = true;
-    //         return;
-    //     }
-    //     // payload.terminated = true;
-    // }
-    // else {
-    // }
 
     // Validate throughput before continuing
     if (any(isnan(callData.throughput))) {
@@ -427,62 +400,22 @@ void ClosestHit(
     }
 
     payload.throughput *= cosine_factor * callData.throughput / pdf;
-    // if (payload.depth == 0) {
-    //     // payload.color =  callData.pdf / 1000 / 5;
-    //     payload.color = cosine_factor * callData.throughput / callData.pdf /
-    //     2; payload.color = callData.throughput / callData.pdf / 2;
-    //     // payload.color = callData.throughput / callData.pdf / 2;
-    //     // payload.color = callData.throughput / callData.pdf/ 2;
-    //     // payload.color = callData.throughput;//  / callData.pdf / 2;
-    //     if (!isTransmission)
-    //         payload.color = 0;
-    //     // payload.color = callData.sampledDir * 0.5 + 0.5;  // For
-    //     debugging, payload.seed = callData.seed; return;
-    // }
-
-    // payload.color = payload.throughput/2;
-    // payload.seed = callData.seed;
-    // return;
 
     payload.hitPosition = vertex.posW;
-    payload.hitNormal = vertex.normalW;
     payload.depth++;
     payload.seed = callData.seed;
-
-    // Add direct lighting contribution
-    if (!payload.terminated && !isTransmission) {
-        float3 directLight = sampleLights(
-            vertex.posW, vertex.normalW, -WorldRayDirection(), payload.seed);
-        // Check for NaN/Inf before accumulating
-        if (!any(isnan(directLight)) && !any(isinf(directLight))) {
-            // Note: payload.throughput already includes callData.throughput from the path
-            // directLight already includes geometric terms and light PDF
-            // So we only need: throughput * light_contribution
-            payload.color += payload.throughput * directLight;
-        }
-        else {
-            payload.color = float3(1, 0, 1);  // Magenta for debugging NaN/Inf
-            payload.terminated = true;
-        }
-    }
 
     // Trace next ray (light comes from environment/miss shader)
     if (!payload.terminated) {
         RayDesc nextRay;
 
-        // Better ray offset handling for transmission vs reflection
-        // Use adaptive offset based on distance from origin - increased for AMD
-        // compatibility
-        float offset = max(0.01, length(vertex.posW) * 1e-4);
-
         // For transmission, offset against the normal; for reflection, offset
         // with the normal
         float3 offset_normal =
-            isTransmission ? -vertex.normalW : vertex.normalW;
+            isTransmission ? -vertex.faceNormalW : vertex.faceNormalW;
 
         // Additional offset along ray direction to avoid grazing angle issues
-        float3 ray_offset =
-            offset_normal * offset + ray_dir * max(1e-3, offset * 0.1);
+        float3 ray_offset = offset_normal * 1e-4f;
 
         nextRay.Origin = vertex.posW + ray_offset;
         nextRay.Direction = ray_dir;
@@ -491,19 +424,6 @@ void ClosestHit(
 
         TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, nextRay, payload);
     }
-
-    // // Russian roulette termination
-    // if (payload.depth >= 3) {
-    //     float p =
-    //         max(payload.throughput.x,
-    //             max(payload.throughput.y, payload.throughput.z));
-    //     if (random_float(seed) > p) {
-    //         payload.terminated = true;
-    //     }
-    //     else {
-    //         payload.throughput /= p;
-    //     }
-    // }
 }
 [shader("miss")]
 void Miss(inout RayPayload payload)
