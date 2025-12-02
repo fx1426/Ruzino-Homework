@@ -78,7 +78,6 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
         global_payload.clear_dirty(
             RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
-
         global_payload.clear_dirty(
             RenderGlobalPayload::SceneDirtyBits::DirtyLights);
 
@@ -137,7 +136,8 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
                 RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
         }
 
-        global_payload.resource_allocator.gc();
+        // global_payload.resource_allocator.gc();
+        // global_payload.resource_allocator.gc();
 
         global_payload.lens_system = render_param->lens_system;
 
