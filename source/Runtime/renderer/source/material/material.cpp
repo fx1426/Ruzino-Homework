@@ -44,6 +44,9 @@ HdDirtyBits Hd_USTC_CG_Material::GetInitialDirtyBitsMask() const
 
 void Hd_USTC_CG_Material::Finalize(HdRenderParam* renderParam)
 {
+    auto render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+    render_param->InstanceCollection->mark_materials_dirty();
+    material_header_handle = nullptr;
     HdMaterial::Finalize(renderParam);
 }
 
@@ -117,6 +120,11 @@ void $getColor(inout FetchCallableData data)
 
 void Hd_USTC_CG_Material::ensure_shader_ready(const ShaderFactory& factory)
 {
+    // Check if shader is already ready to avoid redundant generation
+    if (shader_ready) {
+        return;
+    }
+
     // Use fallback shader if no source is available
     std::string local_slang_source_code{};
     if (material_name.empty()) {
@@ -139,6 +147,10 @@ void Hd_USTC_CG_Material::ensure_shader_ready(const ShaderFactory& factory)
 
     // No longer appending eval code - that's in shared callables
     final_shader_source = slang_source_code_main;
+
+    // Increment shader generation to signal change
+    shader_generation++;
+    shader_ready = true;
 }
 
 std::string Hd_USTC_CG_Material::GetShader(const ShaderFactory& factory)

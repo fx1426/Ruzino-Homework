@@ -94,16 +94,20 @@ class ResourceAllocator {
         }
     }
 
-#define CLEAR_CACHE(RESOURCE)                                             \
-    if (INUSE_NAME(RESOURCE).size()) {                                    \
-        fprintf(stderr, "ERROR: Resource leak detected in " #RESOURCE " (%zu resources in use)\n", INUSE_NAME(RESOURCE).size()); \
-        fflush(stderr);                                                   \
-    }                                                                     \
-    for (auto it = CACHE_NAME(RESOURCE).begin();                          \
-         it != CACHE_NAME(RESOURCE).end();                                \
-         it++) {                                                          \
-        it->second.handle = nullptr;                                      \
-    }                                                                     \
+#define CLEAR_CACHE(RESOURCE)                             \
+    if (INUSE_NAME(RESOURCE).size()) {                    \
+        fprintf(                                          \
+            stderr,                                       \
+            "ERROR: Resource leak detected in " #RESOURCE \
+            " (%zu resources in use)\n",                  \
+            INUSE_NAME(RESOURCE).size());                 \
+        fflush(stderr);                                   \
+    }                                                     \
+    for (auto it = CACHE_NAME(RESOURCE).begin();          \
+         it != CACHE_NAME(RESOURCE).end();                \
+         it++) {                                          \
+        it->second.handle = nullptr;                      \
+    }                                                     \
     CACHE_NAME(RESOURCE).clear();
 
     void terminate() noexcept { MACRO_MAP(CLEAR_CACHE, RESOURCE_LIST) }

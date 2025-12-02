@@ -72,6 +72,36 @@ struct RenderGlobalPayload {
     Hd_USTC_CG_RenderInstanceCollection* InstanceCollection;
     bool reset_accumulation = false;
 
+    // Scene dirty flags for tracking changes
+    enum class SceneDirtyBits : uint32_t {
+        Clean = 0,
+        DirtyMaterials = 1 << 0,      // Material shaders changed
+        DirtyGeometry = 1 << 1,        // Mesh topology/vertices changed
+        DirtyTransforms = 1 << 2,      // Instance transforms changed
+        DirtyLights = 1 << 3,          // Light count or properties changed
+        DirtyCamera = 1 << 4,          // Camera changed
+        DirtyTLAS = 1 << 5,            // TLAS needs rebuild
+        DirtyAll = 0xFFFFFFFF
+    };
+    
+    uint32_t scene_dirty_flags = static_cast<uint32_t>(SceneDirtyBits::DirtyAll);
+    
+    void mark_dirty(SceneDirtyBits bits) {
+        scene_dirty_flags |= static_cast<uint32_t>(bits);
+    }
+    
+    void clear_dirty(SceneDirtyBits bits) {
+        scene_dirty_flags &= ~static_cast<uint32_t>(bits);
+    }
+    
+    bool is_dirty(SceneDirtyBits bits) const {
+        return (scene_dirty_flags & static_cast<uint32_t>(bits)) != 0;
+    }
+    
+    void clear_all_dirty() {
+        scene_dirty_flags = static_cast<uint32_t>(SceneDirtyBits::Clean);
+    }
+
     auto& get_cameras() const
     {
         return *cameras;

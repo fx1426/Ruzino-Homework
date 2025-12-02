@@ -32,18 +32,30 @@ struct PathTracingStorage {
     std::unique_ptr<ProgramVars> cached_program_vars;
     std::unique_ptr<RaytracingContext> cached_rt_context;
 
-    // State tracking for change detection
-    std::unordered_map<unsigned, std::string> cached_callable_shaders;
     size_t last_ray_buffer_size = 0;
     uint32_t last_light_count = 0;
     nvrhi::TextureDesc last_output_desc;
     bool pipeline_dirty = true;  // Mark pipeline needs rebuild
 
+    GfVec2i last_frame_size = GfVec2i(0, 0);
+
+    ResourceAllocator* rs;
+
     // Destructor to clean up resources
     ~PathTracingStorage()
     {
-        // Smart pointers will automatically clean up
-        // Other resources will be cleaned up by resource_allocator
+        rs->destroy(raytracing_program);
+        raytracing_program = nullptr;
+        rs->destroy(sampler);
+        sampler = nullptr;
+        rs->destroy(material_params_buffer);
+        material_params_buffer = nullptr;
+        rs->destroy(light_count_buffer);
+        light_count_buffer = nullptr;
+        rs->destroy(output_texture);
+        output_texture = nullptr;
+        cached_program_vars.reset();
+        cached_rt_context.reset();
     }
 };
 
@@ -64,30 +76,42 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     using namespace nvrhi;
 
     auto& storage = params.get_storage<PathTracingStorage&>();
-
-    // Build material callable shaders map
-    auto& materials = global_payload.get_materials();
-    std::unordered_map<unsigned, std::string> callable_shaders;
-
-    for (auto material : materials) {
-        if (material.second == nullptr) {
-            spdlog::warn(
-                "Null material found in path tracing node, {}",
-                material.first.GetText());
-            continue;
-        }
-        auto location = material.second->GetMaterialLocation();
-        if (location == -1) {
-            continue;
-        }
-        callable_shaders[location] = material.second->GetMaterialName();
-    }
+    storage.rs = &resource_allocator;
 
     // Check if program needs to be rebuilt
-    bool program_changed = !storage.raytracing_program ||
-                           storage.cached_callable_shaders != callable_shaders;
+    bool materials_dirty = global_payload.is_dirty(
+        RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
+    bool geometry_dirty = global_payload.is_dirty(
+        RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
+
+    bool program_changed = !storage.raytracing_program || materials_dirty;
+
+    // Geometry changes require pipeline rebuild due to potential buffer layout
+    // changes
+    if (geometry_dirty) {
+        storage.pipeline_dirty = true;
+    }
+
+    std::unordered_map<unsigned, std::string> callable_shaders;
 
     if (program_changed) {
+        // Build material callable shaders map
+        auto& materials = global_payload.get_materials();
+
+        for (auto material : materials) {
+            if (material.second == nullptr) {
+                spdlog::warn(
+                    "Null material found in path tracing node, {}",
+                    material.first.GetText());
+                continue;
+            }
+            auto location = material.second->GetMaterialLocation();
+            if (location == -1) {
+                continue;
+            }
+            callable_shaders[location] = material.second->GetMaterialName();
+        }
+
         // Clean up old program if exists
         if (storage.raytracing_program) {
             resource_allocator.destroy(storage.raytracing_program);
@@ -112,7 +136,6 @@ NODE_EXECUTION_FUNCTION(path_tracing)
 
         storage.raytracing_program = resource_allocator.create(program_desc);
         CHECK_PROGRAM_ERROR(storage.raytracing_program);
-        storage.cached_callable_shaders = callable_shaders;
         storage.pipeline_dirty = true;  // Mark pipeline needs rebuild
     }
 
@@ -128,19 +151,26 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     auto camera = get_free_camera(params);
     auto size = camera->dataWindow.GetSize();
 
-    nvrhi::TextureDesc output_desc;
-    output_desc.width = size[0];
-    output_desc.height = size[1];
-    output_desc.format = nvrhi::Format::RGBA32_FLOAT;
-    output_desc.isRenderTarget = true;
-    output_desc.isUAV = true;
-    output_desc.initialState = nvrhi::ResourceStates::UnorderedAccess;
-    output_desc.keepInitialState = true;
-    output_desc.debugName = "PathTracingOutput";
+    bool frame_size_changed =
+        (storage.last_frame_size[0] != size[0] ||
+         storage.last_frame_size[1] != size[1]);
 
-    if (!storage.output_texture ||
-        storage.last_output_desc.width != output_desc.width ||
-        storage.last_output_desc.height != output_desc.height) {
+    if (frame_size_changed) {
+        storage.last_frame_size = GfVec2i(size[0], size[1]);
+        storage.pipeline_dirty = true;
+    }
+
+    if (!storage.output_texture || storage.last_output_desc.width != size[0] ||
+        storage.last_output_desc.height != size[1]) {
+        nvrhi::TextureDesc output_desc;
+        output_desc.width = size[0];
+        output_desc.height = size[1];
+        output_desc.format = nvrhi::Format::RGBA32_FLOAT;
+        output_desc.isRenderTarget = true;
+        output_desc.isUAV = true;
+        output_desc.initialState = nvrhi::ResourceStates::UnorderedAccess;
+        output_desc.keepInitialState = true;
+        output_desc.debugName = "PathTracingOutput";
         if (storage.output_texture) {
             resource_allocator.destroy(storage.output_texture);
         }

@@ -322,6 +322,9 @@ void Hd_USTC_CG_Mesh::create_gpu_resources(Hd_USTC_CG_RenderParam* render_param)
 
     mesh_desc_buffer = render_param->InstanceCollection->mesh_pool.allocate(1);
     mesh_desc_buffer->write_data(&mesh_desc);
+
+    // Mark geometry as dirty after creating GPU resources
+    render_param->InstanceCollection->mark_geometry_dirty();
 }
 
 void Hd_USTC_CG_Mesh::updateTLAS(
@@ -977,8 +980,11 @@ void Hd_USTC_CG_Mesh::Sync(
 
 void Hd_USTC_CG_Mesh::Finalize(HdRenderParam* renderParam)
 {
-    vertexBuffer = nullptr;
+    // Mark the geom flag as dirty
+    auto render_param = static_cast<Hd_USTC_CG_RenderParam*>(renderParam);
+    render_param->InstanceCollection->mark_geometry_dirty();
 
+    vertexBuffer = nullptr;
     BLAS = nullptr;
     instanceBuffer = nullptr;
     rt_instanceBuffer = nullptr;

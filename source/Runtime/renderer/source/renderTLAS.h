@@ -53,6 +53,21 @@ class HD_USTC_CG_API Hd_USTC_CG_RenderInstanceCollection {
     {
         require_rebuild_tlas = true;
     }
+    
+    bool get_require_rebuild_tlas() const
+    {
+        return require_rebuild_tlas;
+    }
+    
+    // Track material changes
+    uint32_t material_version = 0;
+    void mark_materials_dirty() { material_version++; }
+    uint32_t get_material_version() const { return material_version; }
+    
+    // Track geometry/buffer changes
+    uint32_t geometry_version = 0;
+    void mark_geometry_dirty() { geometry_version++; }
+    uint32_t get_geometry_version() const { return geometry_version; }
 
    private:
     nvrhi::rt::AccelStructHandle TLAS;

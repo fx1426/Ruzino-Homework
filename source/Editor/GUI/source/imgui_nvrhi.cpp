@@ -511,8 +511,6 @@ bool ImGui_NVRHI::render(nvrhi::IFramebuffer* framebuffer)
     m_commandList->close();
     renderer->executeCommandList(m_commandList);
 
-    resource_allocator_.gc();
-
     return true;
 }
 

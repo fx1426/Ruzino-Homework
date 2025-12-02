@@ -29,6 +29,9 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     void ensure_material_data_handle(Hd_USTC_CG_RenderParam* render_param);
 
     virtual void ensure_shader_ready(const ShaderFactory& factory);
+    
+    // Get shader generation counter to track changes
+    uint32_t get_shader_generation() const { return shader_generation; }
 
     unsigned GetMaterialLocation() const;
 
@@ -79,6 +82,8 @@ class HD_USTC_CG_API Hd_USTC_CG_Material : public HdMaterial {
     static std::string eval_source_code_fallback;
     static std::mutex texture_mutex;
     static std::mutex material_data_handle_mutex;
+    
+    uint32_t shader_generation = 0;  // Incremented when shader is regenerated
 };
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE

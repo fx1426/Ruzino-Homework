@@ -469,13 +469,19 @@ void UsdFileViewer::EditValue()
                 float itemWidth = (availWidth - 120.0f) / 3.0f;  // 120 for labels and spacing
                 
                 ImGui::PushItemWidth(itemWidth);
-                DRAG_FLOAT_COMPONENT("X", trans_tmp[0], 0, modified)
-                translation[0] = trans_tmp[0];
-                DRAG_FLOAT_COMPONENT("Y", trans_tmp[1], 1, modified)
-                translation[1] = trans_tmp[1];
-                DRAG_FLOAT_COMPONENT("Z", trans_tmp[2], 2, modified)
-                translation[2] = trans_tmp[2];
+                bool transModified = false;
+                DRAG_FLOAT_COMPONENT("X", trans_tmp[0], 0, transModified)
+                DRAG_FLOAT_COMPONENT("Y", trans_tmp[1], 1, transModified)
+                DRAG_FLOAT_COMPONENT("Z", trans_tmp[2], 2, transModified)
                 ImGui::PopItemWidth();
+                
+                if (transModified) {
+                    translation[0] = trans_tmp[0];
+                    translation[1] = trans_tmp[1];
+                    translation[2] = trans_tmp[2];
+                    modified = true;
+                }
+                
                 ImGui::Unindent();
 
                 ImGui::Spacing();

@@ -22,7 +22,6 @@ Hd_USTC_CG_Renderer::~Hd_USTC_CG_Renderer()
 {
     auto executor = dynamic_cast<EagerNodeTreeExecutorRender*>(
         render_param->node_system->get_node_tree_executor());
-    executor->reset_allocator();
 }
 
 static TextureHandle create_empty_texture(
@@ -73,33 +72,106 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
         auto& global_payload = node_system->get_node_tree_executor()
                                    ->get_global_payload<RenderGlobalPayload&>();
 
+        // Clear all dirty flags from previous frame at the beginning of each
+        // frame
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyTLAS);
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyTransforms);
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyLights);
+        global_payload.clear_dirty(
+            RenderGlobalPayload::SceneDirtyBits::DirtyCamera);
+
+        global_payload.InstanceCollection =
+            render_param->InstanceCollection.get();
+
+        // Track material shader compilation and changes
+        bool materials_changed = false;
+        static std::unordered_map<pxr::SdfPath, uint32_t, pxr::TfHash>
+            material_generations;
+
         {
             std::vector<std::future<void>> futures;
+            std::mutex change_mutex;
+
             for (auto& material : *render_param->material_map) {
                 if (!material.second) {
                     continue;
                 }
-                futures.push_back(std::async(std::launch::async, [&]() {
-                    material.second->ensure_shader_ready(
-                        global_payload.shader_factory);
-                }));
+
+                // Record generation before compilation
+                uint32_t old_gen = material_generations[material.first];
+                auto material_path = material.first;
+
+                futures.push_back(
+                    std::async(
+                        std::launch::async, [&, material_path, old_gen]() {
+                            auto mat =
+                                (*render_param->material_map)[material_path];
+                            if (!mat)
+                                return;
+
+                            mat->ensure_shader_ready(
+                                global_payload.shader_factory);
+
+                            // Check if shader generation changed
+                            uint32_t new_gen = mat->get_shader_generation();
+                            if (old_gen != new_gen) {
+                                std::lock_guard<std::mutex> lock(change_mutex);
+                                material_generations[material_path] = new_gen;
+                                materials_changed = true;
+                            }
+                        }));
             }
 
             // Wait for all shader compilations to complete
             for (auto& future : futures) {
                 future.wait();
             }
+
+            if (materials_changed) {
+                global_payload.InstanceCollection->mark_materials_dirty();
+            }
+        }
+
+        // Mark dirty flags based on changes
+        if (materials_changed) {
+            global_payload.mark_dirty(
+                RenderGlobalPayload::SceneDirtyBits::DirtyMaterials);
+        }
+
+        // Check for geometry/buffer changes
+        static uint32_t last_geometry_version = 0;
+        uint32_t current_geometry_version =
+            global_payload.InstanceCollection->get_geometry_version();
+        if (last_geometry_version != current_geometry_version) {
+            global_payload.mark_dirty(
+                RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
+            last_geometry_version = current_geometry_version;
+        }
+
+        if (global_payload.InstanceCollection->get_require_rebuild_tlas()) {
+            global_payload.mark_dirty(
+                RenderGlobalPayload::SceneDirtyBits::DirtyTLAS);
+            global_payload.mark_dirty(
+                RenderGlobalPayload::SceneDirtyBits::DirtyGeometry);
         }
 
         global_payload.resource_allocator.gc();
 
-        global_payload.InstanceCollection =
-            render_param->InstanceCollection.get();
         global_payload.lens_system = render_param->lens_system;
 
         global_payload.reset_accumulation = false;
 
         node_system->execute(false);
+
+        // Clear dirty flags after execution
+        // Note: nodes should clear specific flags as they handle them
     }
 
     for (size_t i = 0; i < _aovBindings.size(); ++i) {
@@ -118,33 +190,33 @@ void Hd_USTC_CG_Renderer::Render(HdRenderThread* renderThread)
             if (std::string(node->typeinfo->id_name) != present_name) {
                 continue;  // Skip non-matching nodes
             }
-            
+
             // Try to fetch texture from this node
             assert(node->get_inputs().size() == 1);
             auto output_socket = node->get_inputs()[0];
             entt::meta_any data;
             node_system->get_node_tree_executor()
                 ->sync_node_to_external_storage(output_socket, data);
-            
+
             if (!data) {
                 continue;  // Skip nodes with no data
             }
-            
+
             nvrhi::TextureHandle texture = data.cast<nvrhi::TextureHandle>();
             if (!texture) {
                 continue;  // Skip invalid textures
             }
-            
+
             // Store texture with node's UI name
-            std::string texture_name = node->ui_name.empty() ? 
-                present_name : node->ui_name;
+            std::string texture_name =
+                node->ui_name.empty() ? present_name : node->ui_name;
             render_param->presented_textures[texture_name] = texture;
-            
+
             // Keep backward compatibility: first texture becomes default
             if (render_param->default_texture_name.empty()) {
                 render_param->default_texture_name = texture_name;
             }
-            
+
             // Update render buffer
             auto rb = static_cast<Hd_USTC_CG_RenderBuffer*>(
                 _aovBindings[i].renderBuffer);

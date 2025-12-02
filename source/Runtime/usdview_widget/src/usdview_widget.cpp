@@ -583,6 +583,7 @@ void UsdviewEngine::finish_render()
             RHI::copy_from_texture(
                 data_->nvrhi_texture, rendered, command_list_.Get());
         }
+        RHI::get_device()->waitForIdle();
         RHI::get_device()->runGarbageCollection();
     }
     else {

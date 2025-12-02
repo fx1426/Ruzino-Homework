@@ -116,7 +116,10 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
         return;
     }
 
+    // Call base class but temporarily disable shader_ready flag
+    // because MaterialX needs additional processing
     Hd_USTC_CG_Material::ensure_shader_ready(factory);
+    shader_ready = false;  // Reset since MaterialX needs more work
 
     if (!eval_shader_source.empty()) {
         spdlog::info(
@@ -177,6 +180,7 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
     assert(final_program);
 
     shader_ready = true;
+    // Note: shader_generation was already incremented by base class
 }
 
 void Hd_USTC_CG_MaterialX::BuildGPUTextures(
