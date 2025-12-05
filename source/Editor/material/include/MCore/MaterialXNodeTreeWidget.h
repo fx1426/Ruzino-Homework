@@ -86,26 +86,8 @@ class MenuItem {
     std::string group;
 };
 
-// A link connects two pins and includes a unique id and the ids of the two
-/// pins / it connects Based on the Link struct from ImGui Node Editor /
-/// blueprints-examples.cpp
-// struct Link {
-//     Link();
-//
-//     int _startAttr, _endAttr;
-//     int _id;
-// };
-
 class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
    protected:
-    // Graph(
-    //     const std::string& materialFilename,
-    //     const std::string& meshFilename,
-    //     const mx::FileSearchPath& searchPath,
-    //     const mx::FilePathVec& libraryFolders,
-    //     int viewWidth,
-    //     int viewHeight);
-
     void initialize() override;
 
     std::string GetWindowUniqueName() override;
@@ -127,11 +109,6 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     {
         tree_->SetDirty(dirty);
     }
-
-    // RenderViewPtr getRenderer()
-    //{
-    //     return _renderer;
-    // }
 
     void setFontScale(float val)
     {
