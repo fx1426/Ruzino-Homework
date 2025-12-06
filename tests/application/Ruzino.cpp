@@ -404,19 +404,6 @@ int main(int argc, char* argv[])
 
                 // Save stage to persist the reference
                 stage->get_usd_stage()->Save();
-
-                // CRITICAL FIX: USD doesn't automatically recompose after
-                // adding references We need to force it by calling Reload()
-                // which recomposes all affected prims This is the ONLY way to
-                // ensure the MaterialX reference is expanded immediately
-                stage->get_usd_stage()->Unload(material_path);
-                stage->get_usd_stage()->Load(material_path);
-
-                // Get fresh prim handle after reload
-                material_prim =
-                    stage->get_usd_stage()->GetPrimAtPath(material_path);
-
-                spdlog::info("Reloaded stage to expand MaterialX reference");
             }
 
             // Launch MaterialX editor widget
