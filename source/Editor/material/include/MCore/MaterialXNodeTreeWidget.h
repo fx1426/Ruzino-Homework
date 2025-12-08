@@ -94,6 +94,8 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
 
     void create_new_node(ImVec2 openPopupPosition) override;
 
+    void handle_suspended_popups() override;
+
    public:
     MaterialXNodeTreeWidget(
         const NodeWidgetSettings& desc,
@@ -238,6 +240,16 @@ class MCORE_API MaterialXNodeTreeWidget : public NodeEditorWidgetBase {
     bool _pendingUsdUpdate = false;  // Track if we need to update USD
     bool _anyControlActive = false;   // Track if any ImGui control is being edited
     static constexpr float USD_UPDATE_DELAY = 0.3f; // Wait 0.3s after last change
+
+    // Color picker popup state
+    struct ColorPickerState {
+        bool isOpen = false;
+        std::string socketId;
+        float color[4] = {0, 0, 0, 0};
+        int numComponents = 3;
+        NodeSocket* socket = nullptr;
+    };
+    ColorPickerState _colorPickerState;
 
     void addExtraNodes();
 

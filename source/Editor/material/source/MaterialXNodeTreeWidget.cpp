@@ -989,6 +989,67 @@ MaterialXNodeTreeWidget::MaterialXNodeTreeWidget(
     createNodeUIList(mtlx_tree->get_mtlx_stdlib());
 }
 
+void MaterialXNodeTreeWidget::handle_suspended_popups()
+{
+    if (_colorPickerState.isOpen) {
+        ImGui::OpenPopup("Color Picker");
+        _colorPickerState.isOpen = false;
+    }
+
+    if (ImGui::BeginPopup("Color Picker")) {
+        bool colorChanged = false;
+        
+        if (_colorPickerState.numComponents == 3) {
+            colorChanged = ImGui::ColorPicker3(
+                (_colorPickerState.socketId + "_picker").c_str(),
+                _colorPickerState.color);
+        }
+        else if (_colorPickerState.numComponents == 4) {
+            colorChanged = ImGui::ColorPicker4(
+                (_colorPickerState.socketId + "_picker").c_str(),
+                _colorPickerState.color,
+                ImGuiColorEditFlags_AlphaBar);
+        }
+
+        if (colorChanged && _colorPickerState.socket) {
+            auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
+            mx::InputPtr mtlxInput = getMaterialXPinInput(_colorPickerState.socket);
+            
+            if (mtlxInput) {
+                mtlx_tree->addNodeInput(_colorPickerState.socket->node, mtlxInput);
+                mx::NodePtr mxNode = getMaterialXNode(_colorPickerState.socket->node);
+                
+                if (mxNode) {
+                    mtlxInput = mxNode->getInput(mtlxInput->getName());
+                    if (mtlxInput) {
+                        if (_colorPickerState.numComponents == 3) {
+                            mtlxInput->setValue(
+                                mx::Color3(
+                                    _colorPickerState.color[0],
+                                    _colorPickerState.color[1],
+                                    _colorPickerState.color[2]),
+                                "color3");
+                        }
+                        else {
+                            mtlxInput->setValue(
+                                mx::Color4(
+                                    _colorPickerState.color[0],
+                                    _colorPickerState.color[1],
+                                    _colorPickerState.color[2],
+                                    _colorPickerState.color[3]),
+                                "color4");
+                        }
+                        _colorPickerState.socket->storage = mtlxInput;
+                        tree_->SetDirty();
+                    }
+                }
+            }
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
 void MaterialXNodeTreeWidget::execute_tree(Node* node)
 {
     auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
@@ -998,12 +1059,12 @@ void MaterialXNodeTreeWidget::execute_tree(Node* node)
         spdlog::debug("MaterialX tree dirty, saving document");
         mtlx_tree->saveDocument(mtlx_path_);
         mtlx_tree->SetDirty(false);
-        
+
         // Mark that we have pending changes for USD
         _pendingUsdUpdate = true;
         _usdUpdateTimer = 0.0f;
     }
-    
+
     // USD update logic with proper debouncing
     if (_pendingUsdUpdate) {
         // If any control is still active, reset timer
@@ -1013,22 +1074,28 @@ void MaterialXNodeTreeWidget::execute_tree(Node* node)
             _usdUpdateTimer = 0.0f;
             return;
         }
-        
+
         // Increment timer when no controls are active
         _usdUpdateTimer += ImGui::GetIO().DeltaTime;
-        spdlog::trace("USD update timer: {:.2f}s / {:.2f}s", _usdUpdateTimer, USD_UPDATE_DELAY);
-        
+        spdlog::trace(
+            "USD update timer: {:.2f}s / {:.2f}s",
+            _usdUpdateTimer,
+            USD_UPDATE_DELAY);
+
         // Trigger USD update after delay
         if (_usdUpdateTimer >= USD_UPDATE_DELAY) {
-            spdlog::info("USD update triggered after debounce delay ({:.2f}s)", _usdUpdateTimer);
+            spdlog::info(
+                "USD update triggered after debounce delay ({:.2f}s)",
+                _usdUpdateTimer);
             if (window) {
-                window->events().emit("materialx_graph_changed", material_path_);
+                window->events().emit(
+                    "materialx_graph_changed", material_path_);
             }
             _pendingUsdUpdate = false;  // Clear pending flag
             _usdUpdateTimer = 0.0f;
         }
     }
-    
+
     // Reset active flag for next frame
     _anyControlActive = false;
 }
@@ -1079,8 +1146,9 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
         return false;
     }
 
-    // CRITICAL: Ensure we have the actual input pointer from the node, not a stale cached pointer
-    // This is necessary because addNodeInput() may have created a new input on a previous frame
+    // CRITICAL: Ensure we have the actual input pointer from the node, not a
+    // stale cached pointer This is necessary because addNodeInput() may have
+    // created a new input on a previous frame
     mx::NodePtr mxNode = getMaterialXNode(input->node);
     if (mxNode) {
         std::string inputName = mtlxInput->getName();
@@ -1106,7 +1174,7 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
             float min = 0.0f;
             float max = 1.0f;
             float speed = 0.001f;
-            
+
             if (ImGui::DragFloat(widgetId.c_str(), &temp, speed, min, max)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 // Re-fetch pointer in case addNodeInput created a new one
@@ -1120,6 +1188,8 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "integer") {
@@ -1128,7 +1198,7 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
             int min = 0;
             int max = 100;
             float speed = 1.0f;
-            
+
             if (ImGui::DragInt(widgetId.c_str(), &temp, speed, min, max)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 mx::NodePtr mxNode = getMaterialXNode(input->node);
@@ -1141,99 +1211,128 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "color3" || type == "color4") {
         if (value && value->isA<mx::Color3>()) {
             mx::Color3 color = value->asA<mx::Color3>();
             float colorArray[3] = { color[0], color[1], color[2] };
-            
-            if (ImGui::ColorEdit3(widgetId.c_str(), colorArray)) {
-                mtlx_tree->addNodeInput(input->node, mtlxInput);
-                mx::NodePtr mxNode = getMaterialXNode(input->node);
-                if (mxNode) {
-                    mtlxInput = mxNode->getInput(mtlxInput->getName());
-                    if (mtlxInput) {
-                        mtlxInput->setValue(mx::Color3(colorArray[0], colorArray[1], colorArray[2]), type);
-                        input->storage = mtlxInput;
-                        changed = true;
-                    }
-                }
+
+            std::string colorId = widgetId + "_color";
+
+            // Display color button
+            if (ImGui::ColorButton(colorId.c_str(), ImVec4(colorArray[0], colorArray[1], colorArray[2], 1.0f), 
+                                   ImGuiColorEditFlags_NoTooltip, ImVec2(120, 20))) {
+                // Store state to open picker in suspended context
+                _colorPickerState.isOpen = true;
+                _colorPickerState.socketId = colorId;
+                _colorPickerState.color[0] = colorArray[0];
+                _colorPickerState.color[1] = colorArray[1];
+                _colorPickerState.color[2] = colorArray[2];
+                _colorPickerState.numComponents = 3;
+                _colorPickerState.socket = input;
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
         else if (value && value->isA<mx::Color4>()) {
             mx::Color4 color = value->asA<mx::Color4>();
             float colorArray[4] = { color[0], color[1], color[2], color[3] };
-            
-            if (ImGui::ColorEdit4(widgetId.c_str(), colorArray)) {
-                mtlx_tree->addNodeInput(input->node, mtlxInput);
-                mx::NodePtr mxNode = getMaterialXNode(input->node);
-                if (mxNode) {
-                    mtlxInput = mxNode->getInput(mtlxInput->getName());
-                    if (mtlxInput) {
-                        mtlxInput->setValue(mx::Color4(colorArray[0], colorArray[1], colorArray[2], colorArray[3]), type);
-                        input->storage = mtlxInput;
-                        changed = true;
-                    }
-                }
+
+            std::string colorId = widgetId + "_color";
+
+            // Display color button
+            if (ImGui::ColorButton(colorId.c_str(), ImVec4(colorArray[0], colorArray[1], colorArray[2], colorArray[3]), 
+                                   ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_AlphaPreview, ImVec2(120, 20))) {
+                // Store state to open picker in suspended context
+                _colorPickerState.isOpen = true;
+                _colorPickerState.socketId = colorId;
+                _colorPickerState.color[0] = colorArray[0];
+                _colorPickerState.color[1] = colorArray[1];
+                _colorPickerState.color[2] = colorArray[2];
+                _colorPickerState.color[3] = colorArray[3];
+                _colorPickerState.numComponents = 4;
+                _colorPickerState.socket = input;
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "vector2") {
         if (value && value->isA<mx::Vector2>()) {
             mx::Vector2 vec = value->asA<mx::Vector2>();
             float vecArray[2] = { vec[0], vec[1] };
-            
-            if (ImGui::DragFloat2(widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
+
+            if (ImGui::DragFloat2(
+                    widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 mx::NodePtr mxNode = getMaterialXNode(input->node);
                 if (mxNode) {
                     mtlxInput = mxNode->getInput(mtlxInput->getName());
                     if (mtlxInput) {
-                        mtlxInput->setValue(mx::Vector2(vecArray[0], vecArray[1]), type);
+                        mtlxInput->setValue(
+                            mx::Vector2(vecArray[0], vecArray[1]), type);
                         input->storage = mtlxInput;
                         changed = true;
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "vector3") {
         if (value && value->isA<mx::Vector3>()) {
             mx::Vector3 vec = value->asA<mx::Vector3>();
             float vecArray[3] = { vec[0], vec[1], vec[2] };
-            
-            if (ImGui::DragFloat3(widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
+
+            if (ImGui::DragFloat3(
+                    widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 mx::NodePtr mxNode = getMaterialXNode(input->node);
                 if (mxNode) {
                     mtlxInput = mxNode->getInput(mtlxInput->getName());
                     if (mtlxInput) {
-                        mtlxInput->setValue(mx::Vector3(vecArray[0], vecArray[1], vecArray[2]), type);
+                        mtlxInput->setValue(
+                            mx::Vector3(vecArray[0], vecArray[1], vecArray[2]),
+                            type);
                         input->storage = mtlxInput;
                         changed = true;
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "vector4") {
         if (value && value->isA<mx::Vector4>()) {
             mx::Vector4 vec = value->asA<mx::Vector4>();
             float vecArray[4] = { vec[0], vec[1], vec[2], vec[3] };
-            
-            if (ImGui::DragFloat4(widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
+
+            if (ImGui::DragFloat4(
+                    widgetId.c_str(), vecArray, 0.01f, 0.0f, 1.0f)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 mx::NodePtr mxNode = getMaterialXNode(input->node);
                 if (mxNode) {
                     mtlxInput = mxNode->getInput(mtlxInput->getName());
                     if (mtlxInput) {
-                        mtlxInput->setValue(mx::Vector4(vecArray[0], vecArray[1], vecArray[2], vecArray[3]), type);
+                        mtlxInput->setValue(
+                            mx::Vector4(
+                                vecArray[0],
+                                vecArray[1],
+                                vecArray[2],
+                                vecArray[3]),
+                            type);
                         input->storage = mtlxInput;
                         changed = true;
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else if (type == "string" || type == "filename") {
@@ -1241,7 +1340,7 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
         char buffer[256];
         strncpy(buffer, str.c_str(), sizeof(buffer) - 1);
         buffer[sizeof(buffer) - 1] = '\0';
-        
+
         if (ImGui::InputText(widgetId.c_str(), buffer, sizeof(buffer))) {
             mtlx_tree->addNodeInput(input->node, mtlxInput);
             mx::NodePtr mxNode = getMaterialXNode(input->node);
@@ -1254,11 +1353,13 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
                 }
             }
         }
+        ImGui::Spring(0);
+        ImGui::TextUnformatted(input->ui_name);
     }
     else if (type == "boolean") {
         if (value && value->isA<bool>()) {
             bool temp = value->asA<bool>();
-            
+
             if (ImGui::Checkbox(widgetId.c_str(), &temp)) {
                 mtlx_tree->addNodeInput(input->node, mtlxInput);
                 mx::NodePtr mxNode = getMaterialXNode(input->node);
@@ -1271,26 +1372,28 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
                     }
                 }
             }
+            ImGui::Spring(0);
+            ImGui::TextUnformatted(input->ui_name);
         }
     }
     else {
-        // Unknown type, just show the name
+        // Unknown type
         ImGui::TextUnformatted(input->ui_name);
+        ImGui::Spring(0);
     }
-    
+
     ImGui::PopItemWidth();
-    ImGui::Spring(0);
-    
+
     if (changed) {
         tree_->SetDirty();
     }
-    
+
     // Track if this control is being actively edited (mouse button held down)
     if (ImGui::IsItemActive()) {
         _anyControlActive = true;
         spdlog::trace("Control active detected");
     }
-    
+
     return changed;
 }
 
