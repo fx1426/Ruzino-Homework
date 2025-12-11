@@ -53,8 +53,32 @@ class RHI_API ShaderFactory {
         search_paths.push_back(string);
     }
 
+    static void set_cache_enabled(bool enabled)
+    {
+        cache_enabled = enabled;
+    }
+
+    static std::string get_cache_directory()
+    {
+        return "./shader_cache";
+    }
+
    private:
     std::vector<std::string> search_paths;
+
+    // Cache management
+    static bool cache_enabled;
+    bool try_load_from_cache(
+        const ProgramDesc& desc,
+        Slang::ComPtr<ISlangBlob>& blob,
+        ShaderReflectionInfo& reflection_info,
+        SlangCompileTarget target) const;
+    void save_to_cache(
+        const ProgramDesc& desc,
+        const Slang::ComPtr<ISlangBlob>& blob,
+        const ShaderReflectionInfo& reflection_info,
+        SlangCompileTarget target) const;
+    std::string get_cache_filename(const ProgramDesc& desc, SlangCompileTarget target) const;
 
     void SlangCompile(
         const std::vector<std::string>& paths,

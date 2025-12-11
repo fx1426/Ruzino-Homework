@@ -159,6 +159,9 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     }
 
     if (mat_dirty || !storage.path_tracing_program || dome_shader_changed || spectrum_type_changed) {
+        if (!storage.path_tracing_program) {
+            spdlog::info("Creating path tracing shader program");
+        }
         ProgramDesc program_desc;
         program_desc.set_path("shaders/path_tracing.slang");
         program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;

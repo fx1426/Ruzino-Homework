@@ -66,9 +66,9 @@ def load_progress(progress_file):
     """Load completed materials from progress file"""
     if not progress_file.exists():
         return {"completed": [], "failed": [], "last_updated": None}
-    
+
     try:
-        with open(progress_file, 'r', encoding='utf-8') as f:
+        with open(progress_file, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"Warning: Could not load progress file: {e}")
@@ -82,11 +82,11 @@ def save_progress(progress_file, completed, failed):
         "failed": failed,
         "last_updated": datetime.now().isoformat(),
         "total_completed": len(completed),
-        "total_failed": len(failed)
+        "total_failed": len(failed),
     }
-    
+
     try:
-        with open(progress_file, 'w', encoding='utf-8') as f:
+        with open(progress_file, "w", encoding="utf-8") as f:
             json.dump(progress_data, f, indent=2, ensure_ascii=False)
     except Exception as e:
         print(f"Warning: Could not save progress: {e}")
@@ -104,13 +104,15 @@ def find_all_materials():
     return materials
 
 
-def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
+def bind_material_to_shader_ball(
+    shader_ball_path, material_path, output_path, verbose=False
+):
     """Bind a MaterialX material to shader_ball meshes"""
-    if VERBOSE:
+    if verbose:
         print(f"  Opening stage: {shader_ball_path}")
     stage = Usd.Stage.Open(str(shader_ball_path))
     if not stage:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: Failed to open stage")
         return False
 
@@ -119,7 +121,7 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
     calibration_mesh = stage.GetPrimAtPath("/root/Calibration_Mesh/Calibration_Mesh")
 
     if not preview_mesh or not calibration_mesh:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: Failed to find meshes in stage")
         return False
 
@@ -138,11 +140,11 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
         stage.RemovePrim(material_path_in_stage)
 
     # Open MaterialX file to find material
-    if VERBOSE:
+    if verbose:
         print(f"  Opening MaterialX file: {material_path.name}")
     mtlx_stage = Usd.Stage.Open(str(material_path))
     if not mtlx_stage:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: Failed to open MaterialX file")
         return False
 
@@ -150,12 +152,12 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
     for prim in mtlx_stage.Traverse():
         if prim.IsA(UsdShade.Material):
             mtlx_material_path = prim.GetPath()
-            if VERBOSE:
+            if verbose:
                 print(f"  Found material at: {mtlx_material_path}")
             break
 
     if not mtlx_material_path:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: No material found in MaterialX file")
         return False
 
@@ -177,18 +179,18 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
         if shader_surface_output:
             material_surface_output = material.CreateSurfaceOutput()
             material_surface_output.ConnectToSource(shader_surface_output)
-            if VERBOSE:
+            if verbose:
                 print(f"  Connected material surface output to shader")
-        elif VERBOSE:
+        elif verbose:
             print(f"  WARNING: Shader has no surface output")
-    elif VERBOSE:
+    elif verbose:
         print(f"  WARNING: No shader found in material")
 
     # Bind material to meshes
     UsdShade.MaterialBindingAPI(preview_mesh).Bind(material)
     UsdShade.MaterialBindingAPI(calibration_mesh).Bind(material)
 
-    if VERBOSE:
+    if verbose:
         print(f"  Bound material to both meshes")
         # Verify bindings
         bound_mat_preview = UsdShade.MaterialBindingAPI(
@@ -206,12 +208,14 @@ def bind_material_to_shader_ball(shader_ball_path, material_path, output_path):
 
     # Save
     stage.GetRootLayer().Export(str(output_path))
-    if VERBOSE:
+    if verbose:
         print(f"  Saved to: {output_path.name}")
     return True
 
 
-def render_scene(usd_file, output_image, width=2000, height=2000, samples=2048):
+def render_scene(
+    usd_file, output_image, width=3000, height=3000, samples=4096, verbose=False
+):
     """Render a USD scene using headless_render.exe"""
     render_exe = binary_dir / "headless_render.exe"
     render_nodes = assets_dir / "render_nodes_save.json"
@@ -231,49 +235,65 @@ def render_scene(usd_file, output_image, width=2000, height=2000, samples=2048):
         str(samples),
     ]
 
+    if verbose:
+        print(f"  Command: {' '.join(cmd)}")
+        print(f"  Working directory: {binary_dir}")
+
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=300, cwd=str(binary_dir)
         )
-        if result.returncode != 0 and VERBOSE:
+        if result.returncode != 0 and verbose:
             print(f"  ERROR: Render failed with code {result.returncode}")
             if result.stderr:
                 print(f"  STDERR: {result.stderr[:200]}")
         return result.returncode == 0
     except subprocess.TimeoutExpired:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: Render timed out after 300s")
         return False
     except Exception as e:
-        if VERBOSE:
+        if verbose:
             print(f"  ERROR: {e}")
         return False
 
 
 def test_single_material(args):
     """Test a single material (for multiprocessing)
-    
+
     Args:
-        args: tuple of (material_path, index, total_count, output_dir, shader_ball_path, progress_file)
-    
+        args: tuple of (material_path, index, total_count, output_dir, shader_ball_path, progress_file, verbose)
+
     Returns:
         tuple: (material_name, success, elapsed_time)
     """
-    material_path, index, total_count, output_dir, shader_ball_path, progress_file = args
+    (
+        material_path,
+        index,
+        total_count,
+        output_dir,
+        shader_ball_path,
+        progress_file,
+        verbose,
+    ) = args
     material_name = material_path.stem
     start_time = time.time()
-    
+
     try:
         # Bind material
         modified_usd = output_dir / f"shader_ball_{material_name}.usdc"
-        if not bind_material_to_shader_ball(shader_ball_path, material_path, modified_usd):
+        if not bind_material_to_shader_ball(
+            shader_ball_path, material_path, modified_usd, verbose
+        ):
             elapsed = time.time() - start_time
-            print(f"[{index}/{total_count}] ✗ {material_name} - Binding FAILED ({elapsed:.1f}s)")
+            print(
+                f"[{index}/{total_count}] ✗ {material_name} - Binding FAILED ({elapsed:.1f}s)"
+            )
             return (material_name, False, elapsed)
-        
+
         # Render
         output_image = output_dir / f"{material_name}.png"
-        if render_scene(modified_usd, output_image):
+        if render_scene(modified_usd, output_image, verbose=verbose):
             elapsed = time.time() - start_time
             # Update progress file immediately
             if progress_file:
@@ -291,9 +311,11 @@ def test_single_material(args):
                 if material_name not in progress["failed"]:
                     progress["failed"].append(material_name)
                 save_progress(progress_file, progress["completed"], progress["failed"])
-            print(f"[{index}/{total_count}] ✗ {material_name} - Render FAILED ({elapsed:.1f}s)")
+            print(
+                f"[{index}/{total_count}] ✗ {material_name} - Render FAILED ({elapsed:.1f}s)"
+            )
             return (material_name, False, elapsed)
-            
+
     except Exception as e:
         elapsed = time.time() - start_time
         # Update progress file for errors too
@@ -302,21 +324,23 @@ def test_single_material(args):
             if material_name not in progress["failed"]:
                 progress["failed"].append(material_name)
             save_progress(progress_file, progress["completed"], progress["failed"])
-        print(f"[{index}/{total_count}] ✗ {material_name} - ERROR: {e} ({elapsed:.1f}s)")
+        print(
+            f"[{index}/{total_count}] ✗ {material_name} - ERROR: {e} ({elapsed:.1f}s)"
+        )
         return (material_name, False, elapsed)
 
 
 def main():
-    print("="*80)
+    print("=" * 80)
     print("Batch Material Testing with headless_render.exe")
-    print("="*80)
+    print("=" * 80)
     print(f"Workers: {NUM_WORKERS}")
     if VERBOSE:
         print(f"Workspace: {workspace_root}")
         print(f"Binary dir: {binary_dir}")
         print(f"Assets dir: {assets_dir}")
         print(f"Verbose mode: ON")
-    print("="*80)
+    print("=" * 80)
 
     # Find all materials
     materials = find_all_materials()
@@ -330,15 +354,17 @@ def main():
     output_dir = binary_dir / "material_tests"
     output_dir.mkdir(exist_ok=True)
     print(f"Output directory: {output_dir}\n")
-    
+
     # Load progress
     progress_file = output_dir / "progress.json"
     progress = load_progress(progress_file)
     completed_materials = set(progress["completed"])
     failed_materials = set(progress["failed"])
-    
+
     if completed_materials or failed_materials:
-        print(f"Loaded progress: {len(completed_materials)} completed, {len(failed_materials)} failed")
+        print(
+            f"Loaded progress: {len(completed_materials)} completed, {len(failed_materials)} failed"
+        )
         if progress["last_updated"]:
             print(f"Last updated: {progress['last_updated']}")
         print()
@@ -356,36 +382,39 @@ def main():
 
     # Test materials with multiprocessing
     shader_ball = assets_dir / "shader_ball.usdc"
-    
+
     # Filter out already completed materials
     test_materials = materials[:test_count]
     pending_materials = [
-        mat_path for mat_path in test_materials
+        mat_path
+        for mat_path in test_materials
         if mat_path.stem not in completed_materials
     ]
     skipped_count = len(test_materials) - len(pending_materials)
-    
+
     if skipped_count > 0:
         print(f"Skipping {skipped_count} already completed materials\n")
-    
+
     if not pending_materials:
         print("All materials already completed!")
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("RESULTS")
-        print("="*80)
+        print("=" * 80)
         print(f"Total tested:  {test_count}")
         print(f"Succeeded:     {len(completed_materials)}")
         print(f"Failed:        {len(failed_materials)}")
         print(f"Success rate:  {len(completed_materials)/test_count*100:.1f}%")
-        print("="*80)
+        print("=" * 80)
         return 0 if len(failed_materials) == 0 else 1
 
-    print(f"\nTesting {len(pending_materials)} remaining materials with {NUM_WORKERS} workers...\n")
+    print(
+        f"\nTesting {len(pending_materials)} remaining materials with {NUM_WORKERS} workers...\n"
+    )
     print("=" * 80)
 
     # Prepare arguments for multiprocessing
     task_args = [
-        (mat_path, i+1, test_count, output_dir, shader_ball, progress_file)
+        (mat_path, i + 1, test_count, output_dir, shader_ball, progress_file, VERBOSE)
         for i, mat_path in enumerate(pending_materials)
     ]
 
@@ -398,17 +427,21 @@ def main():
     # Count results from this run
     new_success = sum(1 for _, success, _ in test_results if success)
     new_fail = len(test_results) - new_success
-    avg_time = sum(elapsed for _, _, elapsed in test_results) / len(test_results) if test_results else 0
-    
+    avg_time = (
+        sum(elapsed for _, _, elapsed in test_results) / len(test_results)
+        if test_results
+        else 0
+    )
+
     # Reload final progress to get total counts
     final_progress = load_progress(progress_file)
     total_success = len(final_progress["completed"])
     total_fail = len(final_progress["failed"])
 
     # Summary
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RESULTS")
-    print("="*80)
+    print("=" * 80)
     print(f"This run:")
     print(f"  Tested:      {len(pending_materials)}")
     print(f"  Succeeded:   {new_success}")
@@ -423,7 +456,7 @@ def main():
     print(f"  Success rate: {total_success/test_count*100:.1f}%")
     print()
     print(f"Progress saved to: {progress_file.name}")
-    print("="*80)
+    print("=" * 80)
 
     return 0 if total_fail == 0 else 1
 

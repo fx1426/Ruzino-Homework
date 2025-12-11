@@ -108,10 +108,14 @@ struct RHI_API ProgramDesc {
     void update_last_write_time(const std::string& path);
     std::vector<ShaderMacro> macros;
     std::string get_profile() const;
-    std::vector<std::string> paths;  // Changed from single path to multiple paths
+    std::vector<std::string>
+        paths;  // Changed from single path to multiple paths
     std::vector<std::string> source_code;
     long long lastWriteTime = 0;
     std::string entry_name;
+
+    // Calculate a unique hash for caching
+    size_t calculate_hash() const;
 
     friend class ShaderFactory;
     friend struct Program;

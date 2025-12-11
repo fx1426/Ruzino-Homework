@@ -1,10 +1,13 @@
 #include "RHI/ShaderFactory/shader.hpp"
 
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <queue>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "RHI/ResourceManager/resource_allocator.hpp"
 #include "RHI/internal/resources.hpp"
@@ -14,7 +17,63 @@
 
 USTC_CG_NAMESPACE_OPEN_SCOPE
 
+// Custom Blob implementation to hold shader binary data loaded from cache
+class CustomBlob : public ISlangBlob
+{
+private:
+    std::vector<char> data;
+    std::atomic<uint32_t> refCount;
+
+public:
+    explicit CustomBlob(std::vector<char>&& buffer) 
+        : data(std::move(buffer)), refCount(1)
+    {
+    }
+
+    // ISlangUnknown interface
+    virtual SLANG_NO_THROW SlangResult SLANG_MCALL queryInterface(
+        SlangUUID const& uuid,
+        void** outObject) override
+    {
+        if (uuid == ISlangUnknown::getTypeGuid() || 
+            uuid == ISlangBlob::getTypeGuid())
+        {
+            *outObject = static_cast<ISlangBlob*>(this);
+            addRef();
+            return SLANG_OK;
+        }
+        return SLANG_E_NO_INTERFACE;
+    }
+
+    virtual SLANG_NO_THROW uint32_t SLANG_MCALL addRef() override
+    {
+        return ++refCount;
+    }
+
+    virtual SLANG_NO_THROW uint32_t SLANG_MCALL release() override
+    {
+        uint32_t newCount = --refCount;
+        if (newCount == 0)
+        {
+            delete this;
+        }
+        return newCount;
+    }
+
+    // ISlangBlob interface
+    virtual SLANG_NO_THROW void const* SLANG_MCALL getBufferPointer() override
+    {
+        return data.data();
+    }
+
+    virtual SLANG_NO_THROW size_t SLANG_MCALL getBufferSize() override
+    {
+        return data.size();
+    }
+};
+
 std::string ShaderFactory::shader_search_path = "";
+bool ShaderFactory::cache_enabled = true;
 
 ProgramDesc Program::get_desc() const
 {
@@ -114,6 +173,38 @@ void ProgramDesc::update_last_write_time(const std::string& path)
     else {
         lastWriteTime = 0;
     }
+}
+
+size_t ProgramDesc::calculate_hash() const
+{
+    size_t hash = 0;
+    
+    // Hash shader type
+    hash ^= std::hash<int>{}(static_cast<int>(shaderType)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    
+    // Hash entry name
+    hash ^= std::hash<std::string>{}(entry_name) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    
+    // Hash all paths
+    for (const auto& path : paths) {
+        hash ^= std::hash<std::string>{}(path) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    }
+    
+    // Hash all source codes
+    for (const auto& code : source_code) {
+        hash ^= std::hash<std::string>{}(code) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    }
+    
+    // Hash macros
+    for (const auto& macro : macros) {
+        hash ^= std::hash<std::string>{}(macro.name) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+        hash ^= std::hash<std::string>{}(macro.definition) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    }
+    
+    // Hash last write time
+    hash ^= std::hash<long long>{}(lastWriteTime) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    
+    return hash;
 }
 
 std::string ProgramDesc::get_profile() const
@@ -847,6 +938,13 @@ ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
         (RHI::get_backend() == nvrhi::GraphicsAPI::VULKAN) ? SLANG_SPIRV
                                                            : SLANG_DXIL;
 
+    // Try to load from cache first
+    if (try_load_from_cache(desc, ret->blob, ret->reflection_info, target)) {
+        // Successfully loaded from cache
+        return ret;
+    }
+
+    // Cache miss - compile the shader
     SlangCompile(
         desc.paths,
         desc.source_code,
@@ -861,7 +959,230 @@ ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
         target,
         std::addressof(ret->linkedProgram));
 
+    // Save to cache if compilation was successful
+    if (ret->blob && ret->error_string.empty()) {
+        save_to_cache(desc, ret->blob, ret->reflection_info, target);
+    }
+
     return ret;
+}
+
+std::string ShaderFactory::get_cache_filename(
+    const ProgramDesc& desc,
+    SlangCompileTarget target) const
+{
+    size_t hash = desc.calculate_hash();
+    
+    // Add target to hash
+    hash ^= std::hash<int>{}(static_cast<int>(target)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    
+    // Add backend to hash
+    auto backend = RHI::get_backend();
+    hash ^= std::hash<int>{}(static_cast<int>(backend)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+    
+    std::stringstream ss;
+    ss << std::hex << hash;
+    
+    const char* extension = "";
+    switch (target) {
+        case SLANG_SPIRV: extension = ".spv"; break;
+        case SLANG_DXIL: extension = ".dxil"; break;
+        case SLANG_SHADER_HOST_CALLABLE: extension = ".host"; break;
+        default: extension = ".bin"; break;
+    }
+    
+    return ss.str() + extension;
+}
+
+bool ShaderFactory::try_load_from_cache(
+    const ProgramDesc& desc,
+    Slang::ComPtr<ISlangBlob>& blob,
+    ShaderReflectionInfo& reflection_info,
+    SlangCompileTarget target) const
+{
+    if (!cache_enabled) {
+        return false;
+    }
+    
+    auto cache_dir = get_cache_directory();
+    auto cache_file = cache_dir + "/" + get_cache_filename(desc, target);
+    auto meta_file = cache_file + ".meta";
+    
+    namespace fs = std::filesystem;
+    
+    if (!fs::exists(cache_file) || !fs::exists(meta_file)) {
+        return false;
+    }
+    
+    try {
+        // Read shader binary
+        std::ifstream shader_stream(cache_file, std::ios::binary);
+        if (!shader_stream) {
+            return false;
+        }
+        
+        shader_stream.seekg(0, std::ios::end);
+        size_t size = shader_stream.tellg();
+        shader_stream.seekg(0, std::ios::beg);
+        
+        std::vector<char> buffer(size);
+        shader_stream.read(buffer.data(), size);
+        shader_stream.close();
+        
+        if (!shader_stream.good() && !shader_stream.eof()) {
+            return false;
+        }
+        
+        // Read metadata (reflection info)
+        std::ifstream meta_stream(meta_file, std::ios::binary);
+        if (!meta_stream) {
+            return false;
+        }
+        
+        // Deserialize reflection info
+        // This is a simplified version - you'd need proper serialization
+        size_t space_count;
+        meta_stream.read(reinterpret_cast<char*>(&space_count), sizeof(space_count));
+        
+        reflection_info.binding_spaces.resize(space_count);
+        for (size_t i = 0; i < space_count; ++i) {
+            size_t item_count;
+            meta_stream.read(reinterpret_cast<char*>(&item_count), sizeof(item_count));
+            
+            for (size_t j = 0; j < item_count; ++j) {
+                nvrhi::BindingLayoutItem item;
+                uint32_t type_val, size_val;
+                uint16_t slot_val;
+                
+                meta_stream.read(reinterpret_cast<char*>(&type_val), sizeof(type_val));
+                meta_stream.read(reinterpret_cast<char*>(&slot_val), sizeof(slot_val));
+                meta_stream.read(reinterpret_cast<char*>(&size_val), sizeof(size_val));
+                
+                item.type = static_cast<nvrhi::ResourceType>(type_val);
+                item.slot = slot_val;
+                item.size = static_cast<uint16_t>(size_val);
+                
+                reflection_info.binding_spaces[i].addItem(item);
+            }
+            
+            meta_stream.read(reinterpret_cast<char*>(&reflection_info.binding_spaces[i].visibility), 
+                           sizeof(reflection_info.binding_spaces[i].visibility));
+            meta_stream.read(reinterpret_cast<char*>(&reflection_info.binding_spaces[i].registerSpace), 
+                           sizeof(reflection_info.binding_spaces[i].registerSpace));
+        }
+        
+        // Read binding locations
+        size_t binding_count;
+        meta_stream.read(reinterpret_cast<char*>(&binding_count), sizeof(binding_count));
+        
+        for (size_t i = 0; i < binding_count; ++i) {
+            size_t name_len;
+            meta_stream.read(reinterpret_cast<char*>(&name_len), sizeof(name_len));
+            
+            std::string name(name_len, '\0');
+            meta_stream.read(&name[0], name_len);
+            
+            unsigned space, index;
+            meta_stream.read(reinterpret_cast<char*>(&space), sizeof(space));
+            meta_stream.read(reinterpret_cast<char*>(&index), sizeof(index));
+            
+            reflection_info.binding_locations[name] = std::make_tuple(space, index);
+        }
+        
+        meta_stream.close();
+        
+        // Create blob from buffer using our custom implementation
+        blob = Slang::ComPtr<ISlangBlob>(new CustomBlob(std::move(buffer)));
+        
+        return true;
+        
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+void ShaderFactory::save_to_cache(
+    const ProgramDesc& desc,
+    const Slang::ComPtr<ISlangBlob>& blob,
+    const ShaderReflectionInfo& reflection_info,
+    SlangCompileTarget target) const
+{
+    if (!cache_enabled || !blob) {
+        return;
+    }
+    
+    namespace fs = std::filesystem;
+    
+    auto cache_dir = get_cache_directory();
+    
+    // Create cache directory if it doesn't exist
+    if (!fs::exists(cache_dir)) {
+        fs::create_directories(cache_dir);
+    }
+    
+    auto cache_file = cache_dir + "/" + get_cache_filename(desc, target);
+    auto meta_file = cache_file + ".meta";
+    
+    try {
+        // Write shader binary
+        std::ofstream shader_stream(cache_file, std::ios::binary);
+        if (!shader_stream) {
+            return;
+        }
+        
+        shader_stream.write(
+            static_cast<const char*>(blob->getBufferPointer()),
+            blob->getBufferSize());
+        shader_stream.close();
+        
+        // Write metadata (reflection info)
+        std::ofstream meta_stream(meta_file, std::ios::binary);
+        if (!meta_stream) {
+            return;
+        }
+        
+        // Serialize reflection info
+        size_t space_count = reflection_info.binding_spaces.size();
+        meta_stream.write(reinterpret_cast<const char*>(&space_count), sizeof(space_count));
+        
+        for (const auto& space : reflection_info.binding_spaces) {
+            size_t item_count = space.bindings.size();
+            meta_stream.write(reinterpret_cast<const char*>(&item_count), sizeof(item_count));
+            
+            for (const auto& item : space.bindings) {
+                uint32_t type_val = static_cast<uint32_t>(item.type);
+                uint16_t slot_val = item.slot;
+                uint32_t size_val = static_cast<uint32_t>(item.size);
+                
+                meta_stream.write(reinterpret_cast<const char*>(&type_val), sizeof(type_val));
+                meta_stream.write(reinterpret_cast<const char*>(&slot_val), sizeof(slot_val));
+                meta_stream.write(reinterpret_cast<const char*>(&size_val), sizeof(size_val));
+            }
+            
+            meta_stream.write(reinterpret_cast<const char*>(&space.visibility), sizeof(space.visibility));
+            meta_stream.write(reinterpret_cast<const char*>(&space.registerSpace), sizeof(space.registerSpace));
+        }
+        
+        // Write binding locations
+        size_t binding_count = reflection_info.binding_locations.size();
+        meta_stream.write(reinterpret_cast<const char*>(&binding_count), sizeof(binding_count));
+        
+        for (const auto& [name, location] : reflection_info.binding_locations) {
+            size_t name_len = name.length();
+            meta_stream.write(reinterpret_cast<const char*>(&name_len), sizeof(name_len));
+            meta_stream.write(name.data(), name_len);
+            
+            unsigned space = std::get<0>(location);
+            unsigned index = std::get<1>(location);
+            meta_stream.write(reinterpret_cast<const char*>(&space), sizeof(space));
+            meta_stream.write(reinterpret_cast<const char*>(&index), sizeof(index));
+        }
+        
+        meta_stream.close();
+        
+    } catch (const std::exception&) {
+        // Silently fail - caching is not critical
+    }
 }
 
 USTC_CG_NAMESPACE_CLOSE_SCOPE
