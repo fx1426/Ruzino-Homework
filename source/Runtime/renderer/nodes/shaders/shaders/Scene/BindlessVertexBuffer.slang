@@ -17,7 +17,7 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
     // Add memory barrier before accessing non-uniform resource
     // This is critical for AMD GPU cache coherency
     DeviceMemoryBarrier();
-    
+
     ByteAddressBuffer vertex_buffer =
         t_BindlessBuffers[NonUniformResourceIndex(bindlessIndex)];
     var id = vertex_id;
@@ -43,9 +43,12 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
     float4 tangent = float4(1, 0, 0, 1);
     if (mesh_data.tangentOffset != 0) {
         if (mesh_data.tangentInterpolation == InterpolationType::FaceVarying) {
-            tangent = asfloat(vertex_buffer.Load4(4 * id * 4 + mesh_data.tangentOffset));
-        } else {
-            tangent = asfloat(vertex_buffer.Load4(4 * vertex_id * 4 + mesh_data.tangentOffset));
+            tangent = asfloat(
+                vertex_buffer.Load4(4 * id * 4 + mesh_data.tangentOffset));
+        }
+        else {
+            tangent = asfloat(vertex_buffer.Load4(
+                4 * vertex_id * 4 + mesh_data.tangentOffset));
         }
     }
 
@@ -65,8 +68,8 @@ StaticVertexData load_vertex(MeshDesc mesh_data, uint vertex_id)
             vertex_buffer.Load(mesh_data.subsetMatIdOffset + id * 4);
     }
 
-    StaticVertexData data = StaticVertexData(
-        pos, normal, tangent, texCrd, 0, subset_material_id);
+    StaticVertexData data =
+        StaticVertexData(pos, normal, tangent, texCrd, 0, subset_material_id);
     return data;
 }
 
@@ -78,7 +81,7 @@ VertexInfo get_interpolated_vertex(
     // Ensure memory coherency for AMD GPUs when accessing structured buffers
     // DeviceMemoryBarrier is valid in ray tracing shaders
     DeviceMemoryBarrier();
-    
+
     GeometryInstanceData instance = instanceDescBuffer[instance_id];
     MeshDesc mesh = meshDescBuffer[instance.geometryID];
 

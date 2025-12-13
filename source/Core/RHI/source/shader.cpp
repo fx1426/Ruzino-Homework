@@ -679,13 +679,12 @@ void ShaderFactory::populate_dxc_options(
           slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
                                       3 } });  // O3 optimization level
 
-#ifdef _DEBUG
-    // Enable debug info in debug builds
+    // Enable debug info for shader profiling and debugging
+    // This adds the -Zi flag to DXC, providing full debug info including linetable
     dxc_compiler_options.push_back(
         { slang::CompilerOptionName::DebugInformation,
           slang::CompilerOptionValue{ slang::CompilerOptionValueKind::Int,
-                                      2 } });  // Full debug info
-#endif
+                                      2 } });  // Full debug info (equivalent to -Zi)
 
     // Use IEEE strict mode for better precision
     dxc_compiler_options.push_back(

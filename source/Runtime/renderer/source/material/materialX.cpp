@@ -192,104 +192,225 @@ void Hd_USTC_CG_MaterialX::ensure_shader_ready(const ShaderFactory& factory)
         // Replace all data loading placeholders with actual data code
         constexpr char DATA_PLACEHOLDER[] = "$BindlessDataLoading";
         size_t pos = 0;
-        while ((pos = eval_shader_source.find(DATA_PLACEHOLDER, pos)) != std::string::npos) {
+        while ((pos = eval_shader_source.find(DATA_PLACEHOLDER, pos)) !=
+               std::string::npos) {
             eval_shader_source.replace(
                 pos, strlen(DATA_PLACEHOLDER), get_data_code);
             pos += get_data_code.length();
         }
 
-        // Extract opacity computation from fetch_shader_data and inject into fetch_shader_opacity
+        // Extract opacity computation from fetch_shader_data and inject into
+        // fetch_shader_opacity
         constexpr char OPACITY_PLACEHOLDER[] = "$OpacityComputation";
-        size_t opacity_placeholder_pos = eval_shader_source.find(OPACITY_PLACEHOLDER);
-        
+        size_t opacity_placeholder_pos =
+            eval_shader_source.find(OPACITY_PLACEHOLDER);
+
         if (opacity_placeholder_pos != std::string::npos) {
             // Find fetch_shader_data function
-            size_t data_func_pos = eval_shader_source.find("void fetch_shader_data(");
+            size_t data_func_pos =
+                eval_shader_source.find("void fetch_shader_data(");
             if (data_func_pos != std::string::npos) {
-                size_t data_func_start = eval_shader_source.find("{", data_func_pos);
-                size_t data_func_end = eval_shader_source.find("\nvoid ", data_func_start);
-                
+                size_t data_func_start =
+                    eval_shader_source.find("{", data_func_pos);
+                size_t data_func_end =
+                    eval_shader_source.find("\nvoid ", data_func_start);
+
                 if (data_func_end == std::string::npos) {
                     data_func_end = eval_shader_source.length();
                 }
-                
+
                 std::string data_func_body = eval_shader_source.substr(
                     data_func_start, data_func_end - data_func_start);
-                
-                // Find params.opacity = assignment
-                size_t opacity_assignment = data_func_body.find("params.opacity = ");
-                
+
                 std::string opacity_computation;
-                if (opacity_assignment != std::string::npos) {
-                    // Find the standalone ";" separator line that marks the end of declarations
-                    // and the start of computation code
-                    size_t separator_pos = std::string::npos;
-                    size_t search_start = 0;
-                    
-                    // Look for ";\n" pattern where the semicolon is alone on its line
-                    while (true) {
-                        size_t semicolon = data_func_body.find(";\n", search_start);
-                        if (semicolon == std::string::npos || semicolon >= opacity_assignment) break;
-                        
-                        // Find the start of this line
-                        size_t line_start = data_func_body.rfind('\n', semicolon);
-                        if (line_start == std::string::npos) line_start = 0;
-                        else line_start++;
-                        
-                        // Check if the line contains only whitespace before the semicolon
-                        bool only_whitespace = true;
-                        for (size_t i = line_start; i < semicolon; i++) {
-                            if (data_func_body[i] != ' ' && data_func_body[i] != '\t') {
-                                only_whitespace = false;
+
+                // Check if this is standard_surface (uses
+                // packStandardSurfaceMaterialParams)
+                size_t pack_func_pos =
+                    data_func_body.find("packStandardSurfaceMaterialParams(");
+
+                if (pack_func_pos != std::string::npos) {
+                    // Standard surface - find opacity parameter in function
+                    // call Count parameters to find the opacity one (39th
+                    // parameter, index 38)
+                    size_t param_start =
+                        pack_func_pos +
+                        strlen("packStandardSurfaceMaterialParams(");
+                    int param_count = 0;
+                    int paren_depth = 1;
+                    size_t opacity_param_start = param_start;
+                    size_t opacity_param_end = param_start;
+                    bool found_opacity = false;
+
+                    for (size_t i = param_start;
+                         i < data_func_body.length() && paren_depth > 0;
+                         ++i) {
+                        char c = data_func_body[i];
+                        if (c == '(') {
+                            paren_depth++;
+                        }
+                        else if (c == ')') {
+                            paren_depth--;
+                            if (paren_depth == 0) {
+                                // Last parameter
+                                if (param_count == 38) {
+                                    opacity_param_end = i;
+                                    found_opacity = true;
+                                }
                                 break;
                             }
                         }
-                        
-                        if (only_whitespace) {
-                            separator_pos = semicolon + 2; // Position after ";\n"
-                            break;
+                        else if (c == ',' && paren_depth == 1) {
+                            if (param_count == 38) {
+                                opacity_param_end = i;
+                                found_opacity = true;
+                                break;
+                            }
+                            param_count++;
+                            if (param_count == 38) {
+                                opacity_param_start = i + 1;
+                            }
                         }
-                        
-                        search_start = semicolon + 1;
                     }
-                    
-                    if (separator_pos == std::string::npos) {
-                        // No separator found - this means opacity is directly from a parameter
-                        // Extract just the opacity value from params.opacity assignment
-                        size_t opacity_line_end = data_func_body.find(";", opacity_assignment);
-                        std::string opacity_line = data_func_body.substr(
-                            opacity_assignment, opacity_line_end - opacity_assignment);
-                        size_t eq_pos = opacity_line.find("= ");
-                        std::string opacity_expr = opacity_line.substr(eq_pos + 2);
-                        opacity_computation = "    float opacity_value = " + opacity_expr + ";\n";
-                    } else {
-                        // Found separator - extract all computation code up to params.opacity
-                        size_t opacity_line_end = data_func_body.find(";", opacity_assignment);
-                        std::string opacity_line = data_func_body.substr(
-                            opacity_assignment, opacity_line_end - opacity_assignment);
-                        size_t eq_pos = opacity_line.find("= ");
-                        std::string opacity_var = opacity_line.substr(eq_pos + 2);
-                        
-                        // Extract computation code from separator to before params.opacity
-                        size_t computation_end = data_func_body.rfind("\n", opacity_assignment);
-                        opacity_computation = data_func_body.substr(
-                            separator_pos, computation_end - separator_pos);
-                        
-                        // Add final assignment
-                        opacity_computation += "\n    float opacity_value = " + opacity_var + ";\n";
+
+                    if (found_opacity) {
+                        // Extract opacity parameter expression
+                        std::string opacity_expr = data_func_body.substr(
+                            opacity_param_start,
+                            opacity_param_end - opacity_param_start);
+
+                        // Trim whitespace
+                        size_t first_non_ws =
+                            opacity_expr.find_first_not_of(" \t\n");
+                        size_t last_non_ws =
+                            opacity_expr.find_last_not_of(" \t\n");
+                        if (first_non_ws != std::string::npos) {
+                            opacity_expr = opacity_expr.substr(
+                                first_non_ws, last_non_ws - first_non_ws + 1);
+                        }
+
+                        // Check if opacity_expr is a simple variable or complex expression
+                        // Simple variable: just alphanumeric + underscore, no operators or function calls
+                        bool is_simple_var = true;
+                        for (char c : opacity_expr) {
+                            if (!std::isalnum(c) && c != '_') {
+                                is_simple_var = false;
+                                break;
+                            }
+                        }
+
+                        if (is_simple_var) {
+                            // Direct parameter variable - need to convert float3 to float
+                            // Standard surface opacity is always float3
+                            opacity_computation =
+                                "    float opacity_value = (" + opacity_expr +
+                                ".r + " + opacity_expr + ".g + " +
+                                opacity_expr + ".b) / 3.0;\n";
+                        }
+                        else {
+                            // Complex expression - assume it's already computed to appropriate type
+                            opacity_computation =
+                                "    float opacity_value = " + opacity_expr +
+                                ";\n";
+                        }
                     }
-                } else {
-                    // No opacity assignment found
-                    opacity_computation = "    float opacity_value = 1.0;  // No opacity in material graph\n";
+                    else {
+                        opacity_computation =
+                            "    float opacity_value = 1.0;  // Failed to find "
+                            "opacity parameter\n";
+                    }
                 }
-                
-                // Replace the placeholder
+                else {
+                    // UsdPreviewSurface - look for params.opacity assignment
+                    size_t opacity_assignment =
+                        data_func_body.find("params.opacity = ");
+
+                    if (opacity_assignment != std::string::npos) {
+                        // Find the standalone ";" separator line
+                        size_t separator_pos = std::string::npos;
+                        size_t search_start = 0;
+
+                        while (true) {
+                            size_t semicolon =
+                                data_func_body.find(";\n", search_start);
+                            if (semicolon == std::string::npos ||
+                                semicolon >= opacity_assignment)
+                                break;
+
+                            size_t line_start =
+                                data_func_body.rfind('\n', semicolon);
+                            if (line_start == std::string::npos)
+                                line_start = 0;
+                            else
+                                line_start++;
+
+                            bool only_whitespace = true;
+                            for (size_t i = line_start; i < semicolon; i++) {
+                                if (data_func_body[i] != ' ' &&
+                                    data_func_body[i] != '\t') {
+                                    only_whitespace = false;
+                                    break;
+                                }
+                            }
+
+                            if (only_whitespace) {
+                                separator_pos = semicolon + 2;
+                                break;
+                            }
+
+                            search_start = semicolon + 1;
+                        }
+
+                        if (separator_pos == std::string::npos) {
+                            // No separator - opacity is direct parameter
+                            size_t opacity_line_end =
+                                data_func_body.find(";", opacity_assignment);
+                            std::string opacity_line = data_func_body.substr(
+                                opacity_assignment,
+                                opacity_line_end - opacity_assignment);
+                            size_t eq_pos = opacity_line.find("= ");
+                            std::string opacity_expr =
+                                opacity_line.substr(eq_pos + 2);
+                            opacity_computation =
+                                "    float opacity_value = " + opacity_expr +
+                                ";\n";
+                        }
+                        else {
+                            // Found separator - extract computation code
+                            size_t opacity_line_end =
+                                data_func_body.find(";", opacity_assignment);
+                            std::string opacity_line = data_func_body.substr(
+                                opacity_assignment,
+                                opacity_line_end - opacity_assignment);
+                            size_t eq_pos = opacity_line.find("= ");
+                            std::string opacity_var =
+                                opacity_line.substr(eq_pos + 2);
+
+                            size_t computation_end =
+                                data_func_body.rfind("\n", opacity_assignment);
+                            opacity_computation = data_func_body.substr(
+                                separator_pos, computation_end - separator_pos);
+
+                            opacity_computation +=
+                                "\n    float opacity_value = " + opacity_var +
+                                ";\n";
+                        }
+                    }
+                    else {
+                        opacity_computation =
+                            "    float opacity_value = 1.0;  // No opacity in "
+                            "material graph\n";
+                    }
+                }
+
                 eval_shader_source.replace(
-                    opacity_placeholder_pos, strlen(OPACITY_PLACEHOLDER), opacity_computation);
+                    opacity_placeholder_pos,
+                    strlen(OPACITY_PLACEHOLDER),
+                    opacity_computation);
             }
         }
 
-        try{
+        try {
             std::filesystem::create_directories("generated_shaders");
             std::ofstream out("generated_shaders/" + material_name + ".slang");
             if (out.is_open()) {

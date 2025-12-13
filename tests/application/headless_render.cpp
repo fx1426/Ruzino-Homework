@@ -457,6 +457,7 @@ int main(int argc, char* argv[])
             spdlog::info("Rendering sample {}/{}", sample + 1, settings.spp);
             renderer->Render(root, render_params);
             renderer->StopRenderer();
+            RHI::get_device()->waitForIdle();
             RHI::get_device()->runGarbageCollection();
         }
         spdlog::set_level(spdlog::level::info);

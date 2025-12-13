@@ -14,7 +14,7 @@ struct MaterialHeader {
 };
 
 struct MaterialDataBlob {
-    uint data[256];
+    uint data[128];
 };
 
 #ifndef HOST_CODE

@@ -37,24 +37,34 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
             _functionName.find("UsdPreviewSurface") != string::npos;
 
         if (isStandardSurface || isUsdPreviewSurface) {
-            // Generate fetch_shader_opacity placeholder
-            // The actual opacity computation code will be extracted from fetch_shader_data
-            // by post-processing in materialX.cpp
+            // Simplified approach: Just emit placeholders and function
+            // structure MaterialX generation will handle the actual code
+
             shadergen.emitLineBreak(stage);
-            shadergen.emitComment("Opacity fetch function - computes opacity from material graph", stage);
+            shadergen.emitComment(
+                "Opacity fetch function - computes opacity from material graph",
+                stage);
             shadergen.emitLine("void fetch_shader_opacity(", stage, false);
-            shadergen.emitLine("    inout uint material_params_index,", stage, false);
+            shadergen.emitLine(
+                "    inout uint material_params_index,", stage, false);
             shadergen.emitLine("    inout uint shader_type_id,", stage, false);
             shadergen.emitLine("    in MaterialDataBlob data,", stage, false);
             shadergen.emitLine("    in VertexInfo vertexInfo)", stage, false);
             shadergen.emitLine("{", stage, false);
             shadergen.emitLine("$BindlessDataLoading", stage, false);
-            shadergen.emitLine("$OpacityComputation", stage, false);  // Placeholder for opacity computation
-            shadergen.emitLine("    shader_type_id = " + std::to_string(isUsdPreviewSurface ? 1 : 0) + ";", stage, false);
-            shadergen.emitLine("    material_params_index = asuint(opacity_value);", stage, false);
+            shadergen.emitLine("$OpacityComputation", stage, false);
+            shadergen.emitLine(
+                "    shader_type_id = " +
+                    std::to_string(isUsdPreviewSurface ? 1 : 0) + ";",
+                stage,
+                false);
+            shadergen.emitLine(
+                "    material_params_index = asuint(opacity_value);",
+                stage,
+                false);
             shadergen.emitLine("}", stage, false);
             shadergen.emitLineBreak(stage);
-            
+
             return;
         }
         throw std::runtime_error(
@@ -162,78 +172,79 @@ void ClosureCompoundNodeSlang::emitFunctionDefinition(
     }
 }
 
-void ClosureCompoundNodeSlang::emitOpacityFetchFunction(
+void ClosureCompoundNodeSlang::emitOpacityFetchFunctionDefinition(
     const ShaderNode& node,
     GenContext& context,
-    ShaderStage& stage) const
+    ShaderStage& stage,
+    bool isUsdPreviewSurface) const
 {
     const ShaderGenerator& shadergen = context.getShaderGenerator();
-    
-    bool isStandardSurface =
-        _functionName.find("standard_surface") != string::npos;
-    bool isUsdPreviewSurface =
-        _functionName.find("UsdPreviewSurface") != string::npos;
-    
-    // Generate fetch_shader_opacity function
-    // This function only extracts opacity and stores it in material_params_index
-    // to avoid full material buffer access during shadow testing
-    
+
+    shadergen.emitLineBreak(stage);
+    shadergen.emitComment(
+        "Opacity fetch function - computes opacity from material graph", stage);
+
     // Emit function signature
+    shadergen.emitLine("void fetch_shader_opacity(", stage, false);
+    shadergen.emitLine("    inout uint material_params_index,", stage, false);
+    shadergen.emitLine("    inout uint shader_type_id,", stage, false);
+    shadergen.emitLine("    in MaterialDataBlob data,", stage, false);
+    shadergen.emitLine("    in VertexInfo vertexInfo)", stage, false);
+    shadergen.emitLine("{", stage, false);
+
+    // Use placeholder for bindless data loading - will be replaced in
+    // materialX.cpp
+    shadergen.emitLine("$BindlessDataLoading", stage, false);
+
+    // Now emit the actual opacity computation using MaterialX graph traversal
+    // This generates the same texture sampling and computation as
+    // fetch_shader_data but only for the opacity output
+
+    // Emit all texturing nodes needed for opacity computation
+    shadergen.emitFunctionCalls(
+        *_rootGraph, context, stage, ShaderNode::Classification::TEXTURE);
+
+    // Create temporary params structure to reuse the same code generation
     shadergen.emitLine(
-        "void fetch_shader_opacity(",
-        stage, false);
+        "    surfaceshader Surface_out = "
+        "surfaceshader(float3(0.0),float3(0.0));",
+        stage,
+        false);
     shadergen.emitLine(
-        "    inout uint material_params_index,",
-        stage, false);
-    shadergen.emitLine(
-        "    inout uint shader_type_id,",
-        stage, false);
-    shadergen.emitLine(
-        "    in MaterialDataBlob data,",
-        stage, false);
-    shadergen.emitLine(
-        "    in VertexInfo vertexInfo)",
-        stage, false);
-    
-    // Begin function body with proper scope
-    shadergen.emitFunctionBodyBegin(*_rootGraph, context, stage);
-    
-    if (isStandardSurface) {
-        // For standard_surface, opacity is stored as float3 in MaterialDataBlob
-        // We read it directly from the blob without running the material graph
-        shadergen.emitLine("// Standard Surface opacity extraction", stage);
-        shadergen.emitLine("shader_type_id = 0;", stage);
-        
-        // In standard_surface's fetch_shader_data, opacity is stored in data
-        // For simplicity, we just return 1.0 (fully opaque) for standard_surface
-        // since standard_surface typically doesn't support alpha transparency
-        shadergen.emitLine("float opacity = 1.0;", stage);
-        
-        shadergen.emitLine(
-            "material_params_index = asuint(opacity);",
-            stage);
+        "    PreviewSurfaceMaterialParams params = {};;", stage, false);
+
+    // Emit assignments for all parameters (reusing existing code generation)
+    // This will populate params.opacity with the computed value
+    auto inputs = node.getInputs();
+    static const std::vector<string> paramNames = {
+        "diffuseColor",  "emissiveColor",      "useSpecularWorkflow",
+        "specularColor", "metallic",           "roughness",
+        "clearcoat",     "clearcoatRoughness", "opacity",
+        "opacityMode",   "opacityThreshold",   "ior",
+        "normal",        "displacement",       "occlusion"
+    };
+
+    size_t minInputs = std::min(inputs.size(), paramNames.size());
+    for (size_t i = 0; i < minInputs; ++i) {
+        shadergen.emitLineBegin(stage);
+        shadergen.emitString("    params." + paramNames[i] + " = ", stage);
+        shadergen.emitInput(inputs[i], context, stage);
+        shadergen.emitLineEnd(stage, false);
     }
-    else if (isUsdPreviewSurface) {
-        // For UsdPreviewSurface, opacity is parameter 8 (float)
-        // We read it directly from the MaterialDataBlob
-        shadergen.emitLine("// Preview Surface opacity extraction", stage);
-        shadergen.emitLine("shader_type_id = 1;", stage);
-        
-        // Read opacity from the material data blob
-        // This corresponds to the opacity parameter (index 8) in UsdPreviewSurface
-        // The actual data index depends on how the material is packed
-        shadergen.emitLine("// Read opacity from material data blob", stage);
-        shadergen.emitLine("float opacity = 1.0; // Default fully opaque", stage);
-        shadergen.emitLine("// TODO: Read from MaterialDataBlob if packed", stage);
-        
-        shadergen.emitLine(
-            "material_params_index = asuint(opacity);",
-            stage);
-    }
-    
-    // End function body with proper scope
-    shadergen.emitFunctionBodyEnd(*_rootGraph, context, stage);
-    shadergen.emitLine("", stage);
+
+    // Extract opacity value and store it
+    shadergen.emitLine(
+        "    float opacity_value = params.opacity;", stage, false);
+    shadergen.emitLineBreak(stage);
+    shadergen.emitLine(
+        "    shader_type_id = " + std::to_string(isUsdPreviewSurface ? 1 : 0) +
+            ";",
+        stage,
+        false);
+    shadergen.emitLine(
+        "    material_params_index = asuint(opacity_value);", stage, false);
+    shadergen.emitLine("}", stage, false);
+    shadergen.emitLineBreak(stage);
 }
 
 void ClosureCompoundNodeSlang::emitFunctionCall(
@@ -265,9 +276,11 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
             _functionName.find("UsdPreviewSurface") != string::npos;
 
         if (isStandardSurface) {
-            // Use packStandardSurfaceMaterialParams to create optimized structure
-            
-            // Parameter name mapping for standard_surface - must match input order
+            // Use packStandardSurfaceMaterialParams to create optimized
+            // structure
+
+            // Parameter name mapping for standard_surface - must match input
+            // order
             static const std::vector<string> paramNames = {
                 "base",
                 "base_color",
@@ -314,12 +327,15 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
             };
 
             auto inputs = node.getInputs();
-            
+
             // Begin function call to packStandardSurfaceMaterialParams
             shadergen.emitLineBegin(stage);
-            shadergen.emitString("PackedStandardSurfaceMaterialParams params = packStandardSurfaceMaterialParams(", stage);
+            shadergen.emitString(
+                "PackedStandardSurfaceMaterialParams params = "
+                "packStandardSurfaceMaterialParams(",
+                stage);
             shadergen.emitLineEnd(stage, false);
-            
+
             // Emit all parameters to the packing function
             size_t minInputs = std::min(inputs.size(), paramNames.size());
             for (size_t i = 0; i < minInputs; ++i) {
@@ -331,7 +347,7 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
                 }
                 shadergen.emitLineEnd(stage, false);
             }
-            
+
             // Fill defaults for missing parameters
             if (inputs.size() < 40) {
                 shadergen.emitLine("    0,  // thin_walled", stage, false);
@@ -342,7 +358,7 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
             if (inputs.size() < 42) {
                 shadergen.emitLine("    vd.tangentW  // tangent", stage, false);
             }
-            
+
             // Close function call
             shadergen.emitLine(");", stage);
 
@@ -355,7 +371,8 @@ void ClosureCompoundNodeSlang::emitFunctionCall(
         }
         else if (isUsdPreviewSurface) {
             // Fill PreviewSurfaceMaterialParams
-            shadergen.emitLine("PreviewSurfaceMaterialParams params = {};", stage);
+            shadergen.emitLine(
+                "PreviewSurfaceMaterialParams params = {};", stage);
 
             // Parameter name mapping for preview_surface
             // Order MUST match the USD Preview Surface node inputs order
