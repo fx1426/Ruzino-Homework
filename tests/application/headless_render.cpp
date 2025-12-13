@@ -13,10 +13,11 @@
 #include "GCore/GOP.h"
 #include "GCore/algorithms/intersection.h"
 #include "RHI/rhi.hpp"
+#include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
 #include "stage/stage.hpp"
 #include "usd_nodejson.hpp"
-#include "cmdparser.hpp"
+
 
 // USD includes
 #include "pxr/usd/usd/primRange.h"
@@ -55,7 +56,9 @@ using namespace USTC_CG;
 using namespace pxr;
 
 // USD utilities
-UsdGeomCamera GetCamera(const UsdStageRefPtr& stage, const std::string& camera_path)
+UsdGeomCamera GetCamera(
+    const UsdStageRefPtr& stage,
+    const std::string& camera_path)
 {
     // If camera_path is specified, try to use it
     if (!camera_path.empty()) {
@@ -66,10 +69,13 @@ UsdGeomCamera GetCamera(const UsdStageRefPtr& stage, const std::string& camera_p
             return UsdGeomCamera(prim);
         }
         else {
-            spdlog::warn("Specified camera path '{}' not found or not a camera, falling back to first camera", camera_path);
+            spdlog::warn(
+                "Specified camera path '{}' not found or not a camera, falling "
+                "back to first camera",
+                camera_path);
         }
     }
-    
+
     // Fall back to first camera
     for (const UsdPrim& prim : stage->Traverse()) {
         if (prim.IsA<UsdGeomCamera>()) {
@@ -315,20 +321,22 @@ int main(int argc, char* argv[])
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
     // 或者设置错误模式，避免 Windows 弹窗
     _set_error_mode(_OUT_TO_STDERR);
-    
+
     // Parse command line using cmdparser
     cmdline::parser parser;
     parser.add<std::string>("usd", 'u', "USD file to render", true);
     parser.add<std::string>("json", 'j', "JSON rendering script", true);
-    parser.add<std::string>("output", 'o', "Output image filename (PNG/HDR/EXR)", true);
+    parser.add<std::string>(
+        "output", 'o', "Output image filename (PNG/HDR/EXR)", true);
     parser.add<int>("width", 'w', "Image width", false, 1920);
     parser.add<int>("height", 'h', "Image height", false, 1080);
     parser.add<int>("spp", 's', "Samples per pixel", false, 16);
-    parser.add<std::string>("camera", 'c', "Camera prim path (e.g., /Camera)", false, "");
+    parser.add<std::string>(
+        "camera", 'c', "Camera prim path (e.g., /Camera)", false, "");
     parser.add("verbose", 'v', "Enable verbose logging");
-    
+
     parser.parse_check(argc, argv);
-    
+
     // Extract settings
     std::string usd_file = parser.get<std::string>("usd");
     std::string json_script = parser.get<std::string>("json");
@@ -338,14 +346,15 @@ int main(int argc, char* argv[])
     int spp = parser.get<int>("spp");
     std::string camera_path = parser.get<std::string>("camera");
     bool verbose = parser.exist("verbose");
-    
+
     // Validate input files
     if (!std::filesystem::exists(usd_file)) {
         std::cerr << "Error: USD file not found: " << usd_file << std::endl;
         return 1;
     }
     if (!std::filesystem::exists(json_script)) {
-        std::cerr << "Error: JSON script not found: " << json_script << std::endl;
+        std::cerr << "Error: JSON script not found: " << json_script
+                  << std::endl;
         return 1;
     }
 
@@ -395,8 +404,7 @@ int main(int argc, char* argv[])
         // Configure render settings
         GfVec2i render_size(width, height);
         renderer->SetRenderBufferSize(render_size);
-        renderer->SetRenderViewport(
-            GfVec4d(0.0, 0.0, width, height));
+        renderer->SetRenderViewport(GfVec4d(0.0, 0.0, width, height));
 
         // Setup camera
         auto gf_camera = camera.GetCamera(UsdTimeCode::Default());
@@ -425,7 +433,8 @@ int main(int argc, char* argv[])
 
         // Render the scene with multiple samples
         UsdPrim root = stage->get_usd_stage()->GetPseudoRoot();
-        std::cout << "Starting render with " << spp << " samples..." << std::endl;
+        std::cout << "Starting render with " << spp << " samples..."
+                  << std::endl;
 
         // Start timing (will be set after first sample)
         std::chrono::high_resolution_clock::time_point render_start;
@@ -435,29 +444,18 @@ int main(int argc, char* argv[])
 
         for (int sample = 0; sample < spp; ++sample) {
             auto sample_start = std::chrono::high_resolution_clock::now();
-            
-            // Progress bar
-            int bar_width = 50;
-            float progress = (float)(sample + 1) / spp;
-            int pos = bar_width * progress;
-            
-            std::cout << "\r[";
-            for (int i = 0; i < bar_width; ++i) {
-                if (i < pos) std::cout << "=";
-                else if (i == pos) std::cout << ">";
-                else std::cout << " ";
-            }
-            std::cout << "] " << int(progress * 100.0) << "% (" << (sample + 1) << "/" << spp << ")";
-            std::cout.flush();
-            
+
             renderer->Render(root, render_params);
             renderer->StopRenderer();
             RHI::get_device()->waitForIdle();
             RHI::get_device()->runGarbageCollection();
-            
+
             auto sample_end = std::chrono::high_resolution_clock::now();
-            auto sample_duration = std::chrono::duration_cast<std::chrono::milliseconds>(sample_end - sample_start).count();
-            
+            auto sample_duration =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    sample_end - sample_start)
+                    .count();
+
             // Start timing after first sample completes
             if (!timing_started && sample == 0) {
                 render_start = std::chrono::high_resolution_clock::now();
@@ -467,36 +465,36 @@ int main(int argc, char* argv[])
                 total_sample_time += sample_duration;
                 timed_samples++;
             }
-            
+
             if (verbose) {
                 std::cout << " (" << sample_duration << "ms)" << std::endl;
             }
         }
-        std::cout << std::endl;
-        
+
         auto render_end = std::chrono::high_resolution_clock::now();
-        auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_start).count();
-        
-        std::cout << "Render complete. Total time: " << (total_duration / 1000.0) << "s";
+        auto total_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                render_end - render_start)
+                .count();
+
+        std::cout << "Render complete. Total time: "
+                  << (total_duration / 1000.0) << "s";
         if (spp > 1) {
             std::cout << " (excluding first sample)";
             double avg_sample_time = (double)total_sample_time / timed_samples;
-            std::cout << ", Avg per sample: " << (avg_sample_time / 1000.0) << "s";
+            std::cout << ", Avg per sample: " << (avg_sample_time / 1000.0)
+                      << "s";
         }
         std::cout << std::endl;
 
         // Read back texture data
         std::vector<uint8_t> texture_data;
-        bool success = ReadTextureDirectly(
-            renderer.get(), width, height, texture_data);
+        bool success =
+            ReadTextureDirectly(renderer.get(), width, height, texture_data);
 
         if (!success) {
             success = ReadTextureCPU(
-                renderer.get(),
-                hgi,
-                width,
-                height,
-                texture_data);
+                renderer.get(), hgi, width, height, texture_data);
         }
 
         if (!success) {
@@ -506,20 +504,19 @@ int main(int argc, char* argv[])
         // Save the image
         auto save_start = std::chrono::high_resolution_clock::now();
         std::cout << "Saving image to: " << output_image << std::endl;
-        
-        if (!SaveImageToFile(
-                output_image,
-                width,
-                height,
-                texture_data)) {
-            throw std::runtime_error(
-                "Failed to save image to " + output_image);
+
+        if (!SaveImageToFile(output_image, width, height, texture_data)) {
+            throw std::runtime_error("Failed to save image to " + output_image);
         }
-        
+
         auto save_end = std::chrono::high_resolution_clock::now();
-        auto save_duration = std::chrono::duration_cast<std::chrono::milliseconds>(save_end - save_start).count();
-        
-        std::cout << "Image saved in " << (save_duration / 1000.0) << "s" << std::endl;
+        auto save_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                save_end - save_start)
+                .count();
+
+        std::cout << "Image saved in " << (save_duration / 1000.0) << "s"
+                  << std::endl;
         std::cout << "Headless render completed successfully!" << std::endl;
 
         // Cleanup
