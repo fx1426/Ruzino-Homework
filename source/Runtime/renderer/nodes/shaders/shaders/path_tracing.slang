@@ -6,52 +6,28 @@ import Scene.BindlessMaterial;
 import Scene.MaterialParams;
 import Scene.MaterialParamsBuffer;
 import Scene.BindlessVertexBuffer;
-import Scene.Lights.LightData;
+
 import Scene.StandardSurface;
 import Scene.UsdPreviewSurface;
 import utils.Math.ShadingFrame;
 import Utils.Math.MathHelpers;
 
+import pt_constants;
+import pt_sample_lights;
+
 RWStructuredBuffer<uint> random_seeds;
 RWTexture2D<float4> output;
-RaytracingAccelerationStructure SceneBVH;
 StructuredBuffer<uint2> inPixelTarget;
 StructuredBuffer<RayInfo> rays;
-StructuredBuffer<LightData> lightBuffer;
-
-struct PathTracingConstants {
-    uint lightCount;
-    uint domeLightCallableIndex;  // Only valid when USE_DOME_LIGHT_CALLABLE
-    uint materialFetchCallableBaseIndex;
-    uint materialOpacityCallableOffset;  // Offset to add to fetch index for
-                                         // opacity callables
-};
-
-ConstantBuffer<PathTracingConstants> ptConstants;
 
 struct RayPayload {
-    Spectrum color;       // Accumulated color
-    Spectrum throughput;  // Path throughput
+    Spectrum color;       // Color contribution from this bounce
+    Spectrum throughput;  // Path throughput (updated for next bounce)
     float3 hitPosition;   // Hit position in world space
+    float3 nextRayDir;    // Next ray direction
     uint depth;           // Current ray bounce depth
     uint seed;            // Random seed for this ray
     bool terminated;      // Flag to indicate if path is terminated
-};
-
-struct ShadowPayload {
-    float3 hitPos;        // Hit position for continuation rays
-    float3 rayDir;        // Ray direction for continuation
-    float rayTMax;        // Maximum ray distance
-    uint recursionDepth;  // Current recursion depth for opacity testing
-    uint seed;
-    bool isVisible;  // Whether light is visible or occluded
-};
-
-struct LightSample {
-    float3 direction;  // Normalized direction to light
-    float3 intensity;  // Light intensity
-    float pdf;         // PDF of selecting this light and sampling point
-    bool valid;        // Whether the sample is valid
 };
 
 [shader("raygeneration")]
@@ -66,17 +42,43 @@ void RayGen()
     Spectrum output_color = Spectrum(0.0);
 
     const int spp = 1;
+    const int max_depth = 6;
 
     ray.TMax = 50000.0;
 
     for (int i = 0; i < spp; i++) {
-        payload.color = Spectrum(0.0);
-        payload.throughput = Spectrum(1.0);
-        payload.depth = 0;
-        payload.terminated = false;
-        TraceRay(
-            SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, get_ray_desc(ray), payload);
-        output_color = add(output_color, payload.color);
+        Spectrum accumulated_color = Spectrum(0.0);
+        Spectrum current_throughput = Spectrum(1.0);
+        
+        RayDesc current_ray = get_ray_desc(ray);
+        current_ray.TMax = 50000.0;
+        
+        // Iterative path tracing loop
+        for (int depth = 0; depth < max_depth; depth++) {
+            payload.color = Spectrum(0.0);
+            payload.throughput = current_throughput;
+            payload.depth = depth;
+            payload.terminated = false;
+            
+            TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, current_ray, payload);
+            
+            // Accumulate color from this bounce
+            accumulated_color = add(accumulated_color, payload.color);
+            
+            // Check if path is terminated
+            if (payload.terminated) {
+                break;
+            }
+            
+            // Update throughput and prepare next ray
+            current_throughput = payload.throughput;
+            current_ray.Origin = payload.hitPosition;
+            current_ray.Direction = payload.nextRayDir;
+            current_ray.TMin = 0.0;
+            current_ray.TMax = 10000.0;
+        }
+        
+        output_color = add(output_color, accumulated_color);
     }
     output_color =
         div(output_color, float(spp));  // Average color over multiple samples
@@ -84,267 +86,6 @@ void RayGen()
     output[pixel] = float4(output_color.toFloat3(), 1.0);
 
     random_seeds[DispatchRaysIndex().x] = payload.seed;
-}
-
-// Sample a random light and return its direction, intensity, and PDF
-LightSample sampleLights(float3 hitPos, float3 hitNormal, inout uint seed)
-{
-    LightSample sample;
-    sample.valid = false;
-
-    if (ptConstants.lightCount == 0)
-        return sample;
-
-    // Count non-dome lights (dome lights are handled by miss shader)
-    uint sampleableLightCount = 0;
-    for (uint i = 0; i < ptConstants.lightCount; i++) {
-        if (lightBuffer[i].type != uint(LightType::Dome)) {
-            sampleableLightCount++;
-        }
-    }
-
-    if (sampleableLightCount == 0)
-        return sample;
-
-    // Randomly select a non-dome light
-    uint targetLight = uint(random_float(seed) * sampleableLightCount);
-    uint lightIndex = 0;
-    uint nonDomeCount = 0;
-    for (uint i = 0; i < ptConstants.lightCount; i++) {
-        if (lightBuffer[i].type != uint(LightType::Dome)) {
-            if (nonDomeCount == targetLight) {
-                lightIndex = i;
-                break;
-            }
-            nonDomeCount++;
-        }
-    }
-
-    LightData light = lightBuffer[lightIndex];
-    float lightPdf =
-        1.0 / float(sampleableLightCount);  // PDF for light selection
-    float3 lightDir;
-    float lightDistance;
-    float areaPdf = 1.0;
-
-    // Sample the selected light based on its type
-    if (light.type == uint(LightType::Point)) {
-        lightDir = light.posW - hitPos;
-        lightDistance = length(lightDir);
-        lightDir /= lightDistance;
-
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        if (NdotL > 0.0) {
-            RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.0001;
-            shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
-            shadowRay.TMax = lightDistance - 0.0001;
-
-            ShadowPayload shadowPayload;
-            shadowPayload.isVisible = true;
-            shadowPayload.rayTMax = lightDistance - 0.0001;
-            shadowPayload.recursionDepth = 0;
-            shadowPayload.seed = seed;
-            TraceRay(
-                SceneBVH,
-                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
-                0xFF,
-                1,
-                0,
-                1,
-                shadowRay,
-                shadowPayload);
-            seed = shadowPayload.seed;
-            if (shadowPayload.isVisible) {
-                float attenuation = 1.0 / (lightDistance * lightDistance);
-                sample.direction = lightDir;
-                sample.intensity = light.intensity * attenuation;
-                sample.pdf = lightPdf;
-                sample.valid = true;
-            }
-        }
-    }
-    else if (light.type == uint(LightType::Sphere)) {
-        // Sphere light - sample a random point on the sphere
-        // For now, treat as point light at center
-        // TODO: Proper sphere light sampling
-        lightDir = light.posW - hitPos;
-        lightDistance = length(lightDir);
-        lightDir /= lightDistance;
-
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        if (NdotL > 0.0) {
-            RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.0001;
-            shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
-            shadowRay.TMax = lightDistance - 0.0001;
-
-            ShadowPayload shadowPayload;
-            shadowPayload.isVisible = true;
-            shadowPayload.rayTMax = lightDistance - 0.0001;
-            shadowPayload.recursionDepth = 0;
-            shadowPayload.seed = seed;
-
-            TraceRay(
-                SceneBVH,
-                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
-                0xFF,
-                1,
-                0,
-                1,
-                shadowRay,
-                shadowPayload);
-
-            seed = shadowPayload.seed;
-
-            if (shadowPayload.isVisible) {
-                float attenuation = 1.0 / (lightDistance * lightDistance);
-                sample.direction = lightDir;
-                sample.intensity = light.intensity * attenuation;
-                sample.pdf = lightPdf;
-                sample.valid = true;
-            }
-        }
-    }
-    else if (light.type == uint(LightType::Distant)) {
-        lightDir = -light.dirW;
-        lightDistance = 1e5;
-
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        if (NdotL > 0.0) {
-            RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.0001;
-            shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
-            shadowRay.TMax = lightDistance;
-
-            ShadowPayload shadowPayload;
-            shadowPayload.isVisible = true;
-            shadowPayload.rayTMax = lightDistance;
-            shadowPayload.recursionDepth = 0;
-            shadowPayload.seed = seed;
-            TraceRay(
-                SceneBVH,
-                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
-                0xFF,
-                1,
-                0,
-                1,
-                shadowRay,
-                shadowPayload);
-            seed = shadowPayload.seed;
-
-            if (shadowPayload.isVisible) {
-                sample.direction = lightDir;
-                sample.intensity = light.intensity;
-                sample.pdf = lightPdf;
-                sample.valid = true;
-            }
-        }
-    }
-    else if (light.type == uint(LightType::Rect)) {
-        float u = random_float(seed);
-        float v = random_float(seed);
-
-        float3 localPoint = float3((u - 0.5), (v - 0.5), 0.0);
-        float3 lightSamplePos = light.posW + localPoint.x * light.tangent +
-                                localPoint.y * light.bitangent;
-
-        lightDir = lightSamplePos - hitPos;
-        lightDistance = length(lightDir);
-        lightDir /= lightDistance;
-
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        float LdotN = max(0.0, dot(-lightDir, light.dirW));
-
-        if (LdotN > 0.0) {
-            RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.0001;
-            shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
-            shadowRay.TMax = lightDistance - 0.0001;
-
-            ShadowPayload shadowPayload;
-            shadowPayload.isVisible = true;
-            shadowPayload.rayTMax = lightDistance - 0.0001;
-            shadowPayload.recursionDepth = 0;
-            shadowPayload.seed = seed;
-            TraceRay(
-                SceneBVH,
-                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
-                0xFF,
-                1,
-                0,
-                1,
-                shadowRay,
-                shadowPayload);
-            seed = shadowPayload.seed;
-
-            if (shadowPayload.isVisible) {
-                float geometricTerm =
-                    (NdotL * LdotN) / (lightDistance * lightDistance);
-                areaPdf = 1.0 / light.surfaceArea;
-                sample.direction = lightDir;
-                sample.intensity = light.intensity * geometricTerm;
-                sample.pdf = lightPdf * areaPdf;
-                sample.valid = true;
-            }
-        }
-    }
-    else if (light.type == uint(LightType::Disc)) {
-        float r = sqrt(random_float(seed));
-        float theta = 2.0 * 3.14159265359 * random_float(seed);
-
-        float2 localPoint = float2(r * cos(theta), r * sin(theta));
-        float3 lightSamplePos = light.posW + localPoint.x * light.tangent +
-                                localPoint.y * light.bitangent;
-
-        lightDir = lightSamplePos - hitPos;
-        lightDistance = length(lightDir);
-        lightDir /= lightDistance;
-
-        float NdotL = max(0.0, dot(hitNormal, lightDir));
-        float LdotN = max(0.0, dot(-lightDir, light.dirW));
-
-        if (NdotL > 0.0 && LdotN > 0.0) {
-            RayDesc shadowRay;
-            shadowRay.Origin = hitPos + hitNormal * 0.0001;
-            shadowRay.Direction = lightDir;
-            shadowRay.TMin = 0.0;
-            shadowRay.TMax = max(0.0, lightDistance - 0.0001);
-
-            ShadowPayload shadowPayload;
-            shadowPayload.isVisible = true;
-            shadowPayload.rayTMax = max(0.0, lightDistance - 0.0001);
-            shadowPayload.recursionDepth = 0;
-            shadowPayload.seed = seed;
-            TraceRay(
-                SceneBVH,
-                RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES,
-                0xFF,
-                1,
-                0,
-                1,
-                shadowRay,
-                shadowPayload);
-
-            seed = shadowPayload.seed;
-
-            if (shadowPayload.isVisible) {
-                float geometricTerm =
-                    (NdotL * LdotN) / (lightDistance * lightDistance);
-                areaPdf = 1.0 / light.surfaceArea;
-                sample.direction = lightDir;
-                sample.intensity = light.intensity * geometricTerm;
-                sample.pdf = lightPdf * areaPdf;
-                sample.valid = true;
-            }
-        }
-    }
-
-    return sample;
 }
 
 [shader("closesthit")]
@@ -488,29 +229,20 @@ void ClosestHit(
         payload.throughput = div(payload.throughput, rrProbability);
     }
 
-    payload.hitPosition = vertex.posW;
-    payload.depth++;
+    // For transmission, offset against the normal; for reflection, offset
+    // with the normal
+    float3 offset_normal =
+        isTransmission ? -vertex.faceNormalW : vertex.faceNormalW;
+
+    // Additional offset along ray direction to avoid grazing angle issues
+    float3 ray_offset = offset_normal * 1e-3f;
+
+    payload.hitPosition = vertex.posW + ray_offset;
+    payload.nextRayDir = ray_dir;
     payload.seed = evalData.seed;
-
-    // Trace next ray (light comes from environment/miss shader)
-    if (!payload.terminated) {
-        RayDesc nextRay;
-
-        // For transmission, offset against the normal; for reflection, offset
-        // with the normal
-        float3 offset_normal =
-            isTransmission ? -vertex.faceNormalW : vertex.faceNormalW;
-
-        // Additional offset along ray direction to avoid grazing angle issues
-        float3 ray_offset = offset_normal * 1e-3f;
-
-        nextRay.Origin = vertex.posW + ray_offset;
-        nextRay.Direction = ray_dir;
-        nextRay.TMin = 0.0;
-        nextRay.TMax = 10000.0;
-
-        TraceRay(SceneBVH, RAY_FLAG_NONE, 0xFF, 0, 0, 0, nextRay, payload);
-    }
+    
+    // Don't trace recursively - let the loop handle it
+    payload.terminated = false;
 }
 [shader("miss")]
 void Miss(inout RayPayload payload)
@@ -600,8 +332,8 @@ void Miss(inout RayPayload payload)
         envColor = Spectrum(skyColor * 0.0);  // Fallback disabled by default
     }
 
-    // Add contribution to path
-    payload.color = add(payload.color, mul(payload.throughput, envColor));
+    // Return environment color contribution
+    payload.color = mul(payload.throughput, envColor);
 
     // Debug: Check for invalid values
     if (any(isnan(payload.color.toFloat3()))) {
@@ -609,9 +341,9 @@ void Miss(inout RayPayload payload)
         payload.terminated = true;
     }
 
-    if (any(isnan(payload.color.toFloat3()))) {
+    if (any(isinf(payload.color.toFloat3()))) {
         payload.color =
-            Spectrum(float3(0, 1, 1));  // Magenta for debugging NaN/Inf
+            Spectrum(float3(0, 1, 1));  // Magenta for debugging Inf
         payload.terminated = true;
     }
 
