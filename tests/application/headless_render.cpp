@@ -340,6 +340,9 @@ int main(int argc, char* argv[])
     // 或者设置错误模式，避免 Windows 弹窗
     _set_error_mode(_OUT_TO_STDERR);
 
+    // 解除 C++ 流与 C 流的同步以加速输出
+    std::ios_base::sync_with_stdio(false);
+
     // Parse command line using cmdparser
     cmdline::parser parser;
     parser.add<std::string>("usd", 'u', "USD file to render", true);
@@ -451,8 +454,8 @@ int main(int argc, char* argv[])
 
         // Render the scene with multiple samples
         UsdPrim root = stage->get_usd_stage()->GetPseudoRoot();
-        std::cout << "Starting render with " << spp << " samples..."
-                  << std::endl;
+        printf("Starting render with %d samples...\n", spp);
+        fflush(stdout);
 
         // Start timing (will be set after first sample)
         auto render_start = std::chrono::high_resolution_clock::now();
@@ -476,8 +479,9 @@ int main(int argc, char* argv[])
             // Skip first sample for timing (shader compilation, etc.)
             if (sample == 0) {
                 render_start = std::chrono::high_resolution_clock::now();
-                std::cout << "Sample 1/" << spp << " completed in "
-                          << (sample_duration / 1000.0) << "s (warmup)" << std::endl;
+                printf("Sample 1/%d completed in %.2fs (warmup)\n", 
+                       spp, sample_duration / 1000.0);
+                fflush(stdout);
                 continue;
             }
 
@@ -493,38 +497,38 @@ int main(int argc, char* argv[])
             // Create progress bar
             const int bar_width = 40;
             int filled = (bar_width * (sample + 1)) / spp;
-            std::string bar(bar_width, ' ');
+            char bar[bar_width + 1];
+            memset(bar, ' ', bar_width);
             for (int i = 0; i < filled; ++i) {
                 bar[i] = '=';
             }
             if (filled < bar_width) {
                 bar[filled] = '>';
             }
+            bar[bar_width] = '\0';
 
             // Format ETA
             int eta_minutes = (int)(eta_seconds / 60);
             int eta_secs = (int)(eta_seconds) % 60;
             
-            // Print progress bar with ETA
-            std::cout << "\r[" << bar << "] " << progress_percent << "% "
-                      << "(" << (sample + 1) << "/" << spp << ") "
-                      << "Sample: " << (sample_duration / 1000.0) << "s "
-                      << "Avg: " << (avg_time_per_sample / 1000.0) << "s ";
+            // Print progress bar with ETA using printf
+            printf("\r[%s] %d%% (%d/%d) Sample: %.4fs Avg: %.4fs ", 
+                   bar, progress_percent, sample + 1, spp,
+                   sample_duration / 1000.0, avg_time_per_sample / 1000.0);
             
             if (remaining_samples > 0) {
-                std::cout << "ETA: ";
                 if (eta_minutes > 0) {
-                    std::cout << eta_minutes << "m " << eta_secs << "s";
+                    printf("ETA: %dm %ds", eta_minutes, eta_secs);
                 } else {
-                    std::cout << eta_secs << "s";
+                    printf("ETA: %ds", eta_secs);
                 }
             } else {
-                std::cout << "Complete!";
+                printf("Complete!");
             }
             
-            std::cout << std::flush;
+            fflush(stdout);
         }
-        std::cout << std::endl;
+        printf("\n");
 
         auto render_end = std::chrono::high_resolution_clock::now();
         auto total_duration =
@@ -532,13 +536,14 @@ int main(int argc, char* argv[])
                 render_end - render_start)
                 .count();
 
-        std::cout << "Render complete. Total time: "
-                  << (total_duration / 1000.0) << "s (excluding warmup)";
+        printf("Render complete. Total time: %.2fs (excluding warmup)", 
+               total_duration / 1000.0);
         if (timed_samples > 0) {
-            std::cout << ", Avg per sample: " << (total_sample_time / (double)timed_samples / 1000.0)
-                      << "s";
+            printf(", Avg per sample: %.2fs", 
+                   total_sample_time / (double)timed_samples / 1000.0);
         }
-        std::cout << std::endl;
+        printf("\n");
+        fflush(stdout);
 
         // Read back texture data
         std::vector<uint8_t> texture_data;
@@ -556,7 +561,8 @@ int main(int argc, char* argv[])
 
         // Save the image
         auto save_start = std::chrono::high_resolution_clock::now();
-        std::cout << "Saving image to: " << output_image << std::endl;
+        printf("Saving image to: %s\n", output_image.c_str());
+        fflush(stdout);
 
         if (!SaveImageToFile(output_image, width, height, texture_data)) {
             throw std::runtime_error("Failed to save image to " + output_image);
@@ -568,9 +574,9 @@ int main(int argc, char* argv[])
                 save_end - save_start)
                 .count();
 
-        std::cout << "Image saved in " << (save_duration / 1000.0) << "s"
-                  << std::endl;
-        std::cout << "Headless render completed successfully!" << std::endl;
+        printf("Image saved in %.2fs\n", save_duration / 1000.0);
+        printf("Headless render completed successfully!\n");
+        fflush(stdout);
 
         // Cleanup
         renderer.reset();

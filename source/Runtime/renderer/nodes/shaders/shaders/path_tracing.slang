@@ -353,7 +353,7 @@ void ClosestHit(
     in BuiltInTriangleIntersectionAttributes attribs)
 {
     // Check if maximum depth is reached
-    if (payload.depth >= 12) {
+    if (payload.depth >= 16) {
         payload.throughput = Spectrum(float3(1, 0, 0));
         payload.color = Spectrum(0.0);
         payload.terminated = true;
@@ -400,7 +400,8 @@ void ClosestHit(
     var material_header = materialHeaderBuffer[material_id];
 
     // Sample a light source for direct lighting
-    LightSample lightSample = sampleLights(vertex.posW, vertex.faceNormalW, seed);
+    LightSample lightSample =
+        sampleLights(vertex.posW, vertex.faceNormalW, seed);
 
     // Step 1: Call material data fetch callable to populate parameters
     FetchCallableData fetchData;
@@ -472,8 +473,6 @@ void ClosestHit(
 
     float3 ray_dir = evalData.sampledDir;
     bool isTransmission = dot(ray_dir, vertex.faceNormalW) < 0.0;
-
-
 
     payload.throughput = mul(payload.throughput, div(evalData.throughput, pdf));
     // Russian Roulette path termination after depth 5
@@ -628,8 +627,8 @@ void ShadowHit(
     // payload.isVisible = false;
     // return;
     // Limit recursion depth to prevent infinite loops
-    const uint MAX_SHADOW_RECURSION = 8;
-    if (payload.recursionDepth >= MAX_SHADOW_RECURSION) {
+    const uint MAX_SHADOW_OPACITY = 2;
+    if (payload.recursionDepth >= MAX_SHADOW_OPACITY) {
         payload.isVisible = false;
         return;
     }

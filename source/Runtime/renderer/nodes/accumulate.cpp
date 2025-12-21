@@ -1,7 +1,7 @@
 
+#include "GPUContext/compute_context.hpp"
 #include "nodes/core/def/node_def.hpp"
 #include "render_node_base.h"
-#include "GPUContext/compute_context.hpp"
 
 NODE_DEF_OPEN_SCOPE
 struct AccumulateStorage {
@@ -17,14 +17,19 @@ struct AccumulateStorage {
     ProgramHandle cached_program;
     std::unique_ptr<ProgramVars> cached_program_vars;
     std::unique_ptr<ComputeContext> cached_compute_context;
+    nvrhi::BufferHandle cached_spp_cb;
 
     ResourceAllocator* rc = nullptr;
 
     ~AccumulateStorage()
     {
-        if (cached_program && rc) {
+        if (rc && cached_program) {
             rc->destroy(cached_program);
             cached_program = nullptr;
+        }
+        if (rc && cached_spp_cb) {
+            rc->destroy(cached_spp_cb);
+            cached_spp_cb = nullptr;
         }
     }
 };
@@ -47,7 +52,8 @@ NODE_EXECUTION_FUNCTION(accumulate)
     if (!storage.cached_program) {
         ProgramDesc cs_program_desc;
         cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
-        cs_program_desc.set_path("shaders/accumulate.slang").set_entry_name("main");
+        cs_program_desc.set_path("shaders/accumulate.slang")
+            .set_entry_name("main");
         storage.cached_program = resource_allocator.create(cs_program_desc);
         CHECK_PROGRAM_ERROR(storage.cached_program);
     }
@@ -95,7 +101,8 @@ NODE_EXECUTION_FUNCTION(accumulate)
     bool any_change = view_changed || size_changed;
 
     // Rebuild cached resources only when necessary
-    if (any_change || !storage.cached_program_vars || !storage.cached_compute_context) {
+    if (any_change || !storage.cached_program_vars ||
+        !storage.cached_compute_context) {
         storage.cached_program_vars = std::make_unique<ProgramVars>(
             resource_allocator, storage.cached_program);
 
@@ -103,9 +110,10 @@ NODE_EXECUTION_FUNCTION(accumulate)
         program_vars["Texture"] = texture;
         program_vars["Accumulated"] = storage.accumulated;
 
-        auto spp_cb = create_constant_buffer(params, storage.current_spp);
-        MARK_DESTROY_NVRHI_RESOURCE(spp_cb);
-        program_vars["CurrentSPP"] = spp_cb;
+        // Create and cache the spp constant buffer
+        storage.cached_spp_cb =
+            create_constant_buffer(params, storage.current_spp);
+        program_vars["CurrentSPP"] = storage.cached_spp_cb;
 
         auto size_cb = create_constant_buffer(params, image_size);
         MARK_DESTROY_NVRHI_RESOURCE(size_cb);
@@ -113,13 +121,15 @@ NODE_EXECUTION_FUNCTION(accumulate)
 
         program_vars.finish_setting_vars();
 
-        storage.cached_compute_context = std::make_unique<ComputeContext>(
-            resource_allocator, program_vars);
+        storage.cached_compute_context =
+            std::make_unique<ComputeContext>(resource_allocator, program_vars);
         storage.cached_compute_context->finish_setting_pso();
     }
 
     // Execute compute shader using cached context
     storage.cached_compute_context->begin();
+    storage.cached_compute_context->write_buffer(
+        storage.cached_spp_cb, &storage.current_spp, sizeof(int));
     storage.cached_compute_context->dispatch(
         {}, *storage.cached_program_vars, image_size[0], 32, image_size[1], 32);
     storage.cached_compute_context->finish();

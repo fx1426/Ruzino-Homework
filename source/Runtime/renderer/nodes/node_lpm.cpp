@@ -71,10 +71,48 @@ static void LpmSetupOut(uint32_t i, uint32_t* v)
 
 NODE_DEF_OPEN_SCOPE
 
-struct Storage {
-    constexpr static bool has_storage = true;
+struct LPMStorage {
+    constexpr static bool has_storage = false;
 
-    bool isInitialized = false;
+    GfVec2i image_size = GfVec2i(-1, -1);
+
+    // Cached resources
+    ProgramHandle cached_program;
+    std::unique_ptr<ProgramVars> cached_program_vars;
+    std::unique_ptr<ComputeContext> cached_compute_context;
+    nvrhi::SamplerHandle cached_sampler;
+
+    // Cached parameters to detect changes
+    float cached_shoulder = -1.0f;
+    float cached_softGap = -1.0f;
+    float cached_hdrMax = -1.0f;
+    float cached_lpmExposure = -1.0f;
+    float cached_contrast = -1.0f;
+    float cached_shoulderContrast = -1.0f;
+    GfVec3f cached_saturation = GfVec3f(-1, -1, -1);
+    GfVec3f cached_crosstalk = GfVec3f(-1, -1, -1);
+    int cached_colorSpace = -1;
+    int cached_displayMode = -1;
+    float cached_displayMinLuminance = -1.0f;
+    float cached_displayMaxLuminance = -1.0f;
+    GfVec2f cached_displayRedPrimary = GfVec2f(-1, -1);
+    GfVec2f cached_displayGreenPrimary = GfVec2f(-1, -1);
+    GfVec2f cached_displayBluePrimary = GfVec2f(-1, -1);
+    GfVec2f cached_displayWhitePoint = GfVec2f(-1, -1);
+
+    ResourceAllocator* rc = nullptr;
+
+    ~LPMStorage()
+    {
+        if (rc && cached_program) {
+            rc->destroy(cached_program);
+            cached_program = nullptr;
+        }
+        if (rc && cached_sampler) {
+            rc->destroy(cached_sampler);
+            cached_sampler = nullptr;
+        }
+    }
 };
 
 NODE_DECLARATION_FUNCTION(lpm)
@@ -132,51 +170,24 @@ NODE_DECLARATION_FUNCTION(lpm)
 
     b.add_output<nvrhi::TextureHandle>("Output Color");
 }
-NODE_EXECUTION_FUNCTION(lpm)
+LpmConstants fill_lpm_constants(
+    float shoulder,
+    float softGap,
+    float hdrMax,
+    float lpmExposure,
+    float contrast,
+    float shoulderContrast,
+    GfVec3f saturation,
+    GfVec3f crosstalk,
+    int colorSpace,
+    int displayMode,
+    float displayMinLuminance,
+    float displayMaxLuminance,
+    GfVec2f displayRedPrimary,
+    GfVec2f displayGreenPrimary,
+    GfVec2f displayBluePrimary,
+    GfVec2f displayWhitePoint)
 {
-    ProgramDesc cs_program_desc;
-    cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
-    cs_program_desc.set_path("../lpm/ffx_lpm_filter_pass.slang")
-        .set_entry_name("main");
-    std::vector<ShaderMacro> macros;
-    // -DFFX_GPU=1 -DFFX_HLSL=1 -DFFX_HLSL_SM=65
-    macros.push_back({ "FFX_HALF", "0" });
-    macros.push_back({ "FFX_GPU", "1" });       // Enable GPU mode
-    macros.push_back({ "FFX_HLSL", "1" });      // Enable HLSL mode
-    macros.push_back({ "FFX_HLSL_SM", "65" });  // Set shader model to 6.5
-
-    cs_program_desc.define(macros);
-    ProgramHandle cs_program = resource_allocator.create(cs_program_desc);
-    MARK_DESTROY_NVRHI_RESOURCE(cs_program);
-    CHECK_PROGRAM_ERROR(cs_program);
-
-    auto inputColor = params.get_input<nvrhi::TextureHandle>("Input Color");
-    auto shoulder = params.get_input<float>("Shoulder");
-    auto softGap = params.get_input<float>("Soft Gap");
-    auto hdrMax = params.get_input<float>("HDR Max");
-    auto lpmExposure = params.get_input<float>("LPM Exposure");
-    auto contrast = params.get_input<float>("Contrast");
-    auto shoulderContrast = params.get_input<float>("Shoulder Contrast");
-    auto saturation = params.get_input<GfVec3f>("Saturation");
-    auto crosstalk = params.get_input<GfVec3f>("Crosstalk");
-    auto colorSpace = params.get_input<int>("Color Space");
-    auto displayMode = params.get_input<int>("Display Mode");
-    auto displayMinLuminance = params.get_input<float>("Display Min Luminance");
-    auto displayMaxLuminance = params.get_input<float>("Display Max Luminance");
-    auto displayRedPrimary = params.get_input<GfVec2f>("Display Red Primary");
-    auto displayGreenPrimary =
-        params.get_input<GfVec2f>("Display Green Primary");
-    auto displayBluePrimary = params.get_input<GfVec2f>("Display Blue Primary");
-    auto displayWhitePoint = params.get_input<GfVec2f>("Display White Point");
-
-    // Create output texture with same format as input
-    auto inputDesc = inputColor->getDesc();
-    auto outputColor = resource_allocator.create(inputDesc);
-
-    ProgramVars program_vars(resource_allocator, cs_program);
-    program_vars["r_input_color"] = inputColor;
-    program_vars["rw_output_color"] = outputColor;
-
     // Create constant buffer using FFX LPM constants structure
     LpmConstants lpmConstants = {};
 
@@ -566,31 +577,160 @@ NODE_EXECUTION_FUNCTION(lpm)
     lpmConstants.clip = outClip;
     lpmConstants.scaleOnly = outScaleOnly;
     lpmConstants.pad = 0;
+    return lpmConstants;
+}
 
-    auto params_cb = create_constant_buffer(params, lpmConstants);
-    MARK_DESTROY_NVRHI_RESOURCE(params_cb);
-    program_vars["cbLPM"] = params_cb;
+NODE_EXECUTION_FUNCTION(lpm)
+{
+    auto& storage = params.get_storage<LPMStorage&>();
+    storage.rc = &resource_allocator;
+
+    auto inputColor = params.get_input<nvrhi::TextureHandle>("Input Color");
+    auto shoulder = params.get_input<float>("Shoulder");
+    auto softGap = params.get_input<float>("Soft Gap");
+    auto hdrMax = params.get_input<float>("HDR Max");
+    auto lpmExposure = params.get_input<float>("LPM Exposure");
+    auto contrast = params.get_input<float>("Contrast");
+    auto shoulderContrast = params.get_input<float>("Shoulder Contrast");
+    auto saturation = params.get_input<GfVec3f>("Saturation");
+    auto crosstalk = params.get_input<GfVec3f>("Crosstalk");
+    auto colorSpace = params.get_input<int>("Color Space");
+    auto displayMode = params.get_input<int>("Display Mode");
+    auto displayMinLuminance = params.get_input<float>("Display Min Luminance");
+    auto displayMaxLuminance = params.get_input<float>("Display Max Luminance");
+    auto displayRedPrimary = params.get_input<GfVec2f>("Display Red Primary");
+    auto displayGreenPrimary =
+        params.get_input<GfVec2f>("Display Green Primary");
+    auto displayBluePrimary = params.get_input<GfVec2f>("Display Blue Primary");
+    auto displayWhitePoint = params.get_input<GfVec2f>("Display White Point");
 
     auto image_size =
         GfVec2i(inputColor->getDesc().width, inputColor->getDesc().height);
 
-    // Create linear clamp sampler
-    nvrhi::SamplerDesc samplerDesc;
-    samplerDesc.addressU = nvrhi::SamplerAddressMode::Clamp;
-    samplerDesc.addressV = nvrhi::SamplerAddressMode::Clamp;
-    samplerDesc.addressW = nvrhi::SamplerAddressMode::Clamp;
-    auto linearClampSampler = resource_allocator.create(samplerDesc);
-    MARK_DESTROY_NVRHI_RESOURCE(linearClampSampler);
-    program_vars["s_LinearClamp"] = linearClampSampler;
+    // Check for size changes
+    bool size_changed = (storage.image_size != image_size);
+    if (size_changed) {
+        storage.image_size = image_size;
+    }
 
-    program_vars.finish_setting_vars();
+    // Check for parameter changes
+    bool params_changed =
+        storage.cached_shoulder != shoulder ||
+        storage.cached_softGap != softGap || storage.cached_hdrMax != hdrMax ||
+        storage.cached_lpmExposure != lpmExposure ||
+        storage.cached_contrast != contrast ||
+        storage.cached_shoulderContrast != shoulderContrast ||
+        storage.cached_saturation != saturation ||
+        storage.cached_crosstalk != crosstalk ||
+        storage.cached_colorSpace != colorSpace ||
+        storage.cached_displayMode != displayMode ||
+        storage.cached_displayMinLuminance != displayMinLuminance ||
+        storage.cached_displayMaxLuminance != displayMaxLuminance ||
+        storage.cached_displayRedPrimary != displayRedPrimary ||
+        storage.cached_displayGreenPrimary != displayGreenPrimary ||
+        storage.cached_displayBluePrimary != displayBluePrimary ||
+        storage.cached_displayWhitePoint != displayWhitePoint;
 
-    ComputeContext context(resource_allocator, program_vars);
-    context.finish_setting_pso();
+    // Create program if not cached
+    if (!storage.cached_program) {
+        ProgramDesc cs_program_desc;
+        cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
+        cs_program_desc.set_path("../lpm/ffx_lpm_filter_pass.slang")
+            .set_entry_name("main");
 
-    context.begin();
-    context.dispatch({}, program_vars, image_size[0], 16, image_size[1], 16);
-    context.finish();
+        std::vector<ShaderMacro> macros;
+        macros.push_back({ "FFX_HALF", "0" });
+        macros.push_back({ "FFX_GPU", "1" });
+        macros.push_back({ "FFX_HLSL", "1" });
+        macros.push_back({ "FFX_HLSL_SM", "65" });
+
+        cs_program_desc.define(macros);
+        storage.cached_program = resource_allocator.create(cs_program_desc);
+        CHECK_PROGRAM_ERROR(storage.cached_program);
+    }
+
+    // Create sampler if not cached
+    if (!storage.cached_sampler) {
+        nvrhi::SamplerDesc samplerDesc;
+        samplerDesc.addressU = nvrhi::SamplerAddressMode::Clamp;
+        samplerDesc.addressV = nvrhi::SamplerAddressMode::Clamp;
+        samplerDesc.addressW = nvrhi::SamplerAddressMode::Clamp;
+        storage.cached_sampler = resource_allocator.create(samplerDesc);
+    }
+
+    // Create output texture
+    auto inputDesc = inputColor->getDesc();
+    auto outputColor = resource_allocator.create(inputDesc);
+
+    bool any_change = size_changed || params_changed;
+
+    // Rebuild cached resources only when necessary
+    if (any_change || !storage.cached_program_vars ||
+        !storage.cached_compute_context) {
+        // Update cached parameters
+        storage.cached_shoulder = shoulder;
+        storage.cached_softGap = softGap;
+        storage.cached_hdrMax = hdrMax;
+        storage.cached_lpmExposure = lpmExposure;
+        storage.cached_contrast = contrast;
+        storage.cached_shoulderContrast = shoulderContrast;
+        storage.cached_saturation = saturation;
+        storage.cached_crosstalk = crosstalk;
+        storage.cached_colorSpace = colorSpace;
+        storage.cached_displayMode = displayMode;
+        storage.cached_displayMinLuminance = displayMinLuminance;
+        storage.cached_displayMaxLuminance = displayMaxLuminance;
+        storage.cached_displayRedPrimary = displayRedPrimary;
+        storage.cached_displayGreenPrimary = displayGreenPrimary;
+        storage.cached_displayBluePrimary = displayBluePrimary;
+        storage.cached_displayWhitePoint = displayWhitePoint;
+
+        // Calculate LPM constants
+        LpmConstants lpmConstants = fill_lpm_constants(
+            shoulder,
+            softGap,
+            hdrMax,
+            lpmExposure,
+            contrast,
+            shoulderContrast,
+            saturation,
+            crosstalk,
+            colorSpace,
+            displayMode,
+            displayMinLuminance,
+            displayMaxLuminance,
+            displayRedPrimary,
+            displayGreenPrimary,
+            displayBluePrimary,
+            displayWhitePoint);
+
+        // Create program vars
+        storage.cached_program_vars = std::make_unique<ProgramVars>(
+            resource_allocator, storage.cached_program);
+
+        ProgramVars& program_vars = *storage.cached_program_vars;
+        program_vars["r_input_color"] = inputColor;
+        program_vars["rw_output_color"] = outputColor;
+
+        auto params_cb = create_constant_buffer(params, lpmConstants);
+        MARK_DESTROY_NVRHI_RESOURCE(params_cb);
+        program_vars["cbLPM"] = params_cb;
+
+        program_vars["s_LinearClamp"] = storage.cached_sampler;
+
+        program_vars.finish_setting_vars();
+
+        // Create compute context
+        storage.cached_compute_context =
+            std::make_unique<ComputeContext>(resource_allocator, program_vars);
+        storage.cached_compute_context->finish_setting_pso();
+    }
+
+    // Execute compute shader
+    storage.cached_compute_context->begin();
+    storage.cached_compute_context->dispatch(
+        {}, *storage.cached_program_vars, image_size[0], 16, image_size[1], 16);
+    storage.cached_compute_context->finish();
 
     params.set_output("Output Color", outputColor);
 
