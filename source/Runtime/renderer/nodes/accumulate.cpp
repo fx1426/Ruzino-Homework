@@ -4,7 +4,7 @@
 #include "GPUContext/compute_context.hpp"
 
 NODE_DEF_OPEN_SCOPE
-struct Storage {
+struct RaygenStorage {
     constexpr static bool has_storage = false;
 
     int current_spp = 0;
@@ -34,7 +34,7 @@ NODE_EXECUTION_FUNCTION(accumulate)
     auto texture = params.get_input<nvrhi::TextureHandle>("Texture");
     auto max_samples = params.get_input<int>("Max Samples");
 
-    auto& storage = params.get_storage<Storage&>();
+    auto& storage = params.get_storage<RaygenStorage&>();
     if (!storage.accumulated ||
         storage.accumulated->getDesc() != texture->getDesc()) {
         auto desc = texture->getDesc();

@@ -12,7 +12,13 @@ def copytree_common_to_binaries(folder, target="Debug", dst=None, dry_run=False)
     if dry_run:
         print(f"[DRY RUN] Would copy {folder} to {dst_path}")
     else:
-        src_path = os.path.join(os.path.dirname(__file__), "SDK", folder)
+        # For RelWithDebInfo, use Release SDK folder if the folder path contains OpenUSD/<target>
+        src_folder = folder
+        if target == "RelWithDebInfo" and "/RelWithDebInfo" in folder.replace("\\", "/"):
+            src_folder = folder.replace("RelWithDebInfo", "Release").replace("/RelWithDebInfo/", "/Release/")
+            print(f"RelWithDebInfo: Using Release SDK folder, mapping {folder} -> {src_folder}")
+        
+        src_path = os.path.join(os.path.dirname(__file__), "SDK", src_folder)
         for root, dirs, files in os.walk(src_path):
             relative_path = os.path.relpath(root, src_path)
             dst_dir = os.path.join(dst_path, relative_path)
@@ -24,7 +30,7 @@ def copytree_common_to_binaries(folder, target="Debug", dst=None, dry_run=False)
                 src_file = os.path.join(root, file)
                 dst_file = os.path.join(dst_dir, file)
                 shutil.copy2(src_file, dst_file)
-        print(f"Copied {folder} to {dst_path}")
+        print(f"Copied {src_folder} to {dst_path}")
 
 
 def copy_imgui_ini_to_binaries(targets, dry_run=False):
@@ -91,16 +97,28 @@ def copy_cuda_runtime_dlls_to_binaries(targets, dry_run=False):
         "nvrtc64_130_0.dll",
     ]
     
+    # Possible bin directories to search
+    bin_dirs = [
+        os.path.join(cuda_path, "bin"),
+        os.path.join(cuda_path, "bin", "x64"),
+    ]
+    
     # Copy each DLL to Binaries/{target}
     for target in targets:
         target_dir = os.path.join(os.getcwd(), "Binaries", target)
         
         for dll_name in cuda_dlls:
-            src_dll = os.path.join(cuda_path, "bin", dll_name)
+            # Try to find the DLL in any of the bin directories
+            src_dll = None
+            for bin_dir in bin_dirs:
+                potential_path = os.path.join(bin_dir, dll_name)
+                if os.path.exists(potential_path):
+                    src_dll = potential_path
+                    break
             
-            # Skip if DLL doesn't exist
-            if not os.path.exists(src_dll):
-                print(f"  ⚠ {dll_name} not found at {src_dll}, skipping")
+            # Skip if DLL doesn't exist in any location
+            if not src_dll:
+                print(f"  ⚠ {dll_name} not found in {cuda_path}/bin or {cuda_path}/bin/x64, skipping")
                 continue
             
             dst_dll = os.path.join(target_dir, dll_name)

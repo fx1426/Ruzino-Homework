@@ -98,10 +98,12 @@ NODE_EXECUTION_FUNCTION(path_tracing)
     bool size_changed = (storage.old_size != size);
     storage.old_size = size;
 
+#ifdef _DEBUG
     if (storage.path_tracing_program &&
         storage.path_tracing_program->get_desc().check_shader_updated()) {
         mat_dirty = true;
     }
+#endif
 
     if (geom_dirty || mat_dirty || light_dirty || size_changed)
         spdlog::info(
