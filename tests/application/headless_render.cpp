@@ -404,6 +404,10 @@ int main(int argc, char* argv[])
     spdlog::info("SPP: {}", spp);
 
     try {
+        // Initialize RHI first (headless mode, with DX12 backend)
+        // This must happen before any USD rendering operations
+        RHI::init(false, true);  // with_window=false (headless), use_dx12=true
+        
         // Initialize OpenGL context
         CreateGLContext();
         GarchGLApiLoad();
@@ -612,6 +616,9 @@ int main(int argc, char* argv[])
 #ifdef GPU_GEOM_ALGORITHM
         deinit_gpu_geometry_algorithms();
 #endif
+        // Shutdown RHI at the end
+        RHI::shutdown();
+        
         return 0;
     }
     catch (const std::exception& e) {
