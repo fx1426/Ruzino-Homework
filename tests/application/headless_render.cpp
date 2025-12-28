@@ -617,7 +617,7 @@ int main(int argc, char* argv[])
         deinit_gpu_geometry_algorithms();
 #endif
         // Shutdown RHI at the end
-
+        printf("Successfully finished all operations.\n");
         return 0;
     }
     catch (const std::exception& e) {
