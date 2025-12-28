@@ -52,12 +52,33 @@ ProgramVarsProxy ProgramVarsProxy::operator[](int index)
 
 ProgramVarsProxy& ProgramVarsProxy::operator=(nvrhi::IResource* resource)
 {
+    // Get the binding location for this proxy
+    std::tuple<unsigned, unsigned> location;
     if (binding_id_.is_valid()) {
+        location =
+            parent_->get_binding_location_fast(binding_id_, array_index_);
         parent_->get_resource_direct(binding_id_, array_index_) = resource;
     }
     else {
+        location = parent_->get_binding_location(path_, array_index_);
         parent_->get_resource_direct(path_, array_index_) = resource;
     }
+
+    auto [binding_space_id, binding_set_location] = location;
+    if (binding_space_id != static_cast<unsigned>(-1)) {
+        // When assigning a resource directly (not via BindingSetItem),
+        // automatically set range/subresources to defaults
+        auto& binding_item =
+            parent_->binding_spaces[binding_space_id][binding_set_location];
+
+        if (dynamic_cast<nvrhi::IBuffer*>(resource)) {
+            binding_item.range = nvrhi::EntireBuffer;
+        }
+        else if (dynamic_cast<nvrhi::ITexture*>(resource)) {
+            binding_item.subresources = nvrhi::AllSubresources;
+        }
+    }
+
     return *this;
 }
 
@@ -66,21 +87,46 @@ ProgramVarsProxy& ProgramVarsProxy::operator=(const nvrhi::BindingSetItem& item)
     // Get the binding location for this proxy
     std::tuple<unsigned, unsigned> location;
     if (binding_id_.is_valid()) {
-        location = parent_->get_binding_location_fast(binding_id_, array_index_);
+        location =
+            parent_->get_binding_location_fast(binding_id_, array_index_);
     }
     else {
         location = parent_->get_binding_location(path_, array_index_);
     }
-    
+
     auto [binding_space_id, binding_set_location] = location;
     if (binding_space_id == static_cast<unsigned>(-1)) {
         return *this;  // Invalid binding
     }
-    
-    // Directly assign the entire BindingSetItem
-    // This allows setting all properties: resource, subresources, range, format, etc.
-    parent_->binding_spaces[binding_space_id][binding_set_location] = item;
-    
+
+    // Selectively copy fields from the input item
+    // DO NOT overwrite slot, type, and arrayElement which were set from
+    // reflection
+    auto& target =
+        parent_->binding_spaces[binding_space_id][binding_set_location];
+    target.resourceHandle = item.resourceHandle;
+    target.format = item.format;
+    target.dimension = item.dimension;
+
+    // Copy union field based on resource type
+    // subresources and range are in the same union, so only copy the relevant
+    // one
+    if (item.type == nvrhi::ResourceType::Texture_SRV ||
+        item.type == nvrhi::ResourceType::Texture_UAV) {
+        target.subresources = item.subresources;
+    }
+    else if (
+        item.type == nvrhi::ResourceType::TypedBuffer_SRV ||
+        item.type == nvrhi::ResourceType::TypedBuffer_UAV ||
+        item.type == nvrhi::ResourceType::StructuredBuffer_SRV ||
+        item.type == nvrhi::ResourceType::StructuredBuffer_UAV ||
+        item.type == nvrhi::ResourceType::RawBuffer_SRV ||
+        item.type == nvrhi::ResourceType::RawBuffer_UAV ||
+        item.type == nvrhi::ResourceType::ConstantBuffer) {
+        target.range = item.range;
+    }
+    // Preserve: slot, type, arrayElement (set by get_binding_location)
+
     return *this;
 }
 
@@ -129,7 +175,7 @@ void ProgramVars::finish_setting_vars()
             if (nvapi_ext_buffer_) {
                 resource_allocator_.destroy(nvapi_ext_buffer_);
             }
-            
+
             // Create minimal UAV buffer for NVAPI SER
             nvrhi::BufferDesc nvapi_desc;
             nvapi_desc.byteSize = sizeof(int);  // Minimal placeholder
@@ -139,14 +185,15 @@ void ProgramVars::finish_setting_vars()
             nvapi_desc.keepInitialState = true;
             nvapi_desc.debugName = "g_NvidiaExt_auto";
             nvapi_desc.format = nvrhi::Format::R32_SINT;
-            nvapi_desc.structStride =  sizeof(int);
+            nvapi_desc.structStride = sizeof(int);
             nvapi_ext_buffer_ = resource_allocator_.create(nvapi_desc);
-            
-            // Automatically bind it
-            get_resource_direct("g_NvidiaExt") = nvapi_ext_buffer_;
+
+            // Automatically bind it using operator[] to trigger proper
+            // initialization
+            (*this)["g_NvidiaExt"] = nvapi_ext_buffer_;
         }
     }
-    
+
     for (int i = 0; i < binding_sets_solid.size(); ++i) {
         resource_allocator_.destroy(binding_sets_solid[i]);
     }
@@ -158,16 +205,6 @@ void ProgramVars::finish_setting_vars()
             BindingSetDesc desc{};
             desc.bindings = binding_spaces[i];
 
-            for (int j = 0; j < desc.bindings.size(); ++j) {
-                if (dynamic_cast<nvrhi::IBuffer*>(
-                        desc.bindings[j].resourceHandle)) {
-                    desc.bindings[j].range = nvrhi::EntireBuffer;
-                }
-                else if (dynamic_cast<nvrhi::ITexture*>(
-                             desc.bindings[j].resourceHandle)) {
-                    desc.bindings[j].subresources = nvrhi::AllSubresources;
-                }
-            }
             binding_sets_solid[i] =
                 resource_allocator_.create(desc, binding_layouts[i].Get());
         }
