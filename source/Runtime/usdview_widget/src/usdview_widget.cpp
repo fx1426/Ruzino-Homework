@@ -231,7 +231,7 @@ void UsdviewEngine::OnFrame(float delta_time)
     else {
         _renderParams.frame = std::min(
             UsdTimeCode(stage_->get_current_time()),
-            UsdTimeCode(timecode - 1.0f / 30.f));
+            UsdTimeCode(timecode - 1.0f / 60.f));
     }
     _renderParams.drawMode = UsdImagingGLDrawMode::DRAW_WIREFRAME_ON_SURFACE;
     _renderParams.colorCorrectionMode = pxr::HdxColorCorrectionTokens->disabled;
@@ -378,7 +378,7 @@ void UsdviewEngine::time_controller()
         playing = !playing;
     }
     if (playing) {
-        timecode += 1.0f / 30.f;
+        timecode += 1.0f / 60.f;
 
         if (timecode > time_code_max) {
             timecode = 0;
