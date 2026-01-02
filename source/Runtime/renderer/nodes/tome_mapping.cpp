@@ -46,6 +46,7 @@ NODE_EXECUTION_FUNCTION(tone_mapping)
     context.finish();
 
     params.set_output("ToneMapped", mapped);
+    return true;
 }
 
 NODE_DECLARATION_UI(tone_mapping);

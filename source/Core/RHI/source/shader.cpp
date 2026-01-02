@@ -498,7 +498,7 @@ ShaderReflectionInfo ShaderFactory::shader_reflect(
         }
 
         // Store the binding location with the base name
-        binding_locations[name] = std::make_tuple(space, indices[space]++);
+        binding_locations[name] = std::make_tuple(static_cast<unsigned int>(space), indices[space]++);
         layout_vector[space].addItem(item);
 
         layout_vector[space].visibility = shader_type;
@@ -1061,8 +1061,8 @@ ProgramHandle ShaderFactory::createProgram(const ProgramDesc& desc) const
 
         // Add to binding locations map
         ret->reflection_info.binding_locations["g_NvidiaExt"] = std::make_tuple(
-            space,
-            ret->reflection_info.binding_spaces[space].bindings.size() - 1);
+            static_cast<unsigned int>(space),
+            static_cast<unsigned int>(ret->reflection_info.binding_spaces[space].bindings.size() - 1));
     }
 
     // Save to cache if compilation was successful

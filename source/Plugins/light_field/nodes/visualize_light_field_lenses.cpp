@@ -3,7 +3,7 @@
 
 #include "GCore/Components/MeshComponent.h"
 #include "light_field/light_field.h"
-#include "nodes/core/def/node_def.hpp"'
+#include "nodes/core/def/node_def.hpp"
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(visualize_light_field_lenses)

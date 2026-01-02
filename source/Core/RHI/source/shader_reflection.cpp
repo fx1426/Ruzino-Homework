@@ -226,13 +226,13 @@ ShaderReflectionInfo ShaderReflectionInfo::operator+(
 
         if (pos == l_space.bindings.end()) {
             l_space.bindings.push_back(r_binding_item);
-            unsigned new_l_location = l_space.bindings.size() - 1;
+            unsigned new_l_location = static_cast<unsigned int>(l_space.bindings.size() - 1);
             result.binding_locations[name] =
                 std::make_tuple(l_space_id, new_l_location);
         }
         else {
             result.binding_locations[name] =
-                std::make_tuple(l_space_id, pos - l_space.bindings.begin());
+                std::make_tuple(l_space_id, static_cast<unsigned int>(pos - l_space.bindings.begin()));
         }
     }
 

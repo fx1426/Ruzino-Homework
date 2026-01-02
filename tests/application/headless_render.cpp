@@ -1,3 +1,5 @@
+#define _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
+
 #include <algorithm>
 #include <chrono>
 #include <filesystem>

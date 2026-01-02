@@ -1,3 +1,5 @@
+#define _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
+
 #include <MaterialXCore/Document.h>
 #include <MaterialXFormat/XmlIo.h>
 #include <pxr/base/tf/stringUtils.h>
