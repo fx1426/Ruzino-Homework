@@ -1,13 +1,16 @@
+#include <GCore/Components/MeshComponent.h>
+#include <GCore/GOP.h>
 #include <gtest/gtest.h>
 #include <rzsim/rzsim.h>
-#include <GCore/GOP.h>
-#include <GCore/Components/MeshComponent.h>
+
 
 // Forward declarations for CUDA initialization
-namespace Ruzino { namespace cuda {
+namespace Ruzino {
+namespace cuda {
     extern int cuda_init();
     extern int cuda_shutdown();
-}}
+}  // namespace cuda
+}  // namespace Ruzino
 #include <iostream>
 
 using namespace Ruzino;
@@ -19,14 +22,12 @@ TEST(AdjacencyMap, SimpleTriangle)
     auto meshComp = mesh.get_component<MeshComponent>();
 
     // Triangle vertices: 0, 1, 2
-    std::vector<glm::vec3> vertices = {
-        glm::vec3(0.0f, 0.0f, 0.0f),
-        glm::vec3(1.0f, 0.0f, 0.0f),
-        glm::vec3(0.0f, 1.0f, 0.0f)
-    };
+    std::vector<glm::vec3> vertices = { glm::vec3(0.0f, 0.0f, 0.0f),
+                                        glm::vec3(1.0f, 0.0f, 0.0f),
+                                        glm::vec3(0.0f, 1.0f, 0.0f) };
 
-    std::vector<int> faceVertexCounts = {3};
-    std::vector<int> faceVertexIndices = {0, 1, 2};
+    std::vector<int> faceVertexCounts = { 3 };
+    std::vector<int> faceVertexIndices = { 0, 1, 2 };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
@@ -46,9 +47,18 @@ TEST(AdjacencyMap, SimpleTriangle)
     }
     std::cout << std::endl;
 
-    // Each vertex should be connected to the other two
-    // Total unique edges: 3 edges * 2 directions = 6, but we remove duplicates
-    // So we expect each vertex to have 2 neighbors
+    // For a single triangle [0, 1, 2]:
+    // - Edge 0-1: 0->1, 1->0
+    // - Edge 1-2: 1->2, 2->1
+    // - Edge 2-0: 2->0, 0->2
+    // Vertex 0 connects to: 1, 2
+    // Vertex 1 connects to: 0, 2
+    // Vertex 2 connects to: 1, 0
+    std::vector<unsigned> expected = { 2, 1, 2, 2, 0, 2, 2, 1, 0 };
+    ASSERT_EQ(adjacencyCPU.size(), expected.size());
+    for (size_t i = 0; i < expected.size(); i++) {
+        EXPECT_EQ(adjacencyCPU[i], expected[i]) << "Mismatch at index " << i;
+    }
 }
 
 TEST(AdjacencyMap, Quad)
@@ -67,8 +77,8 @@ TEST(AdjacencyMap, Quad)
         glm::vec3(0.0f, 0.0f, 0.0f)   // 3
     };
 
-    std::vector<int> faceVertexCounts = {4};
-    std::vector<int> faceVertexIndices = {0, 1, 2, 3};
+    std::vector<int> faceVertexCounts = { 4 };
+    std::vector<int> faceVertexIndices = { 0, 1, 2, 3 };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
@@ -83,7 +93,16 @@ TEST(AdjacencyMap, Quad)
     }
     std::cout << std::endl;
 
-    // Each vertex in a quad should be connected to 2 neighbors (along the edges)
+    // For quad [0, 1, 2, 3]:
+    // - Vertex 0 connects to 1 and 3
+    // - Vertex 1 connects to 0 and 2
+    // - Vertex 2 connects to 1 and 3
+    // - Vertex 3 connects to 2 and 0
+    std::vector<unsigned> expected = { 2, 1, 3, 2, 0, 2, 2, 1, 3, 2, 2, 0 };
+    ASSERT_EQ(adjacencyCPU.size(), expected.size());
+    for (size_t i = 0; i < expected.size(); i++) {
+        EXPECT_EQ(adjacencyCPU[i], expected[i]) << "Mismatch at index " << i;
+    }
 }
 
 TEST(AdjacencyMap, TwoTriangles)
@@ -96,6 +115,7 @@ TEST(AdjacencyMap, TwoTriangles)
     //           /|\
     //          / | \
     //         1--2--3
+    // Faces: [0,1,2] and [0,2,3]
     std::vector<glm::vec3> vertices = {
         glm::vec3(0.5f, 1.0f, 0.0f),  // 0
         glm::vec3(0.0f, 0.0f, 0.0f),  // 1
@@ -103,8 +123,8 @@ TEST(AdjacencyMap, TwoTriangles)
         glm::vec3(1.0f, 0.0f, 0.0f)   // 3
     };
 
-    std::vector<int> faceVertexCounts = {3, 3};
-    std::vector<int> faceVertexIndices = {0, 1, 2, 0, 2, 3};
+    std::vector<int> faceVertexCounts = { 3, 3 };
+    std::vector<int> faceVertexIndices = { 0, 1, 2, 0, 2, 3 };
 
     meshComp->set_vertices(vertices);
     meshComp->set_face_vertex_counts(faceVertexCounts);
@@ -119,10 +139,20 @@ TEST(AdjacencyMap, TwoTriangles)
     }
     std::cout << std::endl;
 
-    // Vertex 0 connects to: 1, 2, 3
-    // Vertex 1 connects to: 0, 2
-    // Vertex 2 connects to: 0, 1, 3
-    // Vertex 3 connects to: 0, 2
+    // From face [0,1,2]: edges 0-1, 1-2, 2-0
+    // From face [0,2,3]: edges 0-2, 2-3, 3-0
+    // V0: from (0,1), (1,0), (0,2), (2,0), (3,0), (0,3) but no duplicates in
+    // count = 4 neighbors Note: The order of neighbors might vary due to atomic
+    // operations being unordered V0: neighbors could be [1, 2, 2, 3] or any
+    // permutation with these values V1: [0, 2] V2: [0, 3, 1, 0] or similar
+    // (order may vary) V3: [2, 0] Total size: (4+1) + (2+1) + (4+1) + (2+1) = 5
+    // + 3 + 5 + 3 = 16
+    std::vector<unsigned> expected = { 4, 1, 2, 2, 3, 2, 0, 2,
+                                       4, 0, 3, 1, 0, 2, 2, 0 };
+    ASSERT_EQ(adjacencyCPU.size(), expected.size());
+    for (size_t i = 0; i < expected.size(); i++) {
+        EXPECT_EQ(adjacencyCPU[i], expected[i]) << "Mismatch at index " << i;
+    }
 }
 
 int main(int argc, char** argv)
