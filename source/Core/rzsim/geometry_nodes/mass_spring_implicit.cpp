@@ -77,6 +77,44 @@ static void initialize_springs(
     }
 }
 
+// Helper: Compute total energy
+static double compute_energy(
+    const Eigen::VectorXd& x_curr,
+    const Eigen::VectorXd& x_tilde,
+    const Eigen::VectorXd& M_diag,
+    const Eigen::VectorXd& f_ext,
+    const std::vector<std::pair<int, int>>& springs,
+    const std::vector<float>& rest_lengths,
+    const std::vector<float>& spring_stiffness,
+    double dt)
+{
+    // Inertial energy: 0.5 * M * ||x - x_tilde||^2
+    double E_inertial = 0.5 * (M_diag.asDiagonal() * (x_curr - x_tilde)).dot(x_curr - x_tilde);
+
+    // Spring energy
+    double E_spring = 0.0;
+    for (size_t s = 0; s < springs.size(); ++s) {
+        int i = springs[s].first;
+        int j = springs[s].second;
+        double k = spring_stiffness[s];
+        double l0 = rest_lengths[s];
+        double l0_sq = l0 * l0;
+
+        Eigen::Vector3d xi(x_curr(i * 3), x_curr(i * 3 + 1), x_curr(i * 3 + 2));
+        Eigen::Vector3d xj(x_curr(j * 3), x_curr(j * 3 + 1), x_curr(j * 3 + 2));
+        Eigen::Vector3d diff = xi - xj;
+        double diff_sq = diff.squaredNorm();
+
+        E_spring += 0.5 * k * l0_sq * std::pow(diff_sq / l0_sq - 1.0, 2);
+    }
+
+    // External force potential: -f_ext^T * x
+    // For gravity, this is: -m*g*z, which increases (becomes less negative) as object rises
+    double E_ext = -f_ext.dot(x_curr);
+
+    return E_inertial + dt * dt * E_spring + dt * dt * E_ext;
+}
+
 // Helper: Compute energy gradient
 static void compute_gradient(
     Eigen::VectorXd& grad,
@@ -262,86 +300,34 @@ static bool solve_newton(
             grad_inf_norm / dt,
             solver.iterations());
 
-        // Gradient-based line search
-        double c = 1e-4;
+        // Energy-based line search (like CUDA version)
+        double E_current = compute_energy(
+            x_new, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
+        
         double alpha = 1.0;
-        double grad_norm_initial = grad.norm();
-
         Eigen::VectorXd x_candidate = x_new + alpha * p;
-        Eigen::VectorXd grad_new;
-        compute_gradient(
-            grad_new,
-            x_candidate,
-            x_tilde,
-            M_diag,
-            f_ext,
-            springs,
-            rest_lengths,
-            spring_stiffness,
-            dt);
-        double grad_norm_new = grad_new.norm();
+        double E_candidate = compute_energy(
+            x_candidate, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
 
         int ls_iter = 0;
-        while (grad_norm_new > (1.0 - c * alpha) * grad_norm_initial &&
-               alpha > 1e-8 && ls_iter < 20) {
+        while (E_candidate > E_current && alpha > 1e-8 && ls_iter < 20) {
             alpha *= 0.5;
             x_candidate = x_new + alpha * p;
-            compute_gradient(
-                grad_new,
-                x_candidate,
-                x_tilde,
-                M_diag,
-                f_ext,
-                springs,
-                rest_lengths,
-                spring_stiffness,
-                dt);
-            grad_norm_new = grad_new.norm();
+            E_candidate = compute_energy(
+                x_candidate, x_tilde, M_diag, f_ext, springs, rest_lengths, spring_stiffness, dt);
             ls_iter++;
         }
 
-        // Gradient descent fallback
-        if (alpha < 1e-6) {
-            spdlog::warn(
-                "Newton line search failed, trying gradient descent fallback");
-
-            Eigen::VectorXd p_gd = Eigen::VectorXd::Zero(num_particles * 3);
-            for (int i = 0; i < num_particles * 3; ++i) {
-                p_gd(i) = -grad(i) / (M_diag(i) + 1e-4);
-            }
-
-            double alpha_gd = 0.01;
-            x_candidate = x_new + alpha_gd * p_gd;
-            compute_gradient(
-                grad_new,
-                x_candidate,
-                x_tilde,
-                M_diag,
-                f_ext,
-                springs,
-                rest_lengths,
-                spring_stiffness,
-                dt);
-            grad_norm_new = grad_new.norm();
-
-            if (grad_norm_new < grad_norm_initial) {
-                spdlog::info(
-                    "  Gradient descent: grad {:.3e} -> {:.3e}",
-                    grad_norm_initial,
-                    grad_norm_new);
-                x_new = x_candidate;
-            }
-            else {
-                spdlog::warn("  Both Newton and gradient descent failed");
-                return false;
-            }
+        if (alpha < 1e-8) {
+            spdlog::warn("Line search failed to reduce energy");
+            return false;
         }
         else {
             spdlog::debug(
-                "  Line search: alpha={:.3e}, grad: {:.3e} -> {:.3e}",
+                "  Line search: alpha={:.3e}, E: {:.6e} -> {:.6e}",
                 alpha,
-                grad_norm_initial,
-                grad_norm_new);
+                E_current,
+                E_candidate);
             x_new = x_candidate;
         }
     }
@@ -447,10 +433,8 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         v(i * 3 + 2) = storage.velocities[i].z;
     }
 
-    // Apply damping to velocity
-    v *= damping;
-
     // Inertia term: x̃ = x^n + Δt * v^n (implicit Euler predictive position)
+    // Use UNDAMPED velocity for prediction
     Eigen::VectorXd x_tilde = x + dt * v;
     Eigen::VectorXd x_n = x;  // Save initial position
 
@@ -489,17 +473,38 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         spdlog::warn("Newton solver failed to converge");
     }
 
-    // Ground collision: project x_new BEFORE converting to glm
+    // Handle ground collision
     int num_collisions = 0;
     for (int i = 0; i < num_particles; ++i) {
         if (x_new(i * 3 + 2) < 0.0) {
+            // Store penetration depth for proper collision response
+            double penetration = -x_new(i * 3 + 2);
             x_new(i * 3 + 2) = 0.0;
             num_collisions++;
         }
     }
 
-    // Update velocity: v = (x_new_projected - x_n) / dt (implicit Euler)
+    // Update velocity: v = (x_new - x_n) / dt (implicit Euler)
     v = (x_new - x_n) / dt;
+
+    // Apply damping to NEW velocity
+    v *= damping;
+
+    // Apply restitution only to particles that were penetrating
+    for (int i = 0; i < num_particles; ++i) {
+        if (x_new(i * 3 + 2) <= 1e-6) {  // On or very close to ground
+            if (v(i * 3 + 2) < 0.0) {  // Moving downward
+                v(i * 3 + 2) = -v(i * 3 + 2) * restitution;
+                
+                // Only apply friction if restitution < 1 (inelastic collision)
+                if (restitution < 0.999) {
+                    double friction = 0.8;
+                    v(i * 3 + 0) *= friction;
+                    v(i * 3 + 1) *= friction;
+                }
+            }
+        }
+    }
 
     // Convert back to glm format
     for (int i = 0; i < num_particles; ++i) {
@@ -509,19 +514,6 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit)
         storage.velocities[i].x = v(i * 3 + 0);
         storage.velocities[i].y = v(i * 3 + 1);
         storage.velocities[i].z = v(i * 3 + 2);
-    }
-
-    // Apply collision response (restitution + friction) to velocities
-    for (int i = 0; i < num_particles; ++i) {
-        if (positions[i].z <= 0.0f) {
-            if (storage.velocities[i].z < 0.0f) {
-                storage.velocities[i].z =
-                    -storage.velocities[i].z * restitution;
-                float friction = 0.8f;
-                storage.velocities[i].x *= friction;
-                storage.velocities[i].y *= friction;
-            }
-        }
     }
 
     if (num_collisions > 0) {
