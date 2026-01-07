@@ -28,3 +28,6 @@
 [submodule "source/Editor/geometry"]
 	path = source/Editor/geometry
 	url = https://github.com/USTC-CG-NEXT/GCore.git
+[submodule "external/spectra"]
+	path = external/spectra
+	url = https://github.com/yixuan/spectra.git
