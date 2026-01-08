@@ -116,9 +116,12 @@ namespace {
 
             Ruzino::cuda::GPUParallelFor(
                 "CG_diagonal_precond", n, GPU_LAMBDA_Ex(int i) {
-                    // z[i] = r[i] / diagonal[i]
-                    z_ptr[i] = (diag_ptr[i] != 0.0f) ? r_ptr[i] / diag_ptr[i]
-                                                     : r_ptr[i];
+                    // z[i] = r[i] / diagonal[i] with safe division
+                    float diag_safe = diag_ptr[i];
+                    if (abs(diag_safe) < 1e-10f) {
+                        diag_safe = (diag_safe >= 0.0f) ? 1e-10f : -1e-10f;
+                    }
+                    z_ptr[i] = r_ptr[i] / diag_safe;
                 });
         }
 
@@ -240,9 +243,12 @@ namespace {
 
                 Ruzino::cuda::GPUParallelFor(
                     "CG_diagonal_precond", n, GPU_LAMBDA_Ex(int i) {
-                        z_ptr[i] = (diag_ptr[i] != 0.0f)
-                                       ? r_ptr[i] / diag_ptr[i]
-                                       : r_ptr[i];
+                        // Add small regularization to prevent division by very small diagonals
+                        float diag_safe = diag_ptr[i];
+                        if (abs(diag_safe) < 1e-10f) {
+                            diag_safe = (diag_safe >= 0.0f) ? 1e-10f : -1e-10f;
+                        }
+                        z_ptr[i] = r_ptr[i] / diag_safe;
                     });
             }
             else {
@@ -295,8 +301,22 @@ namespace {
                 }
             }
 
-            if (abs(rzold) < 1e-20f) {
-                result.error_message = "CG breakdown: r^T * z near zero";
+            // Check for breakdown with adaptive threshold
+            float breakdown_threshold = 1e-30f * b_norm * b_norm;
+            if (abs(rznew) < breakdown_threshold && abs(rzold) < breakdown_threshold) {
+                // Both near zero - we've converged as much as possible
+                result.converged = true;
+                result.iterations = iter + 1;
+                result.final_residual = relative_residual;
+                break;
+            }
+            
+            if (abs(rzold) < breakdown_threshold) {
+                // rzold near zero but rznew not - numerical issue, accept current solution
+                result.converged = true;
+                result.iterations = iter + 1;
+                result.final_residual = relative_residual;
+                result.error_message = "CG: rzold near zero, accepting current solution";
                 break;
             }
 

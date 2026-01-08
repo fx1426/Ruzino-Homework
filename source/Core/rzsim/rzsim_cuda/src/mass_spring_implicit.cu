@@ -301,12 +301,10 @@ __global__ void compute_gradient_kernel(
         return;
 
     // Initialize with inertial term: M * (x - x_tilde)
-    grad[tid * 3 + 0] =
-        M_diag[tid * 3 + 0] * (x_curr[tid * 3 + 0] - x_tilde[tid * 3 + 0]);
-    grad[tid * 3 + 1] =
-        M_diag[tid * 3 + 1] * (x_curr[tid * 3 + 1] - x_tilde[tid * 3 + 1]);
-    grad[tid * 3 + 2] =
-        M_diag[tid * 3 + 2] * (x_curr[tid * 3 + 2] - x_tilde[tid * 3 + 2]);
+    // M_diag is per-DOF, matching CPU implementation
+    grad[tid * 3 + 0] = M_diag[tid * 3 + 0] * (x_curr[tid * 3 + 0] - x_tilde[tid * 3 + 0]);
+    grad[tid * 3 + 1] = M_diag[tid * 3 + 1] * (x_curr[tid * 3 + 1] - x_tilde[tid * 3 + 1]);
+    grad[tid * 3 + 2] = M_diag[tid * 3 + 2] * (x_curr[tid * 3 + 2] - x_tilde[tid * 3 + 2]);
 
     // Add spring forces
     for (int s = 0; s < num_springs; ++s) {
@@ -581,11 +579,11 @@ __global__ void add_mass_diagonal_kernel(
     if (tid >= num_particles * 3)
         return;
 
-    int particle_id = tid / 3;  // M_diag is per-particle, not per-DOF
-    float regularization = 1e-6f;
+    // M_diag is per-DOF (matching CPU implementation)
+    float regularization = 1e-6f;  // Matching CPU regularization
     triplet_rows[offset + tid] = tid;
     triplet_cols[offset + tid] = tid;
-    triplet_vals[offset + tid] = M_diag[particle_id] + regularization;
+    triplet_vals[offset + tid] = M_diag[tid] + regularization;
 }
 
 // Kernel to convert COO to CSR format
@@ -917,6 +915,15 @@ float compute_energy_gpu(
         thrust::reduce(d_potential_thrust, d_potential_thrust + n, 0.0f);
 
     float total_energy = E_inertial + E_spring + E_potential;
+    
+    // Debug: check which energy component is inf
+    static int debug_counter = 0;
+    if (debug_counter < 3) {
+        printf("[GPU Energy] E_inertial=%.6e, E_spring=%.6e, E_potential=%.6e, total=%.6e\n",
+               E_inertial, E_spring, E_potential, total_energy);
+        cudaDeviceSynchronize();
+        debug_counter++;
+    }
 
     return total_energy;
 }

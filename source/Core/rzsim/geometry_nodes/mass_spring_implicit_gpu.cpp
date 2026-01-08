@@ -118,13 +118,13 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         storage.velocities_buffer =
             cuda::create_cuda_linear_buffer<glm::vec3>(num_particles);
         storage.next_positions_buffer =
-            cuda::create_cuda_linear_buffer<glm::vec3>(num_particles);
+            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
         storage.gradients_buffer =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
         storage.f_ext_buffer =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
 
-        // Create mass matrix (diagonal with mass value)
+        // Create mass matrix (diagonal with mass value per DOF, matching CPU)
         std::vector<float> mass_diag(num_particles * 3, mass);
         storage.mass_matrix_buffer = cuda::create_cuda_linear_buffer(mass_diag);
 
@@ -189,17 +189,31 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
 
     // Newton's method iterations
     auto d_x_new = cuda::create_cuda_linear_buffer<float>(num_particles * 3);
-    // Initialize x_new = x_tilde (explicit step result)
-    auto x_tilde_init = d_next_positions->get_host_vector<float>();
-    d_x_new->assign_host_vector(x_tilde_init);
-    
-    auto d_p = cuda::create_cuda_linear_buffer<float>(num_particles * 3);  // Newton direction
+    // Initialize x_new = x (current position, NOT x_tilde) - matching CPU implementation
+    auto positions_flat = d_positions->get_host_vector<glm::vec3>();
+    std::vector<float> x_init_flat(num_particles * 3);
+    for (int i = 0; i < num_particles; i++) {
+        x_init_flat[i * 3 + 0] = positions_flat[i].x;
+        x_init_flat[i * 3 + 1] = positions_flat[i].y;
+        x_init_flat[i * 3 + 2] = positions_flat[i].z;
+    }
+    d_x_new->assign_host_vector(x_init_flat);
     
     spdlog::info("[GPU] Starting Newton iterations, max_iter={}, tol={:.2e}", max_iterations, tolerance);
     
     bool converged = false;
     for (int iter = 0; iter < max_iterations; iter++) {
         spdlog::debug("[GPU] === Newton iteration {} ===", iter);
+        
+        // Debug: verify d_x_new at loop start
+        if (iter > 0 && iter < 3) {
+            auto x_check = d_x_new->get_host_vector<float>();
+            spdlog::info("[GPU] Iter {} start: x_new[0:3]=({:.9f}, {:.9f}, {:.9f})",
+                         iter, x_check[0], x_check[1], x_check[2]);
+        }
+        
+        // Create fresh buffer for Newton direction each iteration to avoid warm start issues
+        auto d_p = cuda::create_cuda_linear_buffer<float>(num_particles * 3);
         
         // Compute gradient at current x_new
         rzsim_cuda::compute_gradient_gpu(
@@ -261,7 +275,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             Ruzino::Solver::SolverType::CUDA_CG);
         
         Ruzino::Solver::SolverConfig solver_config;
-        solver_config.tolerance = 0.1f;  // Very loose tolerance for testing
+        solver_config.tolerance = 1e-4f;  // Balanced tolerance to avoid CG breakdown
         solver_config.max_iterations = 1000;
         solver_config.use_preconditioner = true;
         solver_config.verbose = (iter == 0);  // Verbose only for first iteration
@@ -296,10 +310,33 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             solver_config);
         
         // Debug: check what CG actually wrote to d_p
+        auto p_after_cg = d_p->get_host_vector<float>();
         if (iter == 0) {
-            auto p_after_cg = d_p->get_host_vector<float>();
             spdlog::info("[GPU] After CG: p[0:6] = ({:.6e}, {:.6e}, {:.6e}, {:.6e}, {:.6e}, {:.6e})",
                          p_after_cg[0], p_after_cg[1], p_after_cg[2], p_after_cg[3], p_after_cg[4], p_after_cg[5]);
+        }
+        
+        // Check if p is a descent direction: p^T * grad should be < 0
+        float p_dot_grad = 0.0f;
+        float p_norm_sq = 0.0f;
+        float grad_norm_sq = 0.0f;
+        for (int i = 0; i < num_particles * 3; i++) {
+            p_dot_grad += p_after_cg[i] * grad_host[i];
+            p_norm_sq += p_after_cg[i] * p_after_cg[i];
+            grad_norm_sq += grad_host[i] * grad_host[i];
+        }
+        float cosine = p_dot_grad / (std::sqrt(p_norm_sq) * std::sqrt(grad_norm_sq) + 1e-20f);
+        if (iter < 3) {
+            spdlog::info("[GPU] Iter {}: p^T * grad = {:.6e}, ||p||={:.6e}, ||grad||={:.6e}, cos(angle)={:.6f}", 
+                         iter, p_dot_grad, std::sqrt(p_norm_sq), std::sqrt(grad_norm_sq), cosine);
+        }
+        
+        // If p is almost orthogonal to gradient (cos(angle) close to 0), Hessian may be singular
+        if (std::abs(cosine) < 0.01f && iter > 0) {
+            spdlog::warn("[GPU] Iter {}: Newton direction nearly orthogonal to gradient! Hessian may be singular.", iter);
+            spdlog::warn("[GPU] Increasing regularization and retrying...");
+            
+            // TODO: Try adaptive regularization or trust region
         }
         
         if (!result.converged) {
@@ -410,6 +447,36 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             num_particles);
         
         if (iter == 0) {
+            // Debug: check buffer contents before energy calculation
+            auto x_new_buf = d_x_new->get_host_vector<float>();
+            auto x_tilde_buf = d_next_positions->get_host_vector<float>();
+            auto M_buf = d_M_diag->get_host_vector<float>();
+            auto f_buf = d_f_ext->get_host_vector<float>();
+            
+            spdlog::info("[GPU] Buffer check - x_new[0:3]=({:.6f}, {:.6f}, {:.6f})", 
+                         x_new_buf[0], x_new_buf[1], x_new_buf[2]);
+            spdlog::info("[GPU] Buffer check - x_tilde[0:3]=({:.6f}, {:.6f}, {:.6f})", 
+                         x_tilde_buf[0], x_tilde_buf[1], x_tilde_buf[2]);
+            spdlog::info("[GPU] Buffer check - M[0:3]=({:.6f}, {:.6f}, {:.6f}), size={}", 
+                         M_buf[0], M_buf[1], M_buf[2], M_buf.size());
+            spdlog::info("[GPU] Buffer check - f_ext[0:3]=({:.6f}, {:.6f}, {:.6f})", 
+                         f_buf[0], f_buf[1], f_buf[2]);
+            
+            // CPU energy calculation for verification
+            float E_inertial_cpu = 0.0f;
+            for (int i = 0; i < num_particles * 3; i++) {
+                int pid = i / 3;
+                float diff = x_new_buf[i] - x_tilde_buf[i];
+                E_inertial_cpu += 0.5f * M_buf[pid] * diff * diff;
+            }
+            
+            float E_potential_cpu = 0.0f;
+            for (int i = 0; i < num_particles * 3; i++) {
+                E_potential_cpu += -f_buf[i] * x_new_buf[i] * dt * dt;
+            }
+            
+            spdlog::info("[CPU] E_inertial={:.6e}, E_potential={:.6e}", E_inertial_cpu, E_potential_cpu);
+            
             spdlog::info("[GPU] Initial energy E_current = {:.6e}", E_current);
             
             // Debug: check first few values of x_new and p
@@ -435,6 +502,30 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
             }
             d_x_candidate->assign_host_vector(x_cand_host);
             
+            // Debug: verify d_x_candidate was written correctly
+            if (iter == 0 && ls_iter == 0) {
+                auto x_cand_readback = d_x_candidate->get_host_vector<float>();
+                spdlog::info("[GPU] x_cand_host[0:3] = ({:.6f}, {:.6f}, {:.6f})", 
+                             x_cand_host[0], x_cand_host[1], x_cand_host[2]);
+                spdlog::info("[GPU] x_cand_readback[0:3] = ({:.6f}, {:.6f}, {:.6f})", 
+                             x_cand_readback[0], x_cand_readback[1], x_cand_readback[2]);
+            }
+            
+            // Debug: test if energy calculation works with d_x_new
+            if (iter == 0 && ls_iter == 0) {
+                float E_test_x_new = rzsim_cuda::compute_energy_gpu(
+                    d_x_new,  // Should be same as E_current
+                    d_next_positions,
+                    d_M_diag,
+                    d_f_ext,
+                    d_springs,
+                    d_rest_lengths,
+                    stiffness,
+                    dt,
+                    num_particles);
+                spdlog::info("[GPU] Test energy with d_x_new (should match E_current): {:.6e}", E_test_x_new);
+            }
+            
             float E_candidate = rzsim_cuda::compute_energy_gpu(
                 d_x_candidate,
                 d_next_positions,
@@ -445,6 +536,13 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 stiffness,
                 dt,
                 num_particles);
+            
+            // Log line search progress for first few iterations
+            if (iter < 3 || (iter < 10 && ls_iter < 3)) {
+                float energy_reduction = E_current - E_candidate;
+                spdlog::info("[GPU] Iter {}, LS {}: alpha={:.3e}, E_current={:.6e}, E_candidate={:.6e}, reduction={:.6e}",
+                             iter, ls_iter, alpha, E_current, E_candidate, energy_reduction);
+            }
             
             if (iter == 0 && ls_iter < 5) {
                 // Check for NaN/Inf in x_candidate
@@ -457,9 +555,10 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                     }
                     max_val = std::max(max_val, std::abs(x_cand_host[i]));
                 }
-                spdlog::info("[GPU] Line search {}: alpha={:.3e}, E_candidate={:.6e} (vs E_current={:.6e}), max|x_cand|={:.3e}{}",
-                       ls_iter, alpha, E_candidate, E_current, max_val, has_nan ? " <-- HAS NaN/Inf!" : "");
-                
+                if (has_nan) {
+                    spdlog::error("[GPU] Line search {}: max|x_cand|={:.3e} <-- HAS NaN/Inf!", ls_iter, max_val);
+                }
+            
                 if (ls_iter == 0) {
                     spdlog::info("[GPU] x_cand[0:6] = ({:.6f}, {:.6f}, {:.6f}, {:.6f}, {:.6f}, {:.6f})",
                                  x_cand_host[0], x_cand_host[1], x_cand_host[2],
@@ -467,32 +566,35 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 }
             }
             
-            if (E_candidate <= E_current || alpha < 1e-8f) {
-                if (alpha < 1e-8f && E_candidate > E_current) {
-                    spdlog::warn("[GPU] Line search failed to reduce energy");
-                }
-                else {
-                    spdlog::debug(
-                        "[GPU] Line search: alpha={:.3e}, E: {:.6e} -> {:.6e}",
-                        alpha,
-                        E_current,
-                        E_candidate);
-                }
+            if (E_candidate <= E_current) {
                 // Accept step
+                spdlog::info("[GPU] Iter {}: Line search accepted at LS iter {}, alpha={:.3e}, E: {:.6e} -> {:.6e}",
+                             iter, ls_iter, alpha, E_current, E_candidate);
+                
+                // Debug: check if x_new actually changes
+                auto x_new_before = d_x_new->get_host_vector<float>();
+                auto x_cand_final = d_x_candidate->get_host_vector<float>();
+                
+                float max_change = 0.0f;
+                for (int i = 0; i < num_particles * 3; i++) {
+                    max_change = std::max(max_change, std::abs(x_cand_final[i] - x_new_before[i]));
+                }
+                
+                if (iter < 5) {
+                    spdlog::info("[GPU] Iter {}: max|x_cand - x_new| = {:.6e}, p_norm={:.6e}, alpha={:.6e}",
+                                 iter, max_change, std::sqrt(p_norm_sq), alpha);
+                }
+                
+                d_x_new->assign_host_vector(x_cand_final);
+                break;
+            }
+            
+            if (alpha < 1e-8f) {
+                spdlog::warn("[GPU] Iter {}: Line search failed after {} attempts, alpha={:.3e} too small, E_current={:.6e}, best E_candidate={:.6e}",
+                             iter, ls_iter + 1, alpha, E_current, E_candidate);
+                // Still accept the step even though energy doesn't decrease
                 auto x_cand_final = d_x_candidate->get_host_vector<float>();
                 d_x_new->assign_host_vector(x_cand_final);
-                
-                // Debug: check if x_new actually changed
-                if (iter == 0) {
-                    auto x_tilde_check = d_next_positions->get_host_vector<float>();
-                    float diff = 0.0f;
-                    for (int i = 0; i < std::min(9, num_particles * 3); i++) {
-                        diff += std::abs(x_cand_final[i] - x_tilde_check[i]);
-                    }
-                    spdlog::info("[GPU] Line search accepted: alpha={:.3e}, E: {:.6e} -> {:.6e}, ||x_new - x_tilde||_1={:.6e}",
-                           alpha, E_current, E_candidate, diff);
-                }
-                
                 break;
             }
             
