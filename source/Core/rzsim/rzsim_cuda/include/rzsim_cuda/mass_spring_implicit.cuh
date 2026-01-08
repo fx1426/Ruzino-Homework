@@ -66,6 +66,18 @@ CSRMatrix assemble_hessian_gpu(
     float dt,
     int num_particles);
 
+RZSIM_CUDA_API
+float compute_energy_gpu(
+    cuda::CUDALinearBufferHandle x_curr,
+    cuda::CUDALinearBufferHandle x_tilde,
+    cuda::CUDALinearBufferHandle M_diag,
+    cuda::CUDALinearBufferHandle f_ext,
+    cuda::CUDALinearBufferHandle springs,
+    cuda::CUDALinearBufferHandle rest_lengths,
+    float stiffness,
+    float dt,
+    int num_particles);
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

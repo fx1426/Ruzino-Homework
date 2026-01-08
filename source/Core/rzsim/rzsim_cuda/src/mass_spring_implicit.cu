@@ -630,36 +630,12 @@ __global__ void compute_spring_hessian_kernel(
         2.0f * k / l0_sq *
         (2.0f * outer + (diff_sq - l0_sq) * Eigen::Matrix3f::Identity());
 
-    // Debug for first spring (sid == 0) which should contribute to (0,0)
-    if (sid == 0) {
-        printf("[GPU Spring 0] vi=%d, vj=%d, k=%.2f, l0=%.6f\n", vi, vj, k, l0);
-        printf("[GPU Spring 0] diff_sq=%.6f, l0_sq=%.6f\n", diff_sq, l0_sq);
-        printf("[GPU Spring 0] H_diff before PSD:\n");
-        for (int r = 0; r < 3; r++) {
-            printf("  [%d,%d %d,%d %d,%d] = [%.6e %.6e %.6e]\n", 
-                   r, 0, r, 1, r, 2, H_diff(r, 0), H_diff(r, 1), H_diff(r, 2));
-        }
-    }
-
     // Use custom PSD projection (Eigen's solver doesn't work on CUDA device)
     H_diff = project_psd_custom(H_diff, sid);
-
-    if (sid == 0) {
-        printf("[GPU Spring 0] H_diff after PSD:\n");
-        for (int r = 0; r < 3; r++) {
-            printf("  [%d,%d %d,%d %d,%d] = [%.6e %.6e %.6e]\n", 
-                   r, 0, r, 1, r, 2, H_diff(r, 0), H_diff(r, 1), H_diff(r, 2));
-        }
-    }
 
     // Scale by dt^2
     float scale = dt * dt;
     H_diff *= scale;
-
-    if (sid == 0) {
-        printf("[GPU Spring 0] H_diff after dt^2 scaling (dt=%.6f, scale=%.6e):\n", dt, scale);
-        printf("  H_diff(0,0) = %.6e\n", H_diff(0, 0));
-    }
 
     // Write triplets for 6x6 block (4 3x3 blocks)
     int base_idx = sid * 36;  // Each spring contributes 36 triplets (4 blocks * 9 entries)
@@ -986,56 +962,27 @@ CSRMatrix assemble_hessian_gpu(
     thrust::copy(unique_vals.begin(), unique_vals.begin() + nnz,
                  thrust::device_ptr<float>(result.values->get_device_ptr<float>()));
 
-    // Build row_offsets using thrust operations
-    thrust::device_vector<int> unique_rows_vec(unique_rows.begin(), unique_rows.begin() + nnz);
-    
-    // Debug: check first few row indices
-    std::vector<int> first_rows(std::min(20, nnz));
-    thrust::copy(unique_rows_vec.begin(), unique_rows_vec.begin() + std::min(20, nnz),
-                 first_rows.begin());
-    printf("[GPU] First 20 row indices: ");
-    for (int i = 0; i < std::min(20, nnz); i++) {
-        printf("%d ", first_rows[i]);
-    }
-    printf("\n");
-
+    // Build row_offsets: histogram approach
     thrust::device_ptr<int> row_offsets_ptr(result.row_offsets->get_device_ptr<int>());
+    int* row_offsets_raw = thrust::raw_pointer_cast(row_offsets_ptr);
     
     // Initialize all row_offsets to 0
     thrust::fill(thrust::device, row_offsets_ptr, row_offsets_ptr + n + 1, 0);
-
-    // Use thrust::reduce_by_key to count entries per row
-    thrust::device_vector<int> row_ids(n);  // Keys (unique row indices)
-    thrust::device_vector<int> row_counts(n);  // Values (count for each row)
     
-    auto reduce_end = thrust::reduce_by_key(
+    // Count entries per row using histogram
+    thrust::device_ptr<int> unique_rows_ptr(unique_rows.data());
+    int* unique_rows_raw = thrust::raw_pointer_cast(unique_rows_ptr);
+    
+    thrust::for_each(
         thrust::device,
-        unique_rows_vec.begin(),
-        unique_rows_vec.end(),
-        thrust::constant_iterator<int>(1),  // Count 1 for each element
-        row_ids.begin(),
-        row_counts.begin());
+        thrust::make_counting_iterator(0),
+        thrust::make_counting_iterator(nnz),
+        [row_offsets_raw, unique_rows_raw] __device__ (int idx) {
+            int row = unique_rows_raw[idx];
+            atomicAdd(&row_offsets_raw[row], 1);
+        });
     
-    int num_unique_rows = reduce_end.first - row_ids.begin();
-    printf("[GPU] Found %d unique rows (should be <= %d)\n", num_unique_rows, n);
-
-    // Scatter the counts to row_offsets[row+1]
-    thrust::scatter(thrust::device,
-                    row_counts.begin(),
-                    row_counts.begin() + num_unique_rows,
-                    thrust::make_transform_iterator(row_ids.begin(), 
-                                                    [] __device__ (int r) { return r + 1; }),
-                    row_offsets_ptr);
-
     cudaDeviceSynchronize();
-
-    // Debug: check row_offsets after counting
-    auto row_off_debug = result.row_offsets->get_host_vector<int>();
-    printf("[GPU] row_offsets after counting (first 10): ");
-    for (int i = 0; i < std::min(10, n + 1); i++) {
-        printf("%d ", row_off_debug[i]);
-    }
-    printf("\n");
 
     // Compute prefix sum to get row offsets
     thrust::exclusive_scan(
@@ -1045,36 +992,107 @@ CSRMatrix assemble_hessian_gpu(
 
     printf("[GPU] CSR assembly complete: %dx%d matrix with %d non-zeros\n", n, n, nnz);
 
-    // Debug: verify CSR format
-    auto row_offsets_host = result.row_offsets->get_host_vector<int>();
-    auto col_indices_host = result.col_indices->get_host_vector<int>();
-    auto values_host = result.values->get_host_vector<float>();
-    
-    printf("[GPU] CSR Format Verification:\n");
-    printf("  row_offsets[0] = %d (should be 0)\n", row_offsets_host[0]);
-    printf("  row_offsets[%d] = %d (should be %d)\n", n, row_offsets_host[n], nnz);
-    printf("  First 5 row_offsets: ");
-    for (int i = 0; i < std::min(5, n + 1); i++) {
-        printf("%d ", row_offsets_host[i]);
-    }
-    printf("\n");
-    
-    // Print first 10 entries in CSR format
-    printf("[GPU] First 10 CSR entries:\n");
-    for (int i = 0; i < std::min(10, nnz); i++) {
-        // Find which row this entry belongs to
-        int row = 0;
-        for (int r = 0; r < n; r++) {
-            if (i >= row_offsets_host[r] && i < row_offsets_host[r + 1]) {
-                row = r;
-                break;
-            }
-        }
-        printf("  CSR[%d]: row=%d, col=%d, val=%.6e\n", 
-               i, row, col_indices_host[i], values_host[i]);
-    }
-
     return result;
+}
+
+// Kernel to compute spring energy on GPU
+__global__ void compute_spring_energy_kernel(
+    const float* x_curr,
+    const int* springs,
+    const float* rest_lengths,
+    float stiffness,
+    int num_springs,
+    float* spring_energies)
+{
+    int sid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (sid >= num_springs)
+        return;
+    
+    int vi = springs[sid * 2];
+    int vj = springs[sid * 2 + 1];
+    float l0 = rest_lengths[sid];
+    
+    // Get positions
+    float xi[3] = {x_curr[vi * 3], x_curr[vi * 3 + 1], x_curr[vi * 3 + 2]};
+    float xj[3] = {x_curr[vj * 3], x_curr[vj * 3 + 1], x_curr[vj * 3 + 2]};
+    
+    // Compute current length
+    float diff[3] = {xi[0] - xj[0], xi[1] - xj[1], xi[2] - xj[2]};
+    float l = sqrtf(diff[0] * diff[0] + diff[1] * diff[1] + diff[2] * diff[2]);
+    
+    // Spring energy: 0.5 * k * (l - l0)^2
+    float stretch = l - l0;
+    spring_energies[sid] = 0.5f * stiffness * stretch * stretch;
+}
+
+// Compute total energy: E = 0.5 * M * ||x - x_tilde||^2 + spring_energy - f_ext^T * x
+float compute_energy_gpu(
+    cuda::CUDALinearBufferHandle x_curr,
+    cuda::CUDALinearBufferHandle x_tilde,
+    cuda::CUDALinearBufferHandle M_diag,
+    cuda::CUDALinearBufferHandle f_ext,
+    cuda::CUDALinearBufferHandle springs,
+    cuda::CUDALinearBufferHandle rest_lengths,
+    float stiffness,
+    float dt,
+    int num_particles)
+{
+    int n = num_particles * 3;
+    int num_springs = springs->getDesc().element_count / 2;
+    
+    float* x_ptr = reinterpret_cast<float*>(x_curr->get_device_ptr());
+    float* x_tilde_ptr = reinterpret_cast<float*>(x_tilde->get_device_ptr());
+    float* M_ptr = reinterpret_cast<float*>(M_diag->get_device_ptr());
+    float* f_ptr = reinterpret_cast<float*>(f_ext->get_device_ptr());
+    
+    // Compute inertial energy: 0.5 * M * ||x - x_tilde||^2
+    auto d_inertial_terms = cuda::create_cuda_linear_buffer<float>(n);
+    float* inertial_ptr = reinterpret_cast<float*>(d_inertial_terms->get_device_ptr());
+    
+    cuda::GPUParallelFor("compute_inertial_energy", n, GPU_LAMBDA_Ex(int i) {
+        int particle_id = i / 3;
+        float diff = x_ptr[i] - x_tilde_ptr[i];
+        inertial_ptr[i] = 0.5f * M_ptr[particle_id] * diff * diff;
+    });
+    
+    // Sum inertial energy
+    thrust::device_ptr<float> d_inertial_thrust(inertial_ptr);
+    float E_inertial = thrust::reduce(d_inertial_thrust, d_inertial_thrust + n, 0.0f);
+    
+    // Compute spring energy
+    auto d_spring_energies = cuda::create_cuda_linear_buffer<float>(num_springs);
+    float* spring_energy_ptr = reinterpret_cast<float*>(d_spring_energies->get_device_ptr());
+    
+    int block_size = 256;
+    int num_blocks = (num_springs + block_size - 1) / block_size;
+    compute_spring_energy_kernel<<<num_blocks, block_size>>>(
+        x_ptr,
+        reinterpret_cast<const int*>(springs->get_device_ptr()),
+        reinterpret_cast<const float*>(rest_lengths->get_device_ptr()),
+        stiffness,
+        num_springs,
+        spring_energy_ptr);
+    
+    cudaDeviceSynchronize();
+    
+    // Sum spring energy
+    thrust::device_ptr<float> d_spring_thrust(spring_energy_ptr);
+    float E_spring = thrust::reduce(d_spring_thrust, d_spring_thrust + num_springs, 0.0f);
+    
+    // Compute potential energy: -f_ext^T * x
+    auto d_potential_terms = cuda::create_cuda_linear_buffer<float>(n);
+    float* potential_ptr = reinterpret_cast<float*>(d_potential_terms->get_device_ptr());
+    
+    cuda::GPUParallelFor("compute_potential_energy", n, GPU_LAMBDA_Ex(int i) {
+        potential_ptr[i] = -f_ptr[i] * x_ptr[i] * dt * dt;
+    });
+    
+    thrust::device_ptr<float> d_potential_thrust(potential_ptr);
+    float E_potential = thrust::reduce(d_potential_thrust, d_potential_thrust + n, 0.0f);
+    
+    float total_energy = E_inertial + E_spring + E_potential;
+    
+    return total_energy;
 }
 
 }  // namespace rzsim_cuda
