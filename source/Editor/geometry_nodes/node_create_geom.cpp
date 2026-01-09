@@ -272,4 +272,21 @@ NODE_EXECUTION_FUNCTION(create_box_grid)
     return true;
 }
 
+NODE_DECLARATION_FUNCTION(create_subdivided_tetrahedron)
+{
+    b.add_input<int>("subdivisions").min(0).max(5).default_val(2);
+    b.add_input<float>("size").min(0.1).max(20).default_val(1.0f);
+    b.add_output<Geometry>("Geometry");
+}
+
+NODE_EXECUTION_FUNCTION(create_subdivided_tetrahedron)
+{
+    int subdivisions = params.get_input<int>("subdivisions");
+    float size = params.get_input<float>("size");
+
+    Geometry geometry = create_subdivided_tetrahedron(subdivisions, size);
+    params.set_output("Geometry", std::move(geometry));
+    return true;
+}
+
 NODE_DEF_CLOSE_SCOPE

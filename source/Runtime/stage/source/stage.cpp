@@ -96,7 +96,9 @@ Stage::Stage(const std::string& stage_path)
 Stage::~Stage()
 {
     remove_prim(pxr::SdfPath("/scratch_buffer"));
-    stage->Save();
+    if (stage && !m_stage_path.empty()) {
+        stage->Export(m_stage_path);
+    }
     animatable_prims.clear();
 }
 
@@ -427,8 +429,8 @@ void Stage::set_prim_render_time(
 
 void Stage::Save()
 {
-    if (stage) {
-        stage->Save();
+    if (stage && !m_stage_path.empty()) {
+        stage->Export(m_stage_path);
         spdlog::info("Stage saved to: {}", m_stage_path);
     }
 }
@@ -442,7 +444,7 @@ void Stage::SaveAs(const std::string& new_path)
 
     std::filesystem::path abs_path = std::filesystem::path(new_path).lexically_normal();
     
-    // Export current stage to new file
+    // Export 会自动清理冗余数据
     if (stage->Export(abs_path.string())) {
         m_stage_path = abs_path.string();
         // Reopen the stage at the new location
