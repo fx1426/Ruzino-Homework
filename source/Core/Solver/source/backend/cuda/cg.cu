@@ -357,6 +357,16 @@ class CudaCGSolver : public LinearSolver {
     cusparseHandle_t cusparseHandle;
     cublasHandle_t cublasHandle;
     bool initialized = false;
+    
+    // Reusable buffers (recreated only when size changes)
+    int cached_n = 0;
+    size_t cached_buffer_size = 0;
+    Ruzino::cuda::CUDALinearBufferHandle d_r_cached;
+    Ruzino::cuda::CUDALinearBufferHandle d_z_cached;
+    Ruzino::cuda::CUDALinearBufferHandle d_p_cached;
+    Ruzino::cuda::CUDALinearBufferHandle d_Ap_cached;
+    Ruzino::cuda::CUDALinearBufferHandle d_diagonal_cached;
+    Ruzino::cuda::CUDALinearBufferHandle d_buffer_cached;
 
     // Check if matrix is likely SPD
     bool isLikelySPD(const Eigen::SparseMatrix<float>& A)
@@ -447,16 +457,26 @@ class CudaCGSolver : public LinearSolver {
                 CUSPARSE_INDEX_BASE_ZERO,
                 CUDA_R_32F);
 
-            // Allocate temporary vectors
-            Ruzino::cuda::CUDALinearBufferDesc vec_desc;
-            vec_desc.element_count = n;
-            vec_desc.element_size = sizeof(float);
+            // Reuse or allocate temporary vectors
+            if (cached_n != n) {
+                Ruzino::cuda::CUDALinearBufferDesc vec_desc;
+                vec_desc.element_count = n;
+                vec_desc.element_size = sizeof(float);
 
-            auto d_r = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
-            auto d_z = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
-            auto d_p_buf = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
-            auto d_Ap = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
-            auto d_diagonal = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                d_r_cached = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                d_z_cached = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                d_p_cached = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                d_Ap_cached = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                d_diagonal_cached = Ruzino::cuda::create_cuda_linear_buffer(vec_desc);
+                
+                cached_n = n;
+            }
+            
+            auto& d_r = d_r_cached;
+            auto& d_z = d_z_cached;
+            auto& d_p_buf = d_p_cached;
+            auto& d_Ap = d_Ap_cached;
+            auto& d_diagonal = d_diagonal_cached;
 
             // Simple diagonal: just set to 1.0 (no preconditioning for diagonal
             // matrix)
@@ -480,7 +500,7 @@ class CudaCGSolver : public LinearSolver {
             cusparseCreateDnVec(
                 &vecAp, n, (void*)d_Ap->get_device_ptr(), CUDA_R_32F);
 
-            // Query SpMV buffer size
+            // Query SpMV buffer size and reuse if possible
             size_t bufferSize = 0;
             const float one = 1.0f;
             const float zero = 0.0f;
@@ -496,10 +516,15 @@ class CudaCGSolver : public LinearSolver {
                 CUSPARSE_SPMV_ALG_DEFAULT,
                 &bufferSize);
 
-            Ruzino::cuda::CUDALinearBufferDesc buffer_desc;
-            buffer_desc.element_count = bufferSize;
-            buffer_desc.element_size = 1;
-            auto dBuffer = Ruzino::cuda::create_cuda_linear_buffer(buffer_desc);
+            if (cached_buffer_size < bufferSize) {
+                Ruzino::cuda::CUDALinearBufferDesc buffer_desc;
+                buffer_desc.element_count = bufferSize;
+                buffer_desc.element_size = 1;
+                d_buffer_cached = Ruzino::cuda::create_cuda_linear_buffer(buffer_desc);
+                cached_buffer_size = bufferSize;
+            }
+            
+            auto& dBuffer = d_buffer_cached;
 
             auto setup_end = std::chrono::high_resolution_clock::now();
             result.setup_time =

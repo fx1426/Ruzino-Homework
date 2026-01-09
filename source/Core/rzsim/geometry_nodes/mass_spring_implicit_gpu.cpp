@@ -44,6 +44,9 @@ struct MassSpringImplicitGPUStorage {
     cuda::CUDALinearBufferHandle spring_energies_buffer;
     cuda::CUDALinearBufferHandle potential_terms_buffer;
 
+    // Reuse solver instance across iterations
+    std::unique_ptr<Ruzino::Solver::LinearSolver> solver;
+
     bool initialized = false;
     int num_particles = 0;
 
@@ -220,6 +223,10 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         storage.potential_terms_buffer =
             cuda::create_cuda_linear_buffer<float>(num_particles * 3);
 
+        // Create solver instance once
+        storage.solver = Ruzino::Solver::SolverFactory::create(
+            Ruzino::Solver::SolverType::CUDA_CG);
+
         storage.initialized = true;
         storage.num_particles = num_particles;
     }
@@ -298,13 +305,10 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 num_particles,
                 storage.hessian_values);
 
-            // Solve H * p = -grad using CUDA CG
-            auto solver = Ruzino::Solver::SolverFactory::create(
-                Ruzino::Solver::SolverType::CUDA_CG);
-
+            // Solve H * p = -grad using CUDA CG (reuse solver)
             // Adaptive CG tolerance based on gradient magnitude
             // CG residual should be 0.1% of gradient norm, but not too small
-            float cg_tol = std::max(1e-9f, grad_norm * 1e-4f);
+            float cg_tol = std::max(1e-9f, grad_norm * 1e-3f);
 
             Ruzino::Solver::SolverConfig solver_config;
             solver_config.tolerance = cg_tol;
@@ -317,7 +321,7 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
                 d_gradients, storage.neg_gradient_buffer, num_particles * 3);
 
             // Solve on GPU
-            auto result = solver->solveGPU(
+            auto result = storage.solver->solveGPU(
                 storage.hessian_structure.num_rows,
                 storage.hessian_structure.nnz,
                 reinterpret_cast<const int*>(
