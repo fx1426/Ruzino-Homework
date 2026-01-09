@@ -148,19 +148,16 @@ NODE_EXECUTION_FUNCTION(mass_spring_implicit_gpu)
         auto face_indices = mesh_component->get_face_vertex_indices();
         auto triangles = cuda::create_cuda_linear_buffer(face_indices);
 
-        storage.springs_buffer =
-            rzsim_cuda::build_edge_set_gpu(storage.positions_buffer, triangles);
+        // Build springs and vertex adjacency in one optimized pass
+        auto [springs, spring_indices, vertex_offsets] =
+            rzsim_cuda::build_springs_with_adjacency_gpu(triangles, num_particles);
+        storage.springs_buffer = springs;
+        storage.spring_indices_per_vertex = spring_indices;
+        storage.vertex_spring_offsets = vertex_offsets;
 
         // Compute rest lengths from initial positions
         storage.rest_lengths_buffer = rzsim_cuda::compute_rest_lengths_gpu(
             storage.positions_buffer, storage.springs_buffer);
-
-        // Build per-vertex spring adjacency for efficient gradient computation
-        auto [spring_indices, vertex_offsets] =
-            rzsim_cuda::build_vertex_spring_adjacency_gpu(
-                storage.springs_buffer, num_particles);
-        storage.spring_indices_per_vertex = spring_indices;
-        storage.vertex_spring_offsets = vertex_offsets;
 
         // NEW: Build CSR structure once (this is the key optimization!)
         // Sparsity pattern is fixed, so we only need to update values later

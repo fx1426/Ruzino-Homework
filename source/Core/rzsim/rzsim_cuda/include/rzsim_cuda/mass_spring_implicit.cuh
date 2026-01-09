@@ -45,6 +45,15 @@ build_vertex_spring_adjacency_gpu(
     cuda::CUDALinearBufferHandle springs,
     int num_particles);
 
+// Combined function: extract edges from triangles AND build vertex-spring adjacency in one pass
+// More efficient than calling build_edge_set_gpu + build_vertex_spring_adjacency_gpu separately
+// Returns: (springs, spring_indices_per_vertex, vertex_spring_offsets)
+RZSIM_CUDA_API
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+build_springs_with_adjacency_gpu(
+    cuda::CUDALinearBufferHandle triangles,
+    int num_particles);
+
 RZSIM_CUDA_API
 void explicit_step_gpu(
     cuda::CUDALinearBufferHandle x,

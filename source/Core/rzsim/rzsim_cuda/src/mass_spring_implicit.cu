@@ -256,6 +256,22 @@ build_vertex_spring_adjacency_gpu(
     return { d_spring_indices, d_offsets };
 }
 
+// Combined function: extract edges AND build adjacency in one optimized pass
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+build_springs_with_adjacency_gpu(
+    cuda::CUDALinearBufferHandle triangles,
+    int num_particles)
+{
+    // Step 1: Extract and deduplicate edges (reuse existing function)
+    auto springs = build_edge_set_gpu(cuda::CUDALinearBufferHandle(), triangles);
+    
+    // Step 2: Build vertex-spring adjacency (reuse existing function)
+    auto [spring_indices, vertex_offsets] = 
+        build_vertex_spring_adjacency_gpu(springs, num_particles);
+    
+    return { springs, spring_indices, vertex_offsets };
+}
+
 // Kernel to compute explicit step: x_tilde = x + dt * v
 __global__ void explicit_step_kernel(
     const float* x,
