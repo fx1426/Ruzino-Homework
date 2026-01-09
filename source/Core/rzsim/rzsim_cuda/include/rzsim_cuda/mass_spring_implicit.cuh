@@ -3,6 +3,7 @@
 #include <RHI/cuda.hpp>
 
 #include "RHI/internal/cuda_extension.hpp"
+#include "adjacency_map.cuh"
 #include "api.h"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
@@ -21,22 +22,6 @@ struct CSRStructure {
     int num_cols;
     int nnz;
 };
-
-RZSIM_CUDA_API
-cuda::CUDALinearBufferHandle build_edge_set_gpu(
-    cuda::CUDALinearBufferHandle positions,
-    cuda::CUDALinearBufferHandle edges);
-
-// Build adjacency list from triangles (for Hessian structure)
-// Returns: (adjacent_vertices, vertex_offsets, rest_lengths)
-// Format: adjacent_vertices[vertex_offsets[v]..vertex_offsets[v+1]] = neighbors of vertex v
-// rest_lengths has the same length as adjacent_vertices
-RZSIM_CUDA_API
-std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
-build_adjacency_list_gpu(
-    cuda::CUDALinearBufferHandle triangles,
-    cuda::CUDALinearBufferHandle positions,
-    int num_particles);
 
 RZSIM_CUDA_API
 void explicit_step_gpu(

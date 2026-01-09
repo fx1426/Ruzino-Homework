@@ -33,6 +33,31 @@ compute_volume_adjacency_gpu(
     cuda::CUDALinearBufferHandle vertices,
     cuda::CUDALinearBufferHandle triangles);  // triangle indices [v0,v1,v2, ...]
 
+// Build edge set from triangles
+// Returns: buffer of unique edges in format [v0, v1, v0, v1, ...]
+RZSIM_CUDA_API
+cuda::CUDALinearBufferHandle build_edge_set_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle edges);
+
+// Compute rest lengths for springs/edges
+// Returns: buffer of rest lengths, one per edge
+RZSIM_CUDA_API
+cuda::CUDALinearBufferHandle compute_rest_lengths_gpu(
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle springs);
+
+// Build adjacency list from triangles for mass-spring simulation
+// Returns: (adjacent_vertices, vertex_offsets, rest_lengths)
+// Format: adjacent_vertices[vertex_offsets[v]..vertex_offsets[v+1]] = neighbors of vertex v
+// rest_lengths has the same length as adjacent_vertices
+RZSIM_CUDA_API
+std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+build_adjacency_list_gpu(
+    cuda::CUDALinearBufferHandle triangles,
+    cuda::CUDALinearBufferHandle positions,
+    int num_particles);
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
