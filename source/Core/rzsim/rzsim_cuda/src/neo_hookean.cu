@@ -467,9 +467,12 @@ __device__ Eigen::Matrix3f project_psd_nh(const Eigen::Matrix3f& H)
 
     eigen_decomposition_3x3_nh(H, eigenvalues, eigenvectors);
 
+    // Clamp negative eigenvalues to small positive value for regularization
+    // This prevents singular matrices while maintaining positive definiteness
+    const float min_eigenvalue = 1e-8f;  // Small regularization
     for (int i = 0; i < 3; i++) {
-        if (eigenvalues(i) < 0.0f)
-            eigenvalues(i) = 0.0f;
+        if (eigenvalues(i) < min_eigenvalue)
+            eigenvalues(i) = min_eigenvalue;
     }
 
     Eigen::Matrix3f result =
@@ -545,12 +548,16 @@ __device__ void compute_element_hessian(
             // For linear FEM: K_ab^(alpha,beta) = V * sum_{i,j} grad_Na^i C_{i
             // alpha j beta} grad_Nb^j where C_{ijkl} = lambda * delta_ij *
             // delta_kl + mu * (delta_ik * delta_jl + delta_il * delta_jk)
-
+            
+            // Correct formula for isotropic elasticity:
+            // K_ab = V * [lambda * (grad_Na ⊗ grad_Nb) + mu * (grad_Na ⊗ grad_Nb + grad_Nb ⊗ grad_Na)]
             float dot_product = grad_Na.dot(grad_Nb);
             K_ab = volume * lambda * (grad_Na * grad_Nb.transpose());
-            K_ab += volume * mu *
-                    (grad_Na * grad_Nb.transpose() +
-                     Eigen::Matrix3f::Identity() * dot_product);
+            K_ab += volume * mu * (grad_Na * grad_Nb.transpose() + 
+                                   grad_Nb * grad_Na.transpose());
+            
+            // Ensure strict symmetry (important for numerical stability)
+            K_ab = 0.5f * (K_ab + K_ab.transpose());
 
             // Project to PSD
             K_ab = project_psd_nh(K_ab);
@@ -564,16 +571,19 @@ __device__ void compute_element_hessian(
         }
     }
     
-    // The matrix should be symmetric - verify in debug mode
-    // (Uncomment for debugging)
-    // for (int i = 0; i < 12; i++) {
-    //     for (int j = i + 1; j < 12; j++) {
-    //         float diff = fabsf(K_elem(i,j) - K_elem(j,i));
-    //         if (diff > 1e-5f * fmaxf(fabsf(K_elem(i,j)), 1e-10f)) {
-    //             printf("Hessian asymmetry at (%d,%d): %e vs %e\n", i, j, K_elem(i,j), K_elem(j,i));
-    //         }
-    //     }
-    // }
+    // Verify symmetry of element stiffness matrix (debug only)
+    #ifdef DEBUG_HESSIAN_SYMMETRY
+    for (int i = 0; i < 12; i++) {
+        for (int j = i + 1; j < 12; j++) {
+            float diff = fabsf(K_elem(i,j) - K_elem(j,i));
+            float mag = fmaxf(fabsf(K_elem(i,j)), fabsf(K_elem(j,i)));
+            if (mag > 1e-10f && diff > 1e-4f * mag) {
+                printf("[HESSIAN] Asymmetry at K(%d,%d): %.6e vs K(%d,%d): %.6e, diff=%.6e\\n",
+                       i, j, K_elem(i,j), j, i, K_elem(j,i), diff);
+            }
+        }
+    }
+    #endif
 }
 
 // Binary search for entry position (same as mass-spring)
@@ -624,6 +634,9 @@ NeoHookeanCSRStructure build_hessian_structure_nh_gpu(
     const int* elem_to_lf_ptr = element_to_local_face->get_device_ptr<int>();
 
     // Each tetrahedron contributes 12x12 = 144 entries
+    // For symmetric matrix, we need both (i,j) and (j,i) if i != j
+    // Upper triangle: 12*13/2 = 78 unique entries per element
+    // But we'll generate all 144 and rely on deduplication for simplicity
     int num_mass_entries = n;
     int num_element_entries = num_elements * 144;
     int total_entries = num_mass_entries + num_element_entries;
@@ -943,6 +956,7 @@ __global__ void fill_hessian_values_nh_kernel(
     // Write to CSR values array
     // CRITICAL: Eigen uses column-major order, but we need row-major for CSR
     // K_elem.data()[i] gives column-major, but positions[] expects row-major
+    // For symmetric matrices: K_elem(row, col) should equal K_elem(col, row)
     const int* positions = &value_positions[elem_idx * 144];
     for (int row = 0; row < 12; row++) {
         for (int col = 0; col < 12; col++) {
@@ -950,6 +964,8 @@ __global__ void fill_hessian_values_nh_kernel(
             int pos = positions[idx];
             if (pos >= 0) {
                 // Use (row, col) to access Eigen matrix correctly
+                // For symmetric matrix, K(row,col) should already equal K(col,row)
+                // due to the symmetric construction in compute_element_hessian
                 atomicAdd(&values[pos], K_elem(row, col));
             }
         }
@@ -1180,7 +1196,8 @@ float compute_energy_nh_gpu(
     float E_potential = thrust::reduce(
         thrust::device, d_potential_thrust, d_potential_thrust + n);
 
-    // Total energy (like mass-spring): E = 1/2*M*(x-x_tilde)² + dt²*Ψ(x) - dt²*f^T*x
+    // Total energy (like mass-spring): E = 1/2*M*(x-x_tilde)² + dt²*Ψ(x) -
+    // dt²*f^T*x
     float total_energy = E_inertial + dt * dt * E_elastic + E_potential;
 
     return total_energy;
