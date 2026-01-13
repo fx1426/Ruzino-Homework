@@ -349,7 +349,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             Ruzino::Solver::SolverConfig solver_config;
             solver_config.tolerance = cg_tol;
             solver_config.max_iterations =
-                1000;  // Increased for tighter convergence
+                2000;  // Increased for tighter convergence
             solver_config.use_preconditioner = true;
             solver_config.verbose = false;
 
@@ -434,7 +434,13 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                     storage.element_energies_buffer,
                     storage.potential_terms_buffer);
 
-                bool accept = E_candidate <= E_current;
+                // Accept step if energy decreases OR if the increase is within
+                // numerical precision This prevents getting stuck when gradient
+                // is small and energy changes are negligible
+                float energy_tolerance =
+                    std::max(1e-6f, std::abs(E_current) * 1e-6f);
+                bool accept = (E_candidate <= E_current) ||
+                              (E_candidate - E_current < energy_tolerance);
                 if (accept) {
                     storage.x_new_buffer->copy_from_device(
                         storage.x_candidate_buffer.Get());
@@ -446,6 +452,12 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             }
 
             if (ls_iter >= 200 || alpha < 1e-6f) {
+                spdlog::warn(
+                    "[NeoHookean]   Line search failed at iter {} (ls_iter={}, "
+                    "alpha={:.6e})",
+                    iter,
+                    ls_iter,
+                    alpha);
                 break;
             }
 
