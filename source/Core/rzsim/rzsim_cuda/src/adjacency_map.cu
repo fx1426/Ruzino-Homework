@@ -396,29 +396,33 @@ __device__ float compute_tet_signed_volume(
 
 // Count valid opposite faces using 2D parallelization
 __global__ void count_vertex_opposite_faces_kernel(
-    const unsigned* triangles_flat,
-    unsigned num_triangles,
+    const unsigned* triangles_original,
+    unsigned num_triangles_original,
     const Triangle* triangles_sorted,
+    unsigned num_triangles_sorted,
     unsigned num_vertices,
     unsigned* face_counts)
 {
-    unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
-    unsigned total = num_triangles * num_vertices;
+    unsigned long long idx =
+        (unsigned long long)blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned long long total =
+        (unsigned long long)num_triangles_original * num_vertices;
 
     if (idx >= total)
         return;
 
-    unsigned tri_idx = idx / num_vertices;
-    unsigned v = idx % num_vertices;
+    unsigned tri_idx = (unsigned)(idx / num_vertices);
+    unsigned v = (unsigned)(idx % num_vertices);
 
-    unsigned v0 = triangles_flat[tri_idx * 3 + 0];
-    unsigned v1 = triangles_flat[tri_idx * 3 + 1];
-    unsigned v2 = triangles_flat[tri_idx * 3 + 2];
+    // Read triangle vertices from ORIGINAL array (preserve vertex order)
+    unsigned v0 = triangles_original[tri_idx * 3 + 0];
+    unsigned v1 = triangles_original[tri_idx * 3 + 1];
+    unsigned v2 = triangles_original[tri_idx * 3 + 2];
 
     // Check if vertex v is not in this triangle and forms a tetrahedron
     if (!contains_vertex(v0, v1, v2, v) &&
         forms_tetrahedron_fast(
-            triangles_sorted, num_triangles, v, v0, v1, v2)) {
+            triangles_sorted, num_triangles_sorted, v, v0, v1, v2)) {
         atomicAdd(&face_counts[v], 1);
     }
 }
@@ -426,31 +430,35 @@ __global__ void count_vertex_opposite_faces_kernel(
 // Fill opposite face triplets using 2D parallelization
 __global__ void fill_volume_adjacency_kernel(
     const float* positions,
-    const unsigned* triangles_flat,
-    unsigned num_triangles,
+    const unsigned* triangles_original,
+    unsigned num_triangles_original,
     const Triangle* triangles_sorted,
+    unsigned num_triangles_sorted,
     unsigned num_vertices,
     const unsigned* offsets,
     unsigned* write_positions,
     unsigned* adjacency_list)
 {
-    unsigned idx = blockIdx.x * blockDim.x + threadIdx.x;
-    unsigned total = num_triangles * num_vertices;
+    unsigned long long idx =
+        (unsigned long long)blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned long long total =
+        (unsigned long long)num_triangles_original * num_vertices;
 
     if (idx >= total)
         return;
 
-    unsigned tri_idx = idx / num_vertices;
-    unsigned v = idx % num_vertices;
+    unsigned tri_idx = (unsigned)(idx / num_vertices);
+    unsigned v = (unsigned)(idx % num_vertices);
 
-    unsigned v0 = triangles_flat[tri_idx * 3 + 0];
-    unsigned v1 = triangles_flat[tri_idx * 3 + 1];
-    unsigned v2 = triangles_flat[tri_idx * 3 + 2];
+    // Read triangle vertices from ORIGINAL array (preserve vertex order)
+    unsigned v0 = triangles_original[tri_idx * 3 + 0];
+    unsigned v1 = triangles_original[tri_idx * 3 + 1];
+    unsigned v2 = triangles_original[tri_idx * 3 + 2];
 
     // Check if vertex v is not in this triangle and forms a tetrahedron
     if (!contains_vertex(v0, v1, v2, v) &&
         forms_tetrahedron_fast(
-            triangles_sorted, num_triangles, v, v0, v1, v2)) {
+            triangles_sorted, num_triangles_sorted, v, v0, v1, v2)) {
         // Check orientation: compute signed volume of tet (v, v0, v1, v2)
         float signed_vol = compute_tet_signed_volume(positions, v, v0, v1, v2);
 
@@ -542,37 +550,35 @@ compute_volume_adjacency_gpu(
         thrust::distance(normalized_triangles.begin(), new_tri_end);
     normalized_triangles.resize(num_unique_triangles);
 
-    // Convert back to flat buffer: use original_index to preserve orientation
-    thrust::device_vector<unsigned> unique_tri_buffer(num_unique_triangles * 3);
-    auto unique_tri_ptr = thrust::raw_pointer_cast(unique_tri_buffer.data());
+    // Debug: Check how many duplicates were removed
+    unsigned num_duplicates = num_triangles - num_unique_triangles;
+    if (num_duplicates > 0) {
+        printf(
+            "[GPU Adjacency] Triangle deduplication: %u -> %u (removed %u "
+            "duplicates, %.1f%%)\n",
+            num_triangles,
+            num_unique_triangles,
+            num_duplicates,
+            100.0f * num_duplicates / num_triangles);
+    }
+
     auto norm_tri_ptr_const =
         thrust::raw_pointer_cast(normalized_triangles.data());
-
-    // Use a kernel to copy the original triangle data (preserving orientation)
-    blocks = (num_unique_triangles + threads - 1) / threads;
-    thrust::for_each(
-        thrust::device,
-        thrust::counting_iterator<unsigned>(0),
-        thrust::counting_iterator<unsigned>(num_unique_triangles),
-        [unique_tri_ptr, norm_tri_ptr_const, tri_ptr] __device__(unsigned i) {
-            unsigned orig_idx = norm_tri_ptr_const[i].original_index;
-            unique_tri_ptr[i * 3 + 0] = tri_ptr[orig_idx * 3 + 0];
-            unique_tri_ptr[i * 3 + 1] = tri_ptr[orig_idx * 3 + 1];
-            unique_tri_ptr[i * 3 + 2] = tri_ptr[orig_idx * 3 + 2];
-        });
-    cudaDeviceSynchronize();
 
     // Step 2: Count opposite faces per vertex using 2D parallelization
     thrust::device_vector<unsigned> face_counts(num_vertices, 0);
     auto counts_ptr = thrust::raw_pointer_cast(face_counts.data());
 
-    unsigned total_pairs = num_unique_triangles * num_vertices;
-    blocks = (total_pairs + threads - 1) / threads;
+    unsigned long long total_pairs =
+        (unsigned long long)num_triangles *
+        num_vertices;  // Use ORIGINAL triangle count
+    blocks = (unsigned)((total_pairs + threads - 1) / threads);
 
     count_vertex_opposite_faces_kernel<<<blocks, threads>>>(
-        unique_tri_ptr,
-        num_unique_triangles,
-        norm_tri_ptr_const,
+        tri_ptr,               // Original triangles for iteration
+        num_triangles,         // Original count for iteration
+        norm_tri_ptr_const,    // Normalized triangles for binary search
+        num_unique_triangles,  // Unique count for binary search
         num_vertices,
         counts_ptr);
     cudaDeviceSynchronize();
@@ -627,9 +633,10 @@ compute_volume_adjacency_gpu(
 
     fill_volume_adjacency_kernel<<<blocks, threads>>>(
         positions_ptr,
-        unique_tri_ptr,
-        num_unique_triangles,
-        norm_tri_ptr_const,
+        tri_ptr,               // Original triangles for iteration
+        num_triangles,         // Original count for iteration
+        norm_tri_ptr_const,    // Normalized triangles for binary search
+        num_unique_triangles,  // Unique count for binary search
         num_vertices,
         offsets_ptr,
         write_pos_ptr,
@@ -660,6 +667,16 @@ compute_volume_adjacency_gpu(
         thrust::plus<unsigned>());
 
     unsigned total_elements = total_face_counts / 4;
+
+    printf(
+        "[GPU Adjacency] Total opposite face records: %u, computed tets: %u\n",
+        total_face_counts,
+        total_elements);
+    printf(
+        "[GPU Adjacency] Input: %u vertices, %u triangles (%u unique)\n",
+        num_vertices,
+        num_triangles,
+        num_unique_triangles);
 
     return std::make_tuple(adjacency_buffer, offset_buffer, total_elements);
 }

@@ -2,6 +2,7 @@
 #include <GCore/GOP.h>
 #include <GCore/algorithms/tetgen_algorithm.h>
 #include <GCore/create_geom.h>
+#include <GCore/read_geom.h>
 #include <GCore/util_openmesh_bind.h>
 #include <gtest/gtest.h>
 #include <rzsim/rzsim.h>
@@ -17,6 +18,7 @@ namespace cuda {
 }  // namespace Ruzino
 
 #include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <set>
 #include <tuple>
@@ -1081,6 +1083,237 @@ TEST(VolumeAdjacency, SubDevidedTet)
 
 TEST(VolumeAdjacency, KnownVolumeMesh)
 {
+}
+
+TEST(VolumeAdjacency, StuffedToyOBJNoOverride)
+{
+    // Load the stuffed toy OBJ file that shows the discrepancy
+    std::string obj_path = "../../Assets/stuffedtoy.obj";
+
+    // Check if file exists
+    if (!std::filesystem::exists(obj_path)) {
+        GTEST_SKIP() << "Stuffed toy OBJ file not found at: " << obj_path;
+        return;
+    }
+
+    std::cout << "\n=== Stuffed Toy OBJ Tetrahedralization ===\n";
+    std::cout << "Loading: " << obj_path << "\n";
+
+    // Read the OBJ file
+    Geometry obj_mesh = read_obj_geometry(obj_path);
+    auto obj_mesh_comp = obj_mesh.get_component<MeshComponent>();
+
+    std::cout << "Input mesh - Vertices: "
+              << obj_mesh_comp->get_vertices().size()
+              << ", Faces: " << obj_mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // Triangulate if needed
+    auto omesh = operand_to_openmesh(&obj_mesh);
+    if (omesh) {
+        omesh->triangulate();
+        obj_mesh = *openmesh_to_operand(omesh.get());
+    }
+
+    // Apply TetGen with EXACT parameters from node graph
+    // Node 8 in scratch_design.json shows:
+    // - Quality Ratio: 5.0
+    // - Max Volume: 9.999999747378752e-05 (0.0001)
+    // - Refine: true
+    // - Conforming Delaunay: true
+    // - min_dihedral: 20.0 (hardcoded in node_tetgen.cpp)
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.0001f;
+    params.quality_ratio = 5.0f;
+    params.refine = true;
+    params.conforming_delaunay = true;
+    params.quiet = false;  // Show TetGen output
+
+    std::cout << "\n--- Running TetGen with node graph parameters ---\n";
+    std::cout << "  max_volume: " << params.max_volume << "\n";
+    std::cout << "  quality_ratio: " << params.quality_ratio << "\n";
+    std::cout << "  min_dihedral_angle: " << params.min_dihedral_angle << "\n";
+
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(obj_mesh, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+
+    std::cout << "\nAfter tetrahedralization:\n";
+    std::cout << "  Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    std::cout << "  Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // Check surf_of_vol marker to see boundary vs interior faces
+    auto surf_markers = mesh_comp->get_face_scalar_quantity("surf_of_vol");
+    if (!surf_markers.empty()) {
+        int boundary_faces = 0;
+        int interior_faces = 0;
+        for (float marker : surf_markers) {
+            if (marker != 0.0f)
+                boundary_faces++;
+            else
+                interior_faces++;
+        }
+        std::cout << "  Boundary faces: " << boundary_faces << "\n";
+        std::cout << "  Interior faces: " << interior_faces << "\n";
+    }
+
+    // Get GPU-computed tetrahedra count
+    std::cout << "\n--- GPU Adjacency Computation ---\n";
+    auto [adjacencyCPU, offsetCPU, num_tets_gpu] =
+        get_volume_adjacency(tet_mesh);
+
+    std::cout << "  Tetrahedra (GPU): " << num_tets_gpu << "\n";
+
+    // Verify against OpenVolumeMesh
+    std::cout << "\n--- OpenVolumeMesh Validation ---\n";
+    auto volumemesh =
+        operand_to_openvolumemesh(const_cast<Geometry*>(&tet_mesh));
+    unsigned num_tets_ovm = volumemesh->n_cells();
+
+    std::cout << "  Tetrahedra (OVM): " << num_tets_ovm << "\n";
+    std::cout << "  Vertices: " << volumemesh->n_vertices() << "\n";
+    std::cout << "  Faces: " << volumemesh->n_faces() << "\n";
+    std::cout << "  Edges: " << volumemesh->n_edges() << "\n";
+
+    // The critical assertion: GPU count should match OVM count
+    // User reported: TetGen reports 198731 but GPU only finds 31996 - this is
+    // the bug!
+    if (num_tets_gpu != num_tets_ovm) {
+        std::cout << "\n!!! CRITICAL BUG DETECTED !!!\n";
+        std::cout << "  GPU detected: " << num_tets_gpu << " tetrahedra\n";
+        std::cout << "  OVM detected: " << num_tets_ovm << " tetrahedra\n";
+        std::cout << "  Missing: " << (num_tets_ovm - num_tets_gpu)
+                  << " tetrahedra\n";
+        std::cout
+            << "  This means GPU adjacency algorithm failed to reconstruct "
+            << (num_tets_ovm - num_tets_gpu) << " tetrahedra from faces!\n";
+    }
+
+    EXPECT_EQ(num_tets_gpu, num_tets_ovm)
+        << "GPU tetrahedra count MUST match OpenVolumeMesh cell count. "
+        << "GPU found " << num_tets_gpu << " but OVM found " << num_tets_ovm;
+
+    // Full validation
+    if (num_tets_gpu == num_tets_ovm) {
+        std::cout << "\n✓ GPU and OVM counts match!\n";
+        verify_against_openvolumemesh(tet_mesh);
+    }
+}
+
+TEST(VolumeAdjacency, StuffedToyOBJ)
+{
+    // Load the stuffed toy OBJ file that shows the discrepancy
+    std::string obj_path = "../../Assets/stuffedtoy.obj";
+
+    // Check if file exists
+    if (!std::filesystem::exists(obj_path)) {
+        GTEST_SKIP() << "Stuffed toy OBJ file not found at: " << obj_path;
+        return;
+    }
+
+    std::cout << "\n=== Stuffed Toy OBJ Tetrahedralization ===\n";
+    std::cout << "Loading: " << obj_path << "\n";
+
+    // Read the OBJ file
+    Geometry obj_mesh = read_obj_geometry(obj_path);
+    auto obj_mesh_comp = obj_mesh.get_component<MeshComponent>();
+
+    std::cout << "Input mesh - Vertices: "
+              << obj_mesh_comp->get_vertices().size()
+              << ", Faces: " << obj_mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // Triangulate if needed
+    auto omesh = operand_to_openmesh(&obj_mesh);
+    if (omesh) {
+        omesh->triangulate();
+        obj_mesh = *openmesh_to_operand(omesh.get());
+    }
+
+    // Apply TetGen with EXACT parameters from node graph
+    // Node 8 in scratch_design.json shows:
+    // - Quality Ratio: 5.0
+    // - Max Volume: 9.999999747378752e-05 (0.0001)
+    // - Refine: true
+    // - Conforming Delaunay: true
+    // - min_dihedral: 20.0 (hardcoded in node_tetgen.cpp)
+    geom_algorithm::TetgenParams params;
+    params.max_volume = 0.0001f;
+    params.quality_ratio = 5.0f;
+    params.min_dihedral_angle = 20.0f;  // Match node_tetgen.cpp override
+    params.refine = true;
+    params.conforming_delaunay = true;
+    params.quiet = false;  // Show TetGen output
+
+    std::cout << "\n--- Running TetGen with node graph parameters ---\n";
+    std::cout << "  max_volume: " << params.max_volume << "\n";
+    std::cout << "  quality_ratio: " << params.quality_ratio << "\n";
+    std::cout << "  min_dihedral_angle: " << params.min_dihedral_angle << "\n";
+
+    Geometry tet_mesh = geom_algorithm::tetrahedralize(obj_mesh, params);
+    auto mesh_comp = tet_mesh.get_const_component<MeshComponent>();
+
+    std::cout << "\nAfter tetrahedralization:\n";
+    std::cout << "  Vertices: " << mesh_comp->get_vertices().size() << "\n";
+    std::cout << "  Faces: " << mesh_comp->get_face_vertex_counts().size()
+              << "\n";
+
+    // Check surf_of_vol marker to see boundary vs interior faces
+    auto surf_markers = mesh_comp->get_face_scalar_quantity("surf_of_vol");
+    if (!surf_markers.empty()) {
+        int boundary_faces = 0;
+        int interior_faces = 0;
+        for (float marker : surf_markers) {
+            if (marker != 0.0f)
+                boundary_faces++;
+            else
+                interior_faces++;
+        }
+        std::cout << "  Boundary faces: " << boundary_faces << "\n";
+        std::cout << "  Interior faces: " << interior_faces << "\n";
+    }
+
+    // Get GPU-computed tetrahedra count
+    std::cout << "\n--- GPU Adjacency Computation ---\n";
+    auto [adjacencyCPU, offsetCPU, num_tets_gpu] =
+        get_volume_adjacency(tet_mesh);
+
+    std::cout << "  Tetrahedra (GPU): " << num_tets_gpu << "\n";
+
+    // Verify against OpenVolumeMesh
+    std::cout << "\n--- OpenVolumeMesh Validation ---\n";
+    auto volumemesh =
+        operand_to_openvolumemesh(const_cast<Geometry*>(&tet_mesh));
+    unsigned num_tets_ovm = volumemesh->n_cells();
+
+    std::cout << "  Tetrahedra (OVM): " << num_tets_ovm << "\n";
+    std::cout << "  Vertices: " << volumemesh->n_vertices() << "\n";
+    std::cout << "  Faces: " << volumemesh->n_faces() << "\n";
+    std::cout << "  Edges: " << volumemesh->n_edges() << "\n";
+
+    // The critical assertion: GPU count should match OVM count
+    // User reported: TetGen reports 198731 but GPU only finds 31996 - this is
+    // the bug!
+    if (num_tets_gpu != num_tets_ovm) {
+        std::cout << "\n!!! CRITICAL BUG DETECTED !!!\n";
+        std::cout << "  GPU detected: " << num_tets_gpu << " tetrahedra\n";
+        std::cout << "  OVM detected: " << num_tets_ovm << " tetrahedra\n";
+        std::cout << "  Missing: " << (num_tets_ovm - num_tets_gpu)
+                  << " tetrahedra\n";
+        std::cout
+            << "  This means GPU adjacency algorithm failed to reconstruct "
+            << (num_tets_ovm - num_tets_gpu) << " tetrahedra from faces!\n";
+    }
+
+    EXPECT_EQ(num_tets_gpu, num_tets_ovm)
+        << "GPU tetrahedra count MUST match OpenVolumeMesh cell count. "
+        << "GPU found " << num_tets_gpu << " but OVM found " << num_tets_ovm;
+
+    // Full validation
+    if (num_tets_gpu == num_tets_ovm) {
+        std::cout << "\n✓ GPU and OVM counts match!\n";
+        verify_against_openvolumemesh(tet_mesh);
+    }
 }
 
 int main(int argc, char** argv)

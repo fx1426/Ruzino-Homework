@@ -7,6 +7,7 @@
 #include <iostream>
 
 #include "GCore/Components/MeshComponent.h"
+#include "GCore/read_geom.h"
 #include "igl/readOBJ.h"
 #include "nodes/core/def/node_def.hpp"
 #include "pxr/base/arch/fileSystem.h"
@@ -152,9 +153,6 @@ NODE_EXECUTION_FUNCTION(read_obj_eigen)
 
 NODE_DECLARATION_UI(read_obj_eigen);
 
-// 定义一个简单的网格类型
-typedef OpenMesh::TriMesh_ArrayKernelT<> MyMesh;
-
 NODE_DECLARATION_FUNCTION(read_obj_pxr)
 {
     b.add_input<std::string>("Path").default_val("Default");
@@ -163,125 +161,17 @@ NODE_DECLARATION_FUNCTION(read_obj_pxr)
 
 NODE_EXECUTION_FUNCTION(read_obj_pxr)
 {
-    std::filesystem::path executable_path;
-
-#ifdef _WIN32
-    char p[MAX_PATH];
-    GetModuleFileNameA(NULL, p, MAX_PATH);
-    executable_path = std::filesystem::path(p).parent_path();
-#else
-    char p[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", p, PATH_MAX);
-    if (count != -1) {
-        p[count] = '\0';
-        executable_path = std::filesystem::path(path).parent_path();
-    }
-    else {
-        throw std::runtime_error("Failed to get executable path.");
-    }
-#endif
-
     auto path_str = params.get_input<std::string>("Path");
-    std::filesystem::path abs_path;
-    if (!path_str.empty()) {
-        abs_path = std::filesystem::path(path_str);
+
+    try {
+        Geometry geometry = read_obj_geometry(path_str);
+        params.set_output("Geometry", geometry);
+        return true;
     }
-    else {
-        std::cerr << "Path is empty." << std::endl;
+    catch (const std::exception& e) {
+        std::cerr << "Failed to read OBJ: " << e.what() << std::endl;
         return false;
     }
-    if (!abs_path.is_absolute()) {
-        abs_path = executable_path / abs_path;
-    }
-    abs_path = abs_path.lexically_normal();
-
-    MyMesh mesh;
-    OpenMesh::IO::Options opt;
-    opt += OpenMesh::IO::Options::VertexTexCoord;
-    opt += OpenMesh::IO::Options::VertexNormal;
-
-    // 尝试读取OBJ文件
-    if (!OpenMesh::IO::read_mesh(
-            mesh, std::string(abs_path.string().c_str()), opt)) {
-        return false;
-    }
-
-    // 请求法线和纹理坐标
-    if (opt.check(OpenMesh::IO::Options::VertexNormal)) {
-        mesh.request_vertex_normals();
-        if (!mesh.has_vertex_normals()) {
-            mesh.update_normals();
-        }
-    }
-    mesh.request_vertex_texcoords2D();
-
-    // 创建 Geometry 对象
-    Geometry geometry;
-    std::shared_ptr<MeshComponent> mesh_component =
-        std::make_shared<MeshComponent>(&geometry);
-    geometry.attach_component(mesh_component);
-
-    // 转换顶点数据
-    std::vector<glm::vec3> vertices(mesh.n_vertices());
-    int vertex_idx = 0;
-    for (auto vh : mesh.vertices()) {
-        auto point = mesh.point(vh);
-        vertices[vertex_idx] = glm::vec3(point[0], point[1], point[2]);
-        vertex_idx++;
-    }
-    mesh_component->set_vertices(vertices);
-
-    // 转换面数据
-    const int vertices_per_face = 3;  // 三角形网格
-    const int num_faces = mesh.n_faces();
-    std::vector<int> faceVertexCounts(num_faces, vertices_per_face);
-    std::vector<int> faceVertexIndices(num_faces * vertices_per_face);
-
-    int face_idx = 0;
-    for (auto fh : mesh.faces()) {
-        int vertex_count = 0;
-        for (auto fv_it = mesh.fv_iter(fh); fv_it.is_valid(); ++fv_it) {
-            faceVertexIndices[face_idx * vertices_per_face + vertex_count] =
-                fv_it->idx();
-            vertex_count++;
-        }
-        face_idx++;
-    }
-    mesh_component->set_face_vertex_counts(faceVertexCounts);
-    mesh_component->set_face_vertex_indices(faceVertexIndices);
-
-    // 转换法线数据
-    if (mesh.has_vertex_normals()) {
-        std::vector<glm::vec3> normals(mesh.n_vertices());
-        int normal_idx = 0;
-        for (auto vh : mesh.vertices()) {
-            auto normal = mesh.normal(vh);
-            normals[normal_idx] = glm::vec3(normal[0], normal[1], normal[2]);
-            normal_idx++;
-        }
-        mesh_component->set_normals(normals);
-    }
-
-    // 转换纹理坐标数据
-    if (mesh.has_vertex_texcoords2D()) {
-        std::vector<glm::vec2> texcoords(mesh.n_vertices());
-        int texcoord_idx = 0;
-        for (auto vh : mesh.vertices()) {
-            auto texcoord = mesh.texcoord2D(vh);
-            texcoords[texcoord_idx] = glm::vec2(texcoord[0], texcoord[1]);
-            texcoord_idx++;
-        }
-        mesh_component->set_texcoords_array(texcoords);
-    }
-
-    // 清理请求的属性
-    mesh.release_vertex_normals();
-    mesh.release_vertex_texcoords2D();
-
-    // 设置输出
-    params.set_output("Geometry", geometry);
-
-    return true;
 }
 
 NODE_DECLARATION_UI(read_obj_pxr);
