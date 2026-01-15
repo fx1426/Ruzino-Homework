@@ -13,8 +13,8 @@ class VolumeAdjacencyMap;
 
 // CSR structure for sparse Hessian matrix (same as mass-spring)
 struct NeoHookeanCSRStructure {
-    cuda::CUDALinearBufferHandle row_offsets;   // size: (n+1)
-    cuda::CUDALinearBufferHandle col_indices;   // size: nnz
+    cuda::CUDALinearBufferHandle row_offsets;  // size: (n+1)
+    cuda::CUDALinearBufferHandle col_indices;  // size: nnz
     cuda::CUDALinearBufferHandle
         mass_value_positions;  // size: n (positions of diagonal mass entries)
     cuda::CUDALinearBufferHandle element_value_positions;  // size:
@@ -70,17 +70,17 @@ void compute_neg_gradient_nh_gpu(
     cuda::CUDALinearBufferHandle x_tilde,
     cuda::CUDALinearBufferHandle M_diag,
     const VolumeAdjacencyMap& volume_adjacency,
-    cuda::CUDALinearBufferHandle Dm_inv,      // [9 * num_elements] inverse
-                                              // reference shape matrices
-    cuda::CUDALinearBufferHandle volumes,     // [num_elements] rest volumes
-    float mu,                                 // Lamé parameter
-    float lambda,                             // Lamé parameter
-    float density,                            // Material density
-    float gravity,                            // Gravity magnitude
+    cuda::CUDALinearBufferHandle Dm_inv,   // [9 * num_elements] inverse
+                                           // reference shape matrices
+    cuda::CUDALinearBufferHandle volumes,  // [num_elements] rest volumes
+    float mu,                              // Lamé parameter
+    float lambda,                          // Lamé parameter
+    float density,                         // Material density
+    float gravity,                         // Gravity magnitude
     float dt,
     int num_particles,
     int num_elements,
-    cuda::CUDALinearBufferHandle neg_grad);   // Output: negative gradient
+    cuda::CUDALinearBufferHandle neg_grad);  // Output: negative gradient
 
 // Build CSR sparsity pattern once during initialization
 RZSIM_CUDA_API
@@ -137,7 +137,11 @@ compute_nh_reference_data_gpu(
 
 // Legacy function - computes both topology and reference data
 RZSIM_CUDA_API
-std::tuple<cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle, cuda::CUDALinearBufferHandle>
+std::tuple<
+    cuda::CUDALinearBufferHandle,
+    cuda::CUDALinearBufferHandle,
+    cuda::CUDALinearBufferHandle,
+    cuda::CUDALinearBufferHandle>
 compute_reference_data_gpu(
     cuda::CUDALinearBufferHandle positions,
     cuda::CUDALinearBufferHandle adjacency,
@@ -160,10 +164,7 @@ void axpy_nh_gpu(
     int size);
 
 RZSIM_CUDA_API
-void scale_vector_gpu(
-    cuda::CUDALinearBufferHandle vec,
-    float scale,
-    int size);
+void scale_vector_gpu(cuda::CUDALinearBufferHandle vec, float scale, int size);
 
 RZSIM_CUDA_API
 float compute_vector_norm_nh_gpu(cuda::CUDALinearBufferHandle vec, int size);
@@ -185,6 +186,30 @@ void handle_ground_collision_nh_gpu(
     cuda::CUDALinearBufferHandle velocities,
     float restitution,
     int num_particles);
+
+// Apply Dirichlet boundary conditions to Hessian matrix (CSR format)
+// Sets rows and columns of BC DOFs appropriately
+RZSIM_CUDA_API
+void apply_dirichlet_bc_to_hessian_gpu(
+    const NeoHookeanCSRStructure& csr_structure,
+    cuda::CUDALinearBufferHandle bc_dofs,  // [num_bc_dofs] DOF indices with BC
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle values);  // Modified in-place
+
+// Apply Dirichlet boundary conditions to gradient vector
+// Sets gradient to zero for BC DOFs
+RZSIM_CUDA_API
+void apply_dirichlet_bc_to_gradient_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,  // [num_bc_dofs] DOF indices with BC
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle gradient);  // Modified in-place
+
+// Zero out Newton direction for BC DOFs
+RZSIM_CUDA_API
+void apply_dirichlet_bc_to_direction_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle direction);
 
 }  // namespace rzsim_cuda
 

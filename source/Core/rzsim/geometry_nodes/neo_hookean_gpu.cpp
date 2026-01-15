@@ -53,6 +53,11 @@ struct NeoHookeanGPUStorage {
     // Reuse solver instance
     std::unique_ptr<Ruzino::Solver::LinearSolver> solver;
 
+    // Dirichlet boundary conditions
+    cuda::CUDALinearBufferHandle bc_dofs_buffer;  // DOF indices with BC
+    int num_bc_dofs = 0;
+    std::vector<int> bc_dofs;  // Host copy for reference
+
     bool initialized = false;
     int num_particles = 0;
     int num_elements = 0;
@@ -213,11 +218,15 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     std::vector<glm::vec3> positions;
     std::vector<int> face_vertex_indices;
     std::vector<int> face_counts;
+    std::vector<float> dirichlet_face_values;  // Face quantity for BC
 
     if (mesh_component) {
         positions = mesh_component->get_vertices();
         face_vertex_indices = mesh_component->get_face_vertex_indices();
         face_counts = mesh_component->get_face_vertex_counts();
+        // Try to get dirichlet face quantity
+        dirichlet_face_values =
+            mesh_component->get_face_scalar_quantity("dirichlet");
     }
     else {
         auto points_component = input_geom.get_component<PointsComponent>();
@@ -238,6 +247,48 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
     if (!storage.initialized || storage.num_particles != num_particles) {
         storage.initialize(
             positions, face_vertex_indices, face_counts, density);
+    }
+
+    // Update Dirichlet boundary conditions from face quantities
+    // Find all vertices that belong to faces marked as dirichlet
+    std::set<int> bc_vertices;
+    if (!dirichlet_face_values.empty() &&
+        dirichlet_face_values.size() == face_counts.size()) {
+        int face_idx = 0;
+        int vertex_offset = 0;
+        for (int face = 0; face < face_counts.size(); ++face) {
+            // If this face is marked as dirichlet (non-zero value)
+            if (dirichlet_face_values[face] > 0.5f) {
+                int num_verts = face_counts[face];
+                for (int v = 0; v < num_verts; ++v) {
+                    int vert_idx = face_vertex_indices[vertex_offset + v];
+                    bc_vertices.insert(vert_idx);
+                }
+            }
+            vertex_offset += face_counts[face];
+        }
+    }
+
+    // Convert vertex indices to DOF indices (each vertex has 3 DOFs: x, y, z)
+    storage.bc_dofs.clear();
+    for (int v : bc_vertices) {
+        storage.bc_dofs.push_back(v * 3 + 0);  // x DOF
+        storage.bc_dofs.push_back(v * 3 + 1);  // y DOF
+        storage.bc_dofs.push_back(v * 3 + 2);  // z DOF
+    }
+    storage.num_bc_dofs = storage.bc_dofs.size();
+
+    // Upload BC DOFs to GPU
+    if (storage.num_bc_dofs > 0) {
+        storage.bc_dofs_buffer =
+            cuda::create_cuda_linear_buffer(storage.bc_dofs);
+        spdlog::info(
+            "[NeoHookean] Dirichlet BC applied to {} vertices ({} DOFs)",
+            bc_vertices.size(),
+            storage.num_bc_dofs);
+    }
+    else {
+        spdlog::info("[NeoHookean] No Dirichlet boundary conditions");
     }
 
     if (!storage.initialized || storage.num_elements == 0) {
@@ -326,6 +377,21 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 storage.num_elements,
                 storage.hessian_values);
 
+            // Apply Dirichlet boundary conditions to Hessian
+            if (storage.num_bc_dofs > 0) {
+                rzsim_cuda::apply_dirichlet_bc_to_hessian_gpu(
+                    storage.hessian_structure,
+                    storage.bc_dofs_buffer,
+                    storage.num_bc_dofs,
+                    storage.hessian_values);
+
+                // Apply BC to gradient (set to zero for BC DOFs)
+                rzsim_cuda::apply_dirichlet_bc_to_gradient_gpu(
+                    storage.bc_dofs_buffer,
+                    storage.num_bc_dofs,
+                    storage.neg_gradient_buffer);
+            }
+
             // Solve H * p = -grad using CUDA CG
             // Use tight tolerance for better symmetry preservation
             float cg_tol = std::max(1e-8f, grad_norm * 1e-3f);
@@ -364,6 +430,14 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 spdlog::warn(
                     "[NeoHookean] CG solver did not converge in iteration {}",
                     iter);
+            }
+
+            // Ensure BC DOFs have zero Newton direction
+            if (storage.num_bc_dofs > 0) {
+                rzsim_cuda::apply_dirichlet_bc_to_direction_gpu(
+                    storage.bc_dofs_buffer,
+                    storage.num_bc_dofs,
+                    storage.newton_direction_buffer);
             }
 
             // Line search with energy descent

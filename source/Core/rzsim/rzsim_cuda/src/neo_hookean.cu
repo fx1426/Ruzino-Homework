@@ -1483,6 +1483,113 @@ void handle_ground_collision_nh_gpu(
         });
 }
 
+// ============================================================================
+// Dirichlet Boundary Conditions
+// ============================================================================
+
+// Apply Dirichlet boundary conditions to Hessian matrix (CSR format)
+// For each BC DOF i:
+// - Set row i: H[i,i] = 1, all other entries in row i = 0
+// - Set column i: H[j,i] = 0 for all j != i
+void apply_dirichlet_bc_to_hessian_gpu(
+    const NeoHookeanCSRStructure& csr_structure,
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle values)
+{
+    if (num_bc_dofs == 0)
+        return;
+
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    const int* row_offsets_ptr =
+        csr_structure.row_offsets->get_device_ptr<int>();
+    const int* col_indices_ptr =
+        csr_structure.col_indices->get_device_ptr<int>();
+    float* values_ptr = values->get_device_ptr<float>();
+
+    int num_rows = csr_structure.num_rows;
+
+    // Step 1: Mark BC DOFs in a boolean array for fast lookup
+    thrust::device_vector<bool> is_bc_dof(num_rows, false);
+    bool* is_bc_ptr = thrust::raw_pointer_cast(is_bc_dof.data());
+
+    cuda::GPUParallelFor("mark_bc_dofs", num_bc_dofs, [=] __device__(int i) {
+        int dof = bc_dofs_ptr[i];
+        if (dof >= 0 && dof < num_rows) {
+            is_bc_ptr[dof] = true;
+        }
+    });
+
+    // Step 2: Process each row
+    cuda::GPUParallelFor("apply_bc_to_rows", num_rows, [=] __device__(int row) {
+        int row_start = row_offsets_ptr[row];
+        int row_end = row_offsets_ptr[row + 1];
+
+        if (is_bc_ptr[row]) {
+            // This row corresponds to a BC DOF
+            // Set diagonal to 1, all other entries to 0
+            for (int idx = row_start; idx < row_end; ++idx) {
+                int col = col_indices_ptr[idx];
+                if (col == row) {
+                    values_ptr[idx] = 1.0f;  // Diagonal entry
+                }
+                else {
+                    values_ptr[idx] = 0.0f;  // Off-diagonal entries
+                }
+            }
+        }
+        else {
+            // This row corresponds to a free DOF
+            // Zero out entries in columns that are BC DOFs
+            for (int idx = row_start; idx < row_end; ++idx) {
+                int col = col_indices_ptr[idx];
+                if (is_bc_ptr[col]) {
+                    values_ptr[idx] = 0.0f;
+                }
+            }
+        }
+    });
+}
+
+// Apply Dirichlet boundary conditions to gradient vector
+// Set gradient to zero for BC DOFs
+void apply_dirichlet_bc_to_gradient_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle gradient)
+{
+    if (num_bc_dofs == 0)
+        return;
+
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    float* grad_ptr = gradient->get_device_ptr<float>();
+
+    cuda::GPUParallelFor(
+        "apply_bc_to_gradient", num_bc_dofs, [=] __device__(int i) {
+            int dof = bc_dofs_ptr[i];
+            grad_ptr[dof] = 0.0f;
+        });
+}
+
+// Zero out Newton direction for BC DOFs
+void apply_dirichlet_bc_to_direction_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle direction)
+{
+    if (num_bc_dofs == 0)
+        return;
+
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    float* dir_ptr = direction->get_device_ptr<float>();
+
+    cuda::GPUParallelFor(
+        "apply_bc_to_direction", num_bc_dofs, [=] __device__(int i) {
+            int dof = bc_dofs_ptr[i];
+            dir_ptr[dof] = 0.0f;
+        });
+}
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
