@@ -24,8 +24,6 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
     auto geometry = params.get_input<Geometry>("Surface Mesh");
     float quality_ratio = params.get_input<float>("Quality Ratio");
     float max_volume = params.get_input<float>("Max Volume");
-    float min_dihedral =
-        20.0f;  // Override: force higher min dihedral angle for better quality
     bool refine = params.get_input<bool>("Refine");
     bool conforming = params.get_input<bool>("Conforming Delaunay");
 
@@ -34,7 +32,6 @@ NODE_EXECUTION_FUNCTION(tetgen_tetrahedralize)
         geom_algorithm::TetgenParams tet_params;
         tet_params.quality_ratio = quality_ratio;
         tet_params.max_volume = max_volume;
-        tet_params.min_dihedral_angle = min_dihedral;
         tet_params.refine = refine;
         tet_params.conforming_delaunay = conforming;
         tet_params.quiet = true;

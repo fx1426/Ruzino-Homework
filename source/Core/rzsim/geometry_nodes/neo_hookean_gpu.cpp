@@ -190,7 +190,7 @@ struct NeoHookeanGPUStorage {
         element_energies_buffer =
             cuda::create_cuda_linear_buffer<float>(num_elements);
 
-        // Create solver instance
+        // Create solver instance - using cuSOLVER QR direct solver
         solver = Ruzino::Solver::SolverFactory::create(
             Ruzino::Solver::SolverType::CUDA_CG);
 
@@ -580,7 +580,7 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
             Ruzino::Solver::SolverConfig solver_config;
             solver_config.tolerance = cg_tol;
             solver_config.max_iterations =
-                2000;  // Increased for tighter convergence
+                5000;  // Increased for tighter convergence
             solver_config.use_preconditioner = true;
             solver_config.verbose = false;
 
@@ -611,6 +611,10 @@ NODE_EXECUTION_FUNCTION(neo_hookean_gpu)
                 spdlog::warn(
                     "[NeoHookean] CG solver did not converge in iteration {}",
                     iter);
+                spdlog::warn(
+                    "[NeoHookean]   CG info: iterations={}, residual={:.6e}",
+                    result.iterations,
+                    result.final_residual);
             }
 
             // Ensure BC DOFs have zero Newton direction

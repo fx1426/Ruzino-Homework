@@ -11,6 +11,7 @@ namespace Solver {
 std::unique_ptr<LinearSolver> createCudaCGSolver();
 std::unique_ptr<LinearSolver> createCudaBiCGStabSolver();  // 新增
 std::unique_ptr<LinearSolver> createCudaGMRESSolver();     // 新增
+std::unique_ptr<LinearSolver> createCuSolverQRSolver();    // cuSOLVER QR
 #endif
 std::unique_ptr<LinearSolver> createEigenCGSolver();
 std::unique_ptr<LinearSolver> createEigenBiCGStabSolver();
@@ -54,6 +55,8 @@ std::unique_ptr<LinearSolver> SolverFactory::create(SolverType type)
                 return createCudaBiCGStabSolver();  // 新增
             case SolverType::CUDA_GMRES:
                 return createCudaGMRESSolver();  // 新增
+            case SolverType::CUSOLVER_QR:
+                return createCuSolverQRSolver();  // cuSOLVER QR
 #endif
             case SolverType::EIGEN_ITERATIVE_CG: return createEigenCGSolver();
             case SolverType::EIGEN_ITERATIVE_BICGSTAB:
@@ -78,15 +81,16 @@ std::vector<SolverType> SolverFactory::getAvailableTypes()
     // Try to create each solver to check availability
     std::vector<SolverType> all_types = {
 #if RUZINO_WITH_CUDA
-                                          SolverType::CUDA_CG,
-                                          SolverType::CUDA_BICGSTAB,  // 新增
-                                          SolverType::CUDA_GMRES,     // 新增
+        SolverType::CUDA_CG,
+        SolverType::CUDA_BICGSTAB,  // 新增
+        SolverType::CUDA_GMRES,     // 新增
+        SolverType::CUSOLVER_QR,    // cuSOLVER QR
 #endif
-                                          SolverType::EIGEN_ITERATIVE_CG,
-                                          SolverType::EIGEN_ITERATIVE_BICGSTAB/*,
-                                          SolverType::EIGEN_DIRECT_LU,
-                                          SolverType::EIGEN_DIRECT_CHOLESKY,
-                                          SolverType::EIGEN_DIRECT_QR*/
+        SolverType::EIGEN_ITERATIVE_CG,
+        SolverType::EIGEN_ITERATIVE_BICGSTAB /*,
+         SolverType::EIGEN_DIRECT_LU,
+         SolverType::EIGEN_DIRECT_CHOLESKY,
+         SolverType::EIGEN_DIRECT_QR*/
 
     };
 
@@ -112,6 +116,7 @@ std::string SolverFactory::getTypeName(SolverType type)
         case SolverType::CUDA_CG: return "CUDA Conjugate Gradient";
         case SolverType::CUDA_BICGSTAB: return "CUDA BiCGSTAB";
         case SolverType::CUDA_GMRES: return "CUDA GMRES";  // 新增
+        case SolverType::CUSOLVER_QR: return "cuSOLVER QR (Direct)";
 #endif
         case SolverType::EIGEN_ITERATIVE_CG: return "Eigen Conjugate Gradient";
         case SolverType::EIGEN_ITERATIVE_BICGSTAB: return "Eigen BiCGSTAB";
