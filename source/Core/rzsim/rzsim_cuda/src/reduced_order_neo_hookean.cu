@@ -255,35 +255,6 @@ void compute_jacobian_gpu(
 }
 
 // ============================================================================
-// Kernel: Apply boundary conditions to Jacobian
-// Sets rows corresponding to BC DOFs to zero
-// ============================================================================
-
-void apply_bc_to_jacobian_gpu(
-    cuda::CUDALinearBufferHandle bc_dofs,
-    int num_bc_dofs,
-    int num_basis,
-    cuda::CUDALinearBufferHandle jacobian)
-{
-    if (num_bc_dofs == 0) {
-        return;
-    }
-
-    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
-    float* jacobian_ptr = jacobian->get_device_ptr<float>();
-    int cols = num_basis * 12;
-
-    cuda::GPUParallelFor(
-        "apply_bc_to_jacobian", num_bc_dofs, [=] __device__(int idx) {
-            int dof = bc_dofs_ptr[idx];
-            // Zero out the entire row for this DOF
-            for (int col = 0; col < cols; ++col) {
-                jacobian_ptr[dof * cols + col] = 0.0f;
-            }
-        });
-}
-
-// ============================================================================
 // Kernel: Compute reduced gradient (J^T * grad_x)
 // ============================================================================
 

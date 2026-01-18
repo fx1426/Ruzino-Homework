@@ -583,17 +583,6 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
             rzsim_cuda::compute_jacobian_gpu(
                 storage.q_new_reduced, storage.ro_data, storage.jacobian);
 
-            // Apply boundary conditions to Jacobian
-            // This zeros out rows corresponding to BC DOFs, preventing them
-            // from influencing reduced coordinates
-            if (storage.num_bc_dofs > 0) {
-                rzsim_cuda::apply_bc_to_jacobian_gpu(
-                    storage.bc_dofs_buffer,
-                    storage.num_bc_dofs,
-                    storage.num_basis,
-                    storage.jacobian);
-            }
-
             // Compute gradient in full space
             // For reduced order, we don't use velocities in the inertial term
             // Instead, we use q_tilde mapped to full space
@@ -618,6 +607,12 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 num_particles,
                 storage.num_elements,
                 d_gradients);
+
+            // Apply Dirichlet boundary conditions to full-space gradient
+            if (storage.num_bc_dofs > 0) {
+                rzsim_cuda::apply_dirichlet_bc_to_gradient_gpu(
+                    storage.bc_dofs_buffer, storage.num_bc_dofs, d_gradients);
+            }
 
             // Project negative gradient to reduced space: -grad_q = J^T *
             // (-grad_x) Since we already have negative gradient, just use
@@ -683,7 +678,17 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.num_elements,
                 storage.hessian_values);
 
+            // Apply Dirichlet boundary conditions to full-space Hessian
+            if (storage.num_bc_dofs > 0) {
+                rzsim_cuda::apply_dirichlet_bc_to_hessian_gpu(
+                    storage.hessian_structure,
+                    storage.bc_dofs_buffer,
+                    storage.num_bc_dofs,
+                    storage.hessian_values);
+            }
+
             // Project Hessian to reduced space: H_q = J^T * H_x * J
+            // Use unmodified Jacobian (BC constraints already in H_x)
             rzsim_cuda::compute_reduced_hessian_gpu(
                 storage.hessian_structure,
                 storage.hessian_values,

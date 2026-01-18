@@ -56,17 +56,6 @@ void compute_jacobian_gpu(
     cuda::CUDALinearBufferHandle
         jacobian);  // [num_particles * 3, num_basis * 12]
 
-// Apply Dirichlet boundary conditions to Jacobian
-// Sets rows corresponding to BC DOFs to zero, blocking their influence on
-// reduced coordinates
-RZSIM_CUDA_API
-void apply_bc_to_jacobian_gpu(
-    cuda::CUDALinearBufferHandle bc_dofs,  // [num_bc_dofs] - DOF indices
-    int num_bc_dofs,
-    int num_basis,
-    cuda::CUDALinearBufferHandle
-        jacobian);  // [num_particles * 3, num_basis * 12]
-
 // Compute reduced gradient: grad_q = J^T * grad_x
 // Where grad_x is the full-space gradient [num_particles * 3]
 RZSIM_CUDA_API
