@@ -22,7 +22,7 @@
 NODE_DEF_OPEN_SCOPE
 
 // Storage for persistent GPU simulation state
-struct ReducedNeoHookeanGPUStorage {
+struct ReducedNeoHookeanGPUStorageIPC {
     cuda::CUDALinearBufferHandle positions_buffer;
     cuda::CUDALinearBufferHandle velocities_buffer;
     cuda::CUDALinearBufferHandle next_positions_buffer;
@@ -55,8 +55,6 @@ struct ReducedNeoHookeanGPUStorage {
     cuda::CUDALinearBufferHandle inertial_terms_buffer;
     cuda::CUDALinearBufferHandle element_energies_buffer;
     cuda::CUDALinearBufferHandle potential_terms_buffer;
-    cuda::CUDALinearBufferHandle
-        barrier_hessian_diagonal;  // For barrier Hessian
 
     // Reduced order model data
     rzsim_cuda::ReducedOrderData ro_data;
@@ -83,9 +81,6 @@ struct ReducedNeoHookeanGPUStorage {
     cuda::CUDALinearBufferHandle bc_dofs_buffer;  // DOF indices with BC
     int num_bc_dofs = 0;
     std::vector<int> bc_dofs;  // Host copy for reference
-
-    // Barrier function energy buffer
-    cuda::CUDALinearBufferHandle barrier_energy_buffer;
 
     bool initialized = false;
     int num_particles = 0;
@@ -221,8 +216,6 @@ struct ReducedNeoHookeanGPUStorage {
         element_energies_buffer =
             cuda::create_cuda_linear_buffer<float>(num_elements);
         potential_terms_buffer = cuda::create_cuda_linear_buffer<float>(dof);
-        barrier_hessian_diagonal = cuda::create_cuda_linear_buffer<float>(dof);
-
         // Build reduced order data
         ro_data = rzsim_cuda::build_reduced_order_data_gpu(
             &reduced_basis->basis, &positions);
@@ -248,10 +241,6 @@ struct ReducedNeoHookeanGPUStorage {
             cuda::create_cuda_linear_buffer<float>(reduced_dof * reduced_dof);
         temp_hessian_buffer =
             cuda::create_cuda_linear_buffer<float>(dof * reduced_dof);
-
-        // Allocate barrier energy buffer (max possible BC vertices)
-        barrier_energy_buffer =
-            cuda::create_cuda_linear_buffer<float>(num_particles);
 
         // Initialize reduced coordinates to identity (R=I, t=0 for each basis)
         rzsim_cuda::initialize_reduced_coords_identity_gpu(
@@ -279,7 +268,7 @@ struct ReducedNeoHookeanGPUStorage {
     }
 };
 
-NODE_DECLARATION_FUNCTION(reduced_order_neo_hookean_gpu)
+NODE_DECLARATION_FUNCTION(reduced_order_neo_hookean_ipc)
 {
     b.add_input<Geometry>("Geometry");
     b.add_input<Geometry>("Init Geometry");
@@ -304,21 +293,18 @@ NODE_DECLARATION_FUNCTION(reduced_order_neo_hookean_gpu)
         .default_val(0.3f)
         .min(0.0f)
         .max(1.0f);
+
+    b.add_input<float>("Allowed Width").min(0.0001).max(0.1).default_val(0.01);
     b.add_input<bool>("Consider BC").default_val(false);
-    b.add_input<float>("Barrier Stiffness")
-        .default_val(1e5f)
-        .min(1e3f)
-        .max(1e8f);
-    b.add_input<float>("Barrier Width").default_val(0.01f).min(1e-4f).max(0.1f);
     b.add_input<bool>("Flip Normal").default_val(false);
 
     b.add_output<Geometry>("Geometry");
 }
 
-NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
+NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_ipc)
 {
     auto& global_payload = params.get_global_payload<GeomPayload&>();
-    auto& storage = params.get_storage<ReducedNeoHookeanGPUStorage&>();
+    auto& storage = params.get_storage<ReducedNeoHookeanGPUStorageIPC&>();
 
     // Get inputs
     auto input_geom = params.get_input<Geometry>("Geometry");
@@ -347,8 +333,6 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     float gravity = params.get_input<float>("Gravity");
     float restitution = params.get_input<float>("Ground Restitution");
     bool consider_bc = params.get_input<bool>("Consider BC");
-    float barrier_stiffness = params.get_input<float>("Barrier Stiffness");
-    float barrier_width = params.get_input<float>("Barrier Width");
     bool flip_normal = params.get_input<bool>("Flip Normal");
     float dt = global_payload.delta_time;
 
@@ -590,21 +574,6 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.inertial_terms_buffer,
                 storage.element_energies_buffer);
 
-            // Add barrier energy
-            if (consider_bc && storage.num_bc_dofs > 0) {
-                float barrier_energy = rzsim_cuda::compute_barrier_energy_gpu(
-                    storage.bc_dofs_buffer,
-                    storage.num_bc_dofs,
-                    storage.x_new_buffer,
-                    storage.ro_data.rest_positions,
-                    barrier_stiffness,
-                    barrier_width,
-                    num_particles,
-                    storage.barrier_energy_buffer);
-
-                initial_energy += barrier_energy;
-            }
-
             spdlog::debug(
                 "[ReducedNeoHookean] Initial energy before Newton: {:.6f}",
                 initial_energy);
@@ -644,19 +613,10 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.num_elements,
                 d_gradients);
 
-            // Add barrier gradient contribution (before applying BC)
+            // Apply Dirichlet boundary conditions to full-space gradient
             if (consider_bc && storage.num_bc_dofs > 0) {
-                // Barrier gradient is added (not negated), so we need to
-                // subtract it since d_gradients currently holds -∇E
-                rzsim_cuda::add_barrier_gradient_gpu(
-                    storage.bc_dofs_buffer,
-                    storage.num_bc_dofs,
-                    storage.x_new_buffer,
-                    storage.ro_data.rest_positions,
-                    -barrier_stiffness,  // Negate because d_gradients is -∇E
-                    barrier_width,
-                    num_particles,
-                    d_gradients);
+                rzsim_cuda::apply_dirichlet_bc_to_gradient_gpu(
+                    storage.bc_dofs_buffer, storage.num_bc_dofs, d_gradients);
             }
 
             // Project negative gradient to reduced space: -grad_q = J^T *
@@ -723,31 +683,12 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.num_elements,
                 storage.hessian_values);
 
-            // Add barrier Hessian contributions (before applying BC)
+            // Apply Dirichlet boundary conditions to full-space Hessian
             if (consider_bc && storage.num_bc_dofs > 0) {
-                // Zero out diagonal buffer first
-                cudaMemset(
-                    reinterpret_cast<void*>(
-                        storage.barrier_hessian_diagonal->get_device_ptr()),
-                    0,
-                    num_particles * 3 * sizeof(float));
-
-                // Compute barrier Hessian diagonal contributions
-                rzsim_cuda::add_barrier_hessian_diagonal_gpu(
+                rzsim_cuda::apply_dirichlet_bc_to_hessian_gpu(
+                    storage.hessian_structure,
                     storage.bc_dofs_buffer,
                     storage.num_bc_dofs,
-                    storage.x_new_buffer,
-                    storage.ro_data.rest_positions,
-                    barrier_stiffness,
-                    barrier_width,
-                    num_particles,
-                    storage.barrier_hessian_diagonal);
-
-                // Add to Hessian diagonal
-                rzsim_cuda::add_to_hessian_diagonal_gpu(
-                    storage.hessian_structure,
-                    storage.barrier_hessian_diagonal,
-                    num_particles * 3,
                     storage.hessian_values);
             }
 
@@ -813,20 +754,6 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                 storage.inertial_terms_buffer,
                 storage.element_energies_buffer);
 
-            // Add barrier energy
-            if (consider_bc && storage.num_bc_dofs > 0) {
-                float barrier_energy = rzsim_cuda::compute_barrier_energy_gpu(
-                    storage.bc_dofs_buffer,
-                    storage.num_bc_dofs,
-                    storage.x_new_buffer,
-                    storage.ro_data.rest_positions,
-                    barrier_stiffness,
-                    barrier_width,
-                    num_particles,
-                    storage.barrier_energy_buffer);
-                E_current += barrier_energy;
-            }
-
             float E_candidate = std::numeric_limits<float>::infinity();
             float alpha = 1.0f;  // Start with full step
             int ls_iter = 0;
@@ -862,21 +789,6 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
                     storage.num_elements,
                     storage.inertial_terms_buffer,
                     storage.element_energies_buffer);
-
-                // Add barrier energy
-                if (consider_bc && storage.num_bc_dofs > 0) {
-                    float barrier_energy =
-                        rzsim_cuda::compute_barrier_energy_gpu(
-                            storage.bc_dofs_buffer,
-                            storage.num_bc_dofs,
-                            storage.x_candidate_buffer,
-                            storage.ro_data.rest_positions,
-                            barrier_stiffness,
-                            barrier_width,
-                            num_particles,
-                            storage.barrier_energy_buffer);
-                    E_candidate += barrier_energy;
-                }
 
                 // Accept step if energy decreases OR if the increase is within
                 // numerical precision
@@ -939,6 +851,189 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     rzsim_cuda::map_reduced_to_full_gpu(
         storage.q_reduced, storage.ro_data, d_positions);
 
+    // Apply Dirichlet BC to positions (enforce BC vertices at rest pose)
+    if (consider_bc && storage.num_bc_dofs > 0) {
+        // Save current positions before BC
+        cuda::CUDALinearBufferHandle positions_before_bc =
+            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+        positions_before_bc->copy_from_device(d_positions.Get());
+
+        // Apply BC: set BC vertices to rest pose
+        rzsim_cuda::apply_bc_to_positions_gpu(
+            storage.bc_dofs_buffer,
+            storage.num_bc_dofs,
+            d_positions,
+            storage.ro_data.rest_positions,
+            num_particles);
+
+        // Now we need to find q_new such that map(q_new) ≈ positions (with BC
+        // enforced) Use local linearization: positions ≈ positions_before_bc +
+        // J * delta_q Solve: (J^T * J) * delta_q = J^T * (positions -
+        // positions_before_bc)
+
+        int reduced_dof = storage.num_basis * 12;
+
+        // Compute Jacobian at current q
+        rzsim_cuda::compute_jacobian_gpu(
+            storage.q_reduced, storage.ro_data, storage.jacobian);
+
+        // Compute delta_x = positions - positions_before_bc
+        cuda::CUDALinearBufferHandle delta_x =
+            cuda::create_cuda_linear_buffer<float>(num_particles * 3);
+
+        // delta_x = 1.0 * positions - 1.0 * positions_before_bc
+        cudaMemcpy(
+            delta_x->get_device_ptr<float>(),
+            d_positions->get_device_ptr<float>(),
+            num_particles * 3 * sizeof(float),
+            cudaMemcpyDeviceToDevice);
+        rzsim_cuda::axpy_nh_gpu(
+            -1.0f, positions_before_bc, delta_x, delta_x, num_particles * 3);
+
+        // Compute rhs = J^T * delta_x
+        rzsim_cuda::compute_reduced_gradient_gpu(
+            storage.jacobian,
+            delta_x,
+            num_particles,
+            storage.num_basis,
+            storage.grad_reduced);
+
+        // Compute J^T * J
+        cuda::CUDALinearBufferHandle JtJ_pos =
+            cuda::create_cuda_linear_buffer<float>(reduced_dof * reduced_dof);
+        rzsim_cuda::compute_jacobian_gram_matrix_gpu(
+            storage.jacobian, num_particles, storage.num_basis, JtJ_pos);
+
+        // Solve (J^T * J) * delta_q = J^T * delta_x
+        cuda::CUDALinearBufferHandle delta_q =
+            cuda::create_cuda_linear_buffer<float>(reduced_dof);
+
+        Ruzino::Solver::SolverConfig solver_config_pos;
+        solver_config_pos.tolerance = 1e-9f;
+        solver_config_pos.verbose = false;
+
+        auto solver_result_pos = storage.solver->solveDenseGPU(
+            reduced_dof,
+            JtJ_pos->get_device_ptr<float>(),
+            storage.grad_reduced->get_device_ptr<float>(),
+            delta_q->get_device_ptr<float>(),
+            solver_config_pos);
+
+        if (solver_result_pos.converged) {
+            spdlog::info(
+                "[ReducedNeoHookean] Position BC projection converged "
+                "(iter={}, residual={})",
+                solver_result_pos.iterations,
+                solver_result_pos.final_residual);
+
+            // Update q: q_new = q + delta_q
+            // First copy current q to temp
+            cuda::CUDALinearBufferHandle q_temp =
+                cuda::create_cuda_linear_buffer<float>(reduced_dof);
+            cudaMemcpy(
+                q_temp->get_device_ptr<float>(),
+                storage.q_reduced->get_device_ptr<float>(),
+                reduced_dof * sizeof(float),
+                cudaMemcpyDeviceToDevice);
+
+            // q = q + delta_q
+            rzsim_cuda::axpy_nh_gpu(
+                1.0f, delta_q, q_temp, storage.q_reduced, reduced_dof);
+
+            // Remap to get final positions with BC enforced
+            rzsim_cuda::map_reduced_to_full_gpu(
+                storage.q_reduced, storage.ro_data, d_positions);
+        }
+        else {
+            spdlog::warn(
+                "[ReducedNeoHookean] Position BC projection solver failed: {}",
+                solver_result_pos.error_message);
+        }
+    }
+
+    if (consider_bc) {
+        // Project reduced velocities to full space before collision handling
+        // v_full = J * q_dot
+        rzsim_cuda::compute_jacobian_gpu(
+            storage.q_reduced, storage.ro_data, storage.jacobian);
+
+        // Save original q_dot for verification (before collision)
+        int reduced_dof = storage.num_basis * 12;
+
+        cuda::CUDALinearBufferHandle q_dot_original =
+            cuda::create_cuda_linear_buffer<float>(reduced_dof);
+        q_dot_original->copy_from_device(storage.q_dot_reduced.Get());
+
+        rzsim_cuda::map_reduced_velocities_to_full_gpu(
+            storage.jacobian,
+            storage.q_dot_reduced,
+            num_particles,
+            storage.num_basis,
+            storage.velocities_buffer);
+
+        // Apply Dirichlet BC to full-space velocities (set BC vertices to zero
+        // velocity)
+        if (storage.num_bc_dofs > 0) {
+            rzsim_cuda::apply_dirichlet_bc_to_velocities_gpu(
+                storage.bc_dofs_buffer,
+                storage.num_bc_dofs,
+                storage.velocities_buffer,
+                num_particles);
+        }
+
+        // Save full-space velocity before collision for verification
+        cuda::CUDALinearBufferHandle velocities_before_collision =
+            cuda::create_cuda_linear_buffer<glm::vec3>(num_particles);
+        velocities_before_collision->copy_from_device(
+            storage.velocities_buffer.Get());
+
+        // Handle ground collision in full space
+        rzsim_cuda::handle_ground_collision_nh_gpu(
+            d_positions, storage.velocities_buffer, restitution, num_particles);
+
+        // Project modified full-space velocities back to reduced space
+        // Solve: (J^T * J) * q_dot = J^T * v_full for proper projection
+        // First compute rhs = J^T * v_full
+        rzsim_cuda::compute_reduced_gradient_gpu(
+            storage.jacobian,
+            storage.velocities_buffer,
+            num_particles,
+            storage.num_basis,
+            storage.grad_reduced);
+
+        // Compute J^T * J (Gram matrix / reduced "mass matrix")
+        cuda::CUDALinearBufferHandle JtJ =
+            cuda::create_cuda_linear_buffer<float>(reduced_dof * reduced_dof);
+
+        rzsim_cuda::compute_jacobian_gram_matrix_gpu(
+            storage.jacobian, num_particles, storage.num_basis, JtJ);
+
+        // Solve (J^T * J) * q_dot = J^T * v_full using dense Cholesky
+        Ruzino::Solver::SolverConfig solver_config_vel;
+        solver_config_vel.tolerance = 1e-9f;
+        solver_config_vel.verbose = false;
+
+        auto solver_result_vel = storage.solver->solveDenseGPU(
+            reduced_dof,
+            JtJ->get_device_ptr<float>(),
+            storage.grad_reduced->get_device_ptr<float>(),
+            storage.q_dot_reduced->get_device_ptr<float>(),
+            solver_config_vel);
+
+        if (!solver_result_vel.converged) {
+            spdlog::error(
+                "[ReducedNeoHookean] Velocity projection solver failed: {}",
+                solver_result_vel.error_message);
+            // Fall back to simple J^T projection
+            storage.q_dot_reduced->copy_from_device(storage.grad_reduced.Get());
+        }
+
+        else {
+            spdlog::debug(
+                "[ReducedNeoHookean] Collision occurred, velocity projection "
+                "skipped");
+        }
+    }
     // Log simulation statistics
     spdlog::info(
         "[ReducedNeoHookean] Simulation complete - Max Newton iterations: "
@@ -974,5 +1069,5 @@ NODE_EXECUTION_FUNCTION(reduced_order_neo_hookean_gpu)
     return true;
 }
 
-NODE_DECLARATION_UI(reduced_order_neo_hookean_gpu);
+NODE_DECLARATION_UI(reduced_order_neo_hookean_ipc);
 NODE_DEF_CLOSE_SCOPE

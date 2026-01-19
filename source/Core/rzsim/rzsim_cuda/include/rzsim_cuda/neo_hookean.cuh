@@ -211,6 +211,15 @@ void apply_dirichlet_bc_to_direction_gpu(
     int num_bc_dofs,
     cuda::CUDALinearBufferHandle direction);
 
+// Add values to Hessian diagonal elements (CSR format)
+// Used for adding barrier function Hessian contributions
+RZSIM_CUDA_API
+void add_to_hessian_diagonal_gpu(
+    const NeoHookeanCSRStructure& csr_structure,
+    cuda::CUDALinearBufferHandle diagonal_additions,  // [num_dof] values to add
+    int num_dof,
+    cuda::CUDALinearBufferHandle values);  // Modified in-place
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

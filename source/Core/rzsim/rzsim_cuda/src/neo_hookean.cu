@@ -1590,6 +1590,37 @@ void apply_dirichlet_bc_to_direction_gpu(
         });
 }
 
+// Add values to Hessian diagonal elements (CSR format)
+void add_to_hessian_diagonal_gpu(
+    const NeoHookeanCSRStructure& csr_structure,
+    cuda::CUDALinearBufferHandle diagonal_additions,
+    int num_dof,
+    cuda::CUDALinearBufferHandle values)
+{
+    const float* diag_add_ptr = diagonal_additions->get_device_ptr<float>();
+    const int* row_offsets_ptr =
+        csr_structure.row_offsets->get_device_ptr<int>();
+    const int* col_indices_ptr =
+        csr_structure.col_indices->get_device_ptr<int>();
+    float* values_ptr = values->get_device_ptr<float>();
+
+    // For each row, find the diagonal element and add the contribution
+    cuda::GPUParallelFor("add_to_diagonal", num_dof, [=] __device__(int row) {
+        int row_start = row_offsets_ptr[row];
+        int row_end = row_offsets_ptr[row + 1];
+
+        // Find diagonal element (col == row)
+        for (int idx = row_start; idx < row_end; ++idx) {
+            int col = col_indices_ptr[idx];
+            if (col == row) {
+                // Found diagonal element
+                values_ptr[idx] += diag_add_ptr[row];
+                break;
+            }
+        }
+    });
+}
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

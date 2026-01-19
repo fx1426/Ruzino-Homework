@@ -165,6 +165,46 @@ void apply_bc_to_positions_gpu(
     cuda::CUDALinearBufferHandle rest_positions,  // [num_particles * 3]
     int num_particles);
 
+// Barrier function for soft boundary conditions
+// Adds energy: E_barrier = -k * sum log(1 - ||x_bc - x_rest||^2 / d_allowed^2)
+RZSIM_CUDA_API
+float compute_barrier_energy_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,      // [num_bc_dofs] - DOF indices
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,    // [num_particles * 3]
+    cuda::CUDALinearBufferHandle rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle energy_buffer);  // [num_bc_vertices] temp buffer
+
+// Add barrier gradient to existing gradient
+// grad += k * (x_bc - x_rest) / (d_allowed^2 - ||x_bc - x_rest||^2)
+RZSIM_CUDA_API
+void add_barrier_gradient_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,      // [num_bc_dofs] - DOF indices
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,    // [num_particles * 3]
+    cuda::CUDALinearBufferHandle rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle gradient);    // [num_particles * 3]
+
+// Add barrier Hessian diagonal contributions
+// For each BC DOF, adds to diagonal:
+// H_ii += k * (d^2 - ||diff||^2 + 2*diff_i^2) / (d^2 - ||diff||^2)^2
+RZSIM_CUDA_API
+void add_barrier_hessian_diagonal_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,      // [num_bc_dofs] - DOF indices
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,    // [num_particles * 3]
+    cuda::CUDALinearBufferHandle rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle hessian_diagonal);  // [num_particles * 3]
+
 }  // namespace rzsim_cuda
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

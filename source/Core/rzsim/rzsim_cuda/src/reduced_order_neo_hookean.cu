@@ -814,6 +814,287 @@ void apply_bc_to_positions_gpu(
 }
 
 // ============================================================================
+// Kernel: Compute barrier energy for boundary conditions
+// E_barrier = -k * sum_bc log(1 - ||x - x_rest||^2 / d^2)
+// ============================================================================
+
+__global__ void compute_barrier_energy_kernel(
+    const int* bc_dofs,           // [num_bc_dofs]
+    int num_bc_dofs,
+    const float* positions,       // [num_particles * 3]
+    const float* rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    float* energy_buffer)  // [num_bc_vertices] output
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // Process every 3 DOFs (one vertex)
+    int vertex_idx = idx * 3;
+    if (vertex_idx >= num_bc_dofs)
+        return;
+    
+    // Get the vertex index from the first DOF of this vertex
+    int dof = bc_dofs[vertex_idx];
+    int vertex = dof / 3;
+    
+    if (vertex >= num_particles)
+        return;
+    
+    // Compute squared distance
+    float dx = positions[vertex * 3 + 0] - rest_positions[vertex * 3 + 0];
+    float dy = positions[vertex * 3 + 1] - rest_positions[vertex * 3 + 1];
+    float dz = positions[vertex * 3 + 2] - rest_positions[vertex * 3 + 2];
+    float dist_sq = dx * dx + dy * dy + dz * dz;
+    
+    float d_sq = allowed_width * allowed_width;
+    float ratio = dist_sq / d_sq;
+    
+    // Clamp to prevent log(0) or log(negative)
+    if (ratio >= 0.99f) {
+        ratio = 0.99f;
+    }
+    
+    // E = -k * log(1 - ratio)
+    energy_buffer[idx] = -barrier_stiffness * logf(1.0f - ratio);
+}
+
+float compute_barrier_energy_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle rest_positions,
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle energy_buffer)
+{
+    if (num_bc_dofs == 0)
+        return 0.0f;
+    
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    const float* positions_ptr = positions->get_device_ptr<float>();
+    const float* rest_positions_ptr = rest_positions->get_device_ptr<float>();
+    float* energy_buffer_ptr = energy_buffer->get_device_ptr<float>();
+    
+    int num_bc_vertices = num_bc_dofs / 3;
+    int threads_per_block = 256;
+    int num_blocks = (num_bc_vertices + threads_per_block - 1) / threads_per_block;
+    
+    compute_barrier_energy_kernel<<<num_blocks, threads_per_block>>>(
+        bc_dofs_ptr,
+        num_bc_dofs,
+        positions_ptr,
+        rest_positions_ptr,
+        barrier_stiffness,
+        allowed_width,
+        num_particles,
+        energy_buffer_ptr);
+    
+    cudaDeviceSynchronize();
+    auto err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf(
+            "[ReducedOrder] compute_barrier_energy kernel failed: %s\n",
+            cudaGetErrorString(err));
+        return 0.0f;
+    }
+    
+    // Sum up energies
+    auto energy_vec = energy_buffer->get_host_vector<float>();
+    float total_energy = 0.0f;
+    for (int i = 0; i < num_bc_vertices; ++i) {
+        total_energy += energy_vec[i];
+    }
+    
+    return total_energy;
+}
+
+// ============================================================================
+// Kernel: Add barrier gradient
+// grad += k * 2 * (x - x_rest) / (d^2 - ||x - x_rest||^2)
+// ============================================================================
+
+__global__ void add_barrier_gradient_kernel(
+    const int* bc_dofs,           // [num_bc_dofs]
+    int num_bc_dofs,
+    const float* positions,       // [num_particles * 3]
+    const float* rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    float* gradient)  // [num_particles * 3]
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_bc_dofs)
+        return;
+    
+    int dof = bc_dofs[idx];
+    int vertex = dof / 3;
+    int component = dof % 3;
+    
+    if (vertex >= num_particles)
+        return;
+    
+    // Compute squared distance
+    float dx = positions[vertex * 3 + 0] - rest_positions[vertex * 3 + 0];
+    float dy = positions[vertex * 3 + 1] - rest_positions[vertex * 3 + 1];
+    float dz = positions[vertex * 3 + 2] - rest_positions[vertex * 3 + 2];
+    float dist_sq = dx * dx + dy * dy + dz * dz;
+    
+    float d_sq = allowed_width * allowed_width;
+    float denominator = d_sq - dist_sq;
+    
+    // Clamp to prevent division by zero
+    if (denominator < 0.01f * d_sq) {
+        denominator = 0.01f * d_sq;
+    }
+    
+    // grad[dof] += k * 2 * diff[component] / denominator
+    float diff_component;
+    if (component == 0) diff_component = dx;
+    else if (component == 1) diff_component = dy;
+    else diff_component = dz;
+    
+    gradient[dof] += barrier_stiffness * 2.0f * diff_component / denominator;
+}
+
+void add_barrier_gradient_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle rest_positions,
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle gradient)
+{
+    if (num_bc_dofs == 0)
+        return;
+    
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    const float* positions_ptr = positions->get_device_ptr<float>();
+    const float* rest_positions_ptr = rest_positions->get_device_ptr<float>();
+    float* gradient_ptr = gradient->get_device_ptr<float>();
+    
+    int threads_per_block = 256;
+    int num_blocks = (num_bc_dofs + threads_per_block - 1) / threads_per_block;
+    
+    add_barrier_gradient_kernel<<<num_blocks, threads_per_block>>>(
+        bc_dofs_ptr,
+        num_bc_dofs,
+        positions_ptr,
+        rest_positions_ptr,
+        barrier_stiffness,
+        allowed_width,
+        num_particles,
+        gradient_ptr);
+    
+    cudaDeviceSynchronize();
+    auto err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf(
+            "[ReducedOrder] add_barrier_gradient kernel failed: %s\n",
+            cudaGetErrorString(err));
+    }
+}
+
+// ============================================================================
+// Kernel: Add barrier Hessian diagonal contributions
+// H_ii += k * 2 * (d^2 - ||diff||^2 + 2*diff_i^2) / (d^2 - ||diff||^2)^2
+// ============================================================================
+
+__global__ void add_barrier_hessian_diagonal_kernel(
+    const int* bc_dofs,           // [num_bc_dofs]
+    int num_bc_dofs,
+    const float* positions,       // [num_particles * 3]
+    const float* rest_positions,  // [num_particles * 3]
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    float* hessian_diagonal)  // [num_particles * 3]
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_bc_dofs)
+        return;
+    
+    int dof = bc_dofs[idx];
+    int vertex = dof / 3;
+    int component = dof % 3;
+    
+    if (vertex >= num_particles)
+        return;
+    
+    // Compute squared distance
+    float dx = positions[vertex * 3 + 0] - rest_positions[vertex * 3 + 0];
+    float dy = positions[vertex * 3 + 1] - rest_positions[vertex * 3 + 1];
+    float dz = positions[vertex * 3 + 2] - rest_positions[vertex * 3 + 2];
+    float dist_sq = dx * dx + dy * dy + dz * dz;
+    
+    float d_sq = allowed_width * allowed_width;
+    float denominator = d_sq - dist_sq;
+    
+    // Clamp to prevent division by zero
+    if (denominator < 0.01f * d_sq) {
+        denominator = 0.01f * d_sq;
+    }
+    
+    float diff_component;
+    if (component == 0) diff_component = dx;
+    else if (component == 1) diff_component = dy;
+    else diff_component = dz;
+    
+    float diff_sq = diff_component * diff_component;
+    
+    // H_ii += k * 2 * (d^2 - dist_sq + 2*diff_i^2) / (d^2 - dist_sq)^2
+    float numerator = denominator + 2.0f * diff_sq;
+    float hessian_contrib = barrier_stiffness * 2.0f * numerator / (denominator * denominator);
+    
+    hessian_diagonal[dof] += hessian_contrib;
+}
+
+void add_barrier_hessian_diagonal_gpu(
+    cuda::CUDALinearBufferHandle bc_dofs,
+    int num_bc_dofs,
+    cuda::CUDALinearBufferHandle positions,
+    cuda::CUDALinearBufferHandle rest_positions,
+    float barrier_stiffness,
+    float allowed_width,
+    int num_particles,
+    cuda::CUDALinearBufferHandle hessian_diagonal)
+{
+    if (num_bc_dofs == 0)
+        return;
+    
+    const int* bc_dofs_ptr = bc_dofs->get_device_ptr<int>();
+    const float* positions_ptr = positions->get_device_ptr<float>();
+    const float* rest_positions_ptr = rest_positions->get_device_ptr<float>();
+    float* hessian_diagonal_ptr = hessian_diagonal->get_device_ptr<float>();
+    
+    int threads_per_block = 256;
+    int num_blocks = (num_bc_dofs + threads_per_block - 1) / threads_per_block;
+    
+    add_barrier_hessian_diagonal_kernel<<<num_blocks, threads_per_block>>>(
+        bc_dofs_ptr,
+        num_bc_dofs,
+        positions_ptr,
+        rest_positions_ptr,
+        barrier_stiffness,
+        allowed_width,
+        num_particles,
+        hessian_diagonal_ptr);
+    
+    cudaDeviceSynchronize();
+    auto err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf(
+            "[ReducedOrder] add_barrier_hessian_diagonal kernel failed: %s\n",
+            cudaGetErrorString(err));
+    }
+}
+
+// ============================================================================
 // Kernel: Explicit step in reduced space
 // ============================================================================
 
