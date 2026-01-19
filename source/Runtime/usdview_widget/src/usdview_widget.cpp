@@ -167,10 +167,22 @@ void UsdviewEngine::copy_to_presentation()
 
     auto hgi_texture = renderer_->GetAovTexture(pxr::HdAovTokens->color);
     if (hgi_texture) {
-        nvrhi::TextureDesc tex_desc =
-            RHI::ConvertToNvrhiTextureDesc(hgi_texture->GetDescriptor());
+        auto hgi_desc = hgi_texture->GetDescriptor();
+        nvrhi::TextureDesc tex_desc = RHI::ConvertToNvrhiTextureDesc(hgi_desc);
         tex_desc.keepInitialState = true;
         tex_desc.initialState = nvrhi::ResourceStates::CopyDest;
+
+        // Calculate buffer size based on actual format
+        size_t bytes_per_pixel =
+            RHI::calculate_bytes_per_pixel(tex_desc.format);
+        size_t required_size =
+            hgi_desc.dimensions[0] * hgi_desc.dimensions[1] * bytes_per_pixel;
+
+        if (texture_data_.size() != required_size) {
+            texture_data_.resize(required_size);
+            data_->nvrhi_texture =
+                nullptr;  // Force recreation with correct size
+        }
 
         pxr::HgiBlitCmdsUniquePtr blitCmds = hgi->CreateBlitCmds();
         pxr::HgiTextureGpuToCpuOp copyOp;
