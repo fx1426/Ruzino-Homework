@@ -1,14 +1,10 @@
 #define _SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
 
-#include <algorithm>
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <future>
-#include <iomanip>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -22,13 +18,11 @@
 #include "nodes/system/node_system.hpp"
 #include "render_util.hpp"
 #include "stage/stage.hpp"
-#include "usd_nodejson.hpp"
 
 // USD includes
 #include <rzpython/rzpython.hpp>
 
 #include "pxr/base/tf/setenv.h"
-#include "pxr/usd/usd/primRange.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/camera.h"
 
@@ -38,7 +32,6 @@
 #include "pxr/imaging/hd/driver.h"
 #include "pxr/imaging/hd/tokens.h"
 #include "pxr/imaging/hdx/tokens.h"
-#include "pxr/imaging/hgi/blitCmdsOps.h"
 #include "pxr/imaging/hgi/tokens.h"
 #include "pxr/usdImaging/usdImagingGL/engine.h"
 
@@ -51,8 +44,6 @@
 #include "stb_image_write.h"
 
 // USD Hio for HDR/EXR support
-#include "pxr/imaging/hio/image.h"
-#include "pxr/imaging/hio/types.h"
 
 #ifdef _WIN32
 #include <gl/GL.h>
