@@ -56,6 +56,38 @@ def copy_imgui_ini_to_binaries(targets, dry_run=False):
                 print(f"  ✗ Failed to copy imgui.ini to Binaries/{target}/: {e}")
 
 
+def copy_nvapi_header_to_slang(dry_run=False):
+    """Copy nvapi headers (nvHLSLExtns.h, nvHLSLExtnsInternal.h, nvShaderExtnEnums.h) from external/nvapi/ to SDK/slang/include/"""
+    nvapi_headers = [
+        "nvHLSLExtns.h",
+        "nvHLSLExtnsInternal.h",
+        "nvShaderExtnEnums.h"
+    ]
+    
+    src_dir = os.path.join(os.path.dirname(__file__), "external", "nvapi")
+    dst_dir = os.path.join(os.path.dirname(__file__), "SDK", "slang", "include")
+    
+    if dry_run:
+        print(f"  [DRY RUN] Would copy nvapi headers to SDK/slang/include/")
+        return
+    
+    os.makedirs(dst_dir, exist_ok=True)
+    
+    for header in nvapi_headers:
+        src_file = os.path.join(src_dir, header)
+        dst_file = os.path.join(dst_dir, header)
+        
+        if not os.path.exists(src_file):
+            print(f"  ⚠ {header} not found at {src_file}, skipping")
+            continue
+        
+        try:
+            shutil.copy2(src_file, dst_file)
+            print(f"  ✓ Copied {header} to SDK/slang/include/")
+        except Exception as e:
+            print(f"  ✗ Failed to copy {header} to SDK/slang/include/: {e}")
+
+
 def copy_python_dlls_to_binaries(targets, dry_run=False):
     """Copy entire Python directory contents from SDK/python to Binaries/{target}/ for each target"""
     sdk_python_dir = os.path.join(os.path.dirname(__file__), "SDK", "python")
@@ -415,6 +447,9 @@ def extract_and_setup_sdk(sdk_zip_path, targets=None, dry_run=False):
         
         # Copy imgui.ini to Binaries
         copy_imgui_ini_to_binaries(targets, dry_run=dry_run)
+        
+        # Copy nvHLSLExtns.h to SDK/slang/include/
+        copy_nvapi_header_to_slang(dry_run=dry_run)
         
         print("✓ SDK structure setup complete")
         return True
@@ -941,6 +976,9 @@ def main():
     
     # Always copy imgui.ini to Binaries
     copy_imgui_ini_to_binaries(targets, dry_run=dry_run)
+    
+    # Always copy nvHLSLExtns.h to SDK/slang/include/
+    copy_nvapi_header_to_slang(dry_run=dry_run)
 
 
 if __name__ == "__main__":
