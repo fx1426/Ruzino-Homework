@@ -544,7 +544,30 @@ static void _AddParameterInputsToTerminalNode(
     TfTokenVector paramNames =
         netInterface->GetAuthoredNodeParameterNames(terminalNodeName);
 
-    mx::NodeDefPtr mxNodeDef = mxShaderNode->getNodeDef("", true);
+    // Cache key based on shader node category and type
+    static std::unordered_map<std::string, mx::NodeDefPtr> s_nodeDefCache;
+    static std::mutex s_nodeDefCacheMutex;
+
+    std::string cache_key =
+        mxShaderNode->getCategory() + ":" + mxShaderNode->getType();
+    mx::NodeDefPtr mxNodeDef;
+
+    {
+        std::lock_guard<std::mutex> lock(s_nodeDefCacheMutex);
+        auto cache_it = s_nodeDefCache.find(cache_key);
+        if (cache_it != s_nodeDefCache.end()) {
+            mxNodeDef = cache_it->second;
+        }
+        else {
+            spdlog::info(
+                "Terminal NodeDef cache miss for '{}', searching 3000+ "
+                "definitions...",
+                cache_key);
+            mxNodeDef = mxShaderNode->getNodeDef("", true);
+            s_nodeDefCache[cache_key] = mxNodeDef;
+        }
+    }
+
     if (!mxNodeDef) {
         TF_WARN("NodeDef not found for Node '%s'", mxType.GetText());
         return;

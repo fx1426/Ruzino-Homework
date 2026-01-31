@@ -59,6 +59,11 @@ class HD_RUZINO_API Hd_RUZINO_MaterialX : public Hd_RUZINO_Material {
     static std::once_flag shader_gen_initialized_;
     static std::mutex shadergen_mutex;
     static std::mutex document_mutex;  // Protects shared_document
+
+    // Cache for NodeDef lookups to avoid expensive searches
+    static std::unordered_map<std::string, MaterialX::NodeDefPtr>
+        nodedef_cache_;
+    static std::mutex nodedef_cache_mutex_;
 };
 
 RUZINO_NAMESPACE_CLOSE_SCOPE

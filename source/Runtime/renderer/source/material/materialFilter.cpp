@@ -551,6 +551,12 @@ void _FixOmittedConnections(
     mx::DocumentPtr const& mxDoc,
     const std::vector<mx::TypedElementPtr>& renderableElements)
 {
+    // Static cache for NodeDef lookups - persists across all material
+    // processing
+    static std::unordered_map<std::string, mx::NodeDefPtr> nodedef_cache;
+    static std::unordered_map<std::string, mx::NodeDefPtr> rough_nodedef_cache;
+    static std::mutex cache_mutex;
+
     // Recursively checks and fixes nodes and their upstream connections
     std::function<void(mx::NodePtr, std::set<mx::NodePtr>&)>
         processNodeRecursively =
@@ -562,8 +568,43 @@ void _FixOmittedConnections(
         }
         visitedNodes.insert(node);
 
-        auto node_def = node->getNodeDef();
-        auto rough_node_def = node->getNodeDef(mx::EMPTY_STRING, true);
+        // Create cache key from node category and type
+        std::string cache_key = node->getCategory() + ":" + node->getType();
+
+        // Check cache first before expensive getNodeDef call
+        mx::NodeDefPtr node_def;
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            auto cache_it = nodedef_cache.find(cache_key);
+            if (cache_it != nodedef_cache.end()) {
+                node_def = cache_it->second;
+            }
+            else {
+                spdlog::info(
+                    "NodeDef cache miss for '{}', searching 3000+ "
+                    "definitions...",
+                    cache_key);
+                node_def = node->getNodeDef(mx::EMPTY_STRING);
+                nodedef_cache[cache_key] = node_def;
+            }
+        }
+
+        mx::NodeDefPtr rough_node_def;
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            auto rough_cache_it = rough_nodedef_cache.find(cache_key);
+            if (rough_cache_it != rough_nodedef_cache.end()) {
+                rough_node_def = rough_cache_it->second;
+            }
+            else {
+                spdlog::info(
+                    "Rough NodeDef cache miss for '{}', searching 3000+ "
+                    "definitions...",
+                    cache_key);
+                rough_node_def = node->getNodeDef(mx::EMPTY_STRING, true);
+                rough_nodedef_cache[cache_key] = rough_node_def;
+            }
+        }
 
         if (rough_node_def && !node_def) {
             // Process each input on this node

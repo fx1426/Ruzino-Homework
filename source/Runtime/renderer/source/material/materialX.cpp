@@ -28,6 +28,9 @@ MaterialX::DocumentPtr Hd_RUZINO_MaterialX::shared_document = nullptr;
 std::mutex Hd_RUZINO_MaterialX::shadergen_mutex;
 std::mutex Hd_RUZINO_MaterialX::document_mutex;
 std::once_flag Hd_RUZINO_MaterialX::shader_gen_initialized_;
+std::unordered_map<std::string, MaterialX::NodeDefPtr>
+    Hd_RUZINO_MaterialX::nodedef_cache_;
+std::mutex Hd_RUZINO_MaterialX::nodedef_cache_mutex_;
 
 Hd_RUZINO_MaterialX::Hd_RUZINO_MaterialX(SdfPath const& id)
     : Hd_RUZINO_Material(id)
