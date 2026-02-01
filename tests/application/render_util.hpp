@@ -503,4 +503,21 @@ inline std::string LoadJSONScript(const std::string& filename)
     return content;
 }
 
+inline nvrhi::rt::IAccelStruct* GetTLAS(UsdImagingGLEngine* renderer)
+{
+    auto tlas_handle = renderer->GetRendererSetting(pxr::TfToken("VulkanTLAS"));
+    if (!tlas_handle.IsHolding<const void*>()) {
+        spdlog::warn("Failed to get TLAS from renderer");
+        return nullptr;
+    }
+
+    spdlog::info("Successfully retrieved TLAS handle from renderer");
+
+    auto bare_pointer = tlas_handle.Get<const void*>();
+    auto tlas_ptr =
+        static_cast<nvrhi::rt::IAccelStruct*>(const_cast<void*>(bare_pointer));
+
+    return tlas_ptr;
+}
+
 }  // namespace RenderUtil

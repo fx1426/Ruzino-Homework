@@ -52,6 +52,7 @@ def find_all_git_repos(root_dir: Path) -> List[Path]:
     
     Returns repositories sorted by depth (deepest first), so submodules
     are processed before their parent repositories.
+    Skips repositories named 'nvrhi'.
     """
     git_repos = []
     
@@ -61,8 +62,8 @@ def find_all_git_repos(root_dir: Path) -> List[Path]:
     
     # Walk through all subdirectories
     for dirpath, dirnames, _ in os.walk(root_dir):
-        # Skip .git directories
-        dirnames[:] = [d for d in dirnames if d != '.git']
+        # Skip .git directories and nvrhi directories
+        dirnames[:] = [d for d in dirnames if d != '.git' and d != 'nvrhi']
         
         current_path = Path(dirpath)
         for dirname in dirnames:
@@ -292,6 +293,52 @@ def select_from_list(items: List[str], prompt: str) -> Optional[str]:
             print("Please enter a valid number")
 
 
+def quick_commit_and_push(repo_path: Path, commit_msg: str) -> bool:
+    """
+    Quickly commit and push all changes without confirmations.
+    
+    Args:
+        repo_path: Path to the repository
+        commit_msg: Commit message to use
+    
+    Returns:
+        True if successfully pushed, False otherwise
+    """
+    # Check for remote tracking
+    current_branch = get_current_branch(repo_path)
+    if not current_branch:
+        print("Warning: Not on a branch (detached HEAD). Cannot push.")
+        return False
+    
+    # Stage all changes
+    result = run_git_command(repo_path, 'add', '-A', capture_output=True)
+    if result.returncode != 0:
+        print("Failed to stage changes.")
+        return False
+    
+    # Commit
+    result = run_git_command(repo_path, 'commit', '-m', commit_msg, capture_output=True)
+    if result.returncode != 0:
+        print("Failed to commit changes.")
+        return False
+    
+    print(f"✓ Committed: {commit_msg}")
+    
+    # Check if we have a remote tracking branch
+    if not has_remote_tracking(repo_path):
+        print("Warning: No remote tracking branch. Skipping push.")
+        return False
+    
+    # Push
+    result = run_git_command(repo_path, 'push', capture_output=True)
+    if result.returncode == 0:
+        print("✓ Pushed to remote")
+        return True
+    else:
+        print("✗ Push failed")
+        return False
+
+
 def commit_and_push_all_changes(repo_path: Path) -> bool:
     """
     Commit and push all changes in the repository.
@@ -418,6 +465,59 @@ def commit_and_push_all_changes(repo_path: Path) -> bool:
             return False
 
 
+def process_repository_quick(repo_path: Path, project_root: Path) -> Tuple[int, int, bool]:
+    """
+    Process a single repository in quick mode - format all C/C++ files and commit.
+    
+    Returns:
+        Tuple of (files_formatted, files_failed, committed_and_pushed)
+    """
+    # Get relative path for display
+    try:
+        rel_path = repo_path.relative_to(project_root)
+        display_path = str(rel_path) if str(rel_path) != '.' else '(root)'
+    except ValueError:
+        display_path = str(repo_path)
+    
+    print("\n" + "="*80)
+    print(f"Repository: {display_path}")
+    print("="*80)
+    
+    # Get modified files
+    modified_files = get_modified_files(repo_path)
+    cpp_files = filter_cpp_files(modified_files)
+    
+    success_count = 0
+    error_count = 0
+    
+    # Format all C/C++ files automatically
+    if cpp_files:
+        print(f"Formatting {len(cpp_files)} C/C++ files...")
+        for file_path in cpp_files:
+            if run_clang_format(file_path, dry_run=False):
+                success_count += 1
+            else:
+                error_count += 1
+        
+        if success_count > 0:
+            print(f"✓ Formatted {success_count} files")
+        if error_count > 0:
+            print(f"✗ Failed to format {error_count} files")
+    
+    # Get commit message
+    print(f"\nEnter commit message for {display_path}:")
+    commit_msg = input("> ").strip()
+    
+    if not commit_msg:
+        print("Empty commit message. Skipping repository.")
+        return success_count, error_count, False
+    
+    # Commit and push
+    pushed = quick_commit_and_push(repo_path, commit_msg)
+    
+    return success_count, error_count, pushed
+
+
 def process_repository(repo_path: Path, project_root: Path) -> Tuple[int, int, bool]:
     """
     Process a single repository interactively.
@@ -526,6 +626,23 @@ def main():
     
     print(f"Project root: {project_root}")
     
+    # Select mode
+    print("\nSelect mode:")
+    print("  1. Quick mode (auto-format, only ask for commit messages)")
+    print("  2. Interactive mode (confirm each step)")
+    
+    while True:
+        mode_choice = input("\nEnter mode (1 or 2): ").strip()
+        if mode_choice in ['1', '2']:
+            quick_mode = (mode_choice == '1')
+            break
+        print("Please enter 1 or 2")
+    
+    if quick_mode:
+        print("\n✓ Quick mode enabled")
+    else:
+        print("\n✓ Interactive mode enabled")
+    
     # Check if clang-format is available
     print("\nChecking for clang-format...")
     try:
@@ -593,9 +710,13 @@ def main():
         else:
             print(f"  • {display_path} ({total_files} files)")
     
-    if not get_user_confirmation(f"\nProcess these {len(repos_with_changes)} repositories?"):
-        print("Operation cancelled.")
-        return
+    if not quick_mode:
+        if not get_user_confirmation(f"\nProcess these {len(repos_with_changes)} repositories?"):
+            print("Operation cancelled.")
+            return
+    else:
+        print(f"\nWill process {len(repos_with_changes)} repositories in quick mode.")
+        print("You will only need to provide commit messages.\n")
     
     # Process each repository
     total_success = 0
@@ -603,7 +724,10 @@ def main():
     repos_committed = 0
     
     for repo, display_path, _, _ in repos_with_changes:
-        success, error, pushed = process_repository(repo, project_root)
+        if quick_mode:
+            success, error, pushed = process_repository_quick(repo, project_root)
+        else:
+            success, error, pushed = process_repository(repo, project_root)
         
         if pushed:
             repos_committed += 1

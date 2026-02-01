@@ -605,6 +605,19 @@ void UsdviewEngine::finish_render()
     else {
         copy_to_presentation();
     }
+
+    // Also retrieve TLAS if needed
+    auto tlas_handle =
+        renderer_->GetRendererSetting(pxr::TfToken("VulkanTLAS"));
+    if (tlas_handle.IsHolding<const void*>()) {
+        auto tlas_ptr = tlas_handle.Get<const void*>();
+        auto tlas =
+            static_cast<nvrhi::rt::IAccelStruct*>(const_cast<void*>(tlas_ptr));
+        // TLAS can now be used here if needed
+        if (tlas) {
+            spdlog::debug("Successfully retrieved TLAS from renderer");
+        }
+    }
 }
 
 ImGuiWindowFlags UsdviewEngine::GetWindowFlag()

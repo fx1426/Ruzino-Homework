@@ -602,6 +602,16 @@ VtValue Hd_RUZINO_RenderDelegate::GetRenderSetting(TfToken const& key) const
             spdlog::warn("  Texture '{}' not found in map", texture_name);
         }
     }
+
+    // Support for TLAS access
+    if (key == TfToken("VulkanTLAS")) {
+        if (_renderParam && _renderParam->InstanceCollection) {
+            auto tlas = _renderParam->InstanceCollection->get_tlas();
+            if (tlas) {
+                return VtValue(reinterpret_cast<const void*>(tlas));
+            }
+        }
+    }
 #endif
     return HdRenderDelegate::GetRenderSetting(key);
 }
