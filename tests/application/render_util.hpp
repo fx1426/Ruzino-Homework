@@ -28,6 +28,10 @@
 
 // USD Hio for HDR/EXR support
 #include "pxr/imaging/hio/image.h"
+
+RUZINO_NAMESPACE_OPEN_SCOPE
+class DescriptorTableManager;
+RUZINO_NAMESPACE_CLOSE_SCOPE
 #include "pxr/imaging/hio/types.h"
 
 // NVRHI includes
@@ -518,6 +522,61 @@ inline nvrhi::rt::IAccelStruct* GetTLAS(UsdImagingGLEngine* renderer)
         static_cast<nvrhi::rt::IAccelStruct*>(const_cast<void*>(bare_pointer));
 
     return tlas_ptr;
+}
+
+inline nvrhi::IBuffer* GetInstanceDescBuffer(UsdImagingGLEngine* renderer)
+{
+    auto handle =
+        renderer->GetRendererSetting(pxr::TfToken("VulkanInstanceDescBuffer"));
+    if (!handle.IsHolding<const void*>()) {
+        spdlog::warn("Failed to get InstanceDescBuffer from renderer");
+        return nullptr;
+    }
+
+    auto bare_pointer = handle.Get<const void*>();
+    return static_cast<nvrhi::IBuffer*>(const_cast<void*>(bare_pointer));
+}
+
+inline nvrhi::IBuffer* GetMeshDescBuffer(UsdImagingGLEngine* renderer)
+{
+    auto handle =
+        renderer->GetRendererSetting(pxr::TfToken("VulkanMeshDescBuffer"));
+    if (!handle.IsHolding<const void*>()) {
+        spdlog::warn("Failed to get MeshDescBuffer from renderer");
+        return nullptr;
+    }
+
+    auto bare_pointer = handle.Get<const void*>();
+    return static_cast<nvrhi::IBuffer*>(const_cast<void*>(bare_pointer));
+}
+
+inline Ruzino::DescriptorTableManager* GetBindlessBufferTable(
+    UsdImagingGLEngine* renderer)
+{
+    auto handle =
+        renderer->GetRendererSetting(pxr::TfToken("VulkanBindlessBufferTable"));
+    if (!handle.IsHolding<const void*>()) {
+        spdlog::warn("Failed to get BindlessBufferTable from renderer");
+        return nullptr;
+    }
+
+    auto bare_pointer = handle.Get<const void*>();
+    return static_cast<Ruzino::DescriptorTableManager*>(
+        const_cast<void*>(bare_pointer));
+}
+
+inline nvrhi::IBindingLayout* GetBindlessBufferLayout(
+    UsdImagingGLEngine* renderer)
+{
+    auto handle = renderer->GetRendererSetting(
+        pxr::TfToken("VulkanBindlessBufferLayout"));
+    if (!handle.IsHolding<const void*>()) {
+        spdlog::warn("Failed to get BindlessBufferLayout from renderer");
+        return nullptr;
+    }
+
+    auto bare_pointer = handle.Get<const void*>();
+    return static_cast<nvrhi::IBindingLayout*>(const_cast<void*>(bare_pointer));
 }
 
 }  // namespace RenderUtil

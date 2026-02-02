@@ -271,7 +271,8 @@ void Hd_RUZINO_Renderer::renderTimeUpdateCamera(
 {
     camera_ =
         static_cast<const Hd_RUZINO_Camera*>(renderPassState->GetCamera());
-    camera_->update(renderPassState);
+    if (camera_)
+        camera_->update(renderPassState);
 }
 
 bool Hd_RUZINO_Renderer::nodetree_modified()

@@ -612,6 +612,52 @@ VtValue Hd_RUZINO_RenderDelegate::GetRenderSetting(TfToken const& key) const
             }
         }
     }
+
+    // Support for InstanceDescBuffer access
+    if (key == TfToken("VulkanInstanceDescBuffer")) {
+        if (_renderParam && _renderParam->InstanceCollection) {
+            auto buffer = _renderParam->InstanceCollection->instance_pool
+                              .get_device_buffer();
+            if (buffer) {
+                return VtValue(reinterpret_cast<const void*>(buffer));
+            }
+        }
+    }
+
+    // Support for MeshDescBuffer access
+    if (key == TfToken("VulkanMeshDescBuffer")) {
+        if (_renderParam && _renderParam->InstanceCollection) {
+            auto buffer =
+                _renderParam->InstanceCollection->mesh_pool.get_device_buffer();
+            if (buffer) {
+                return VtValue(reinterpret_cast<const void*>(buffer));
+            }
+        }
+    }
+
+    // Support for Bindless Buffer Descriptor Table access
+    if (key == TfToken("VulkanBindlessBufferTable")) {
+        if (_renderParam && _renderParam->InstanceCollection) {
+            auto table =
+                _renderParam->InstanceCollection->get_buffer_descriptor_table();
+            if (table) {
+                // Return the descriptor table, not the manager
+                auto descriptor_table = table->GetDescriptorTable();
+                return VtValue(reinterpret_cast<const void*>(descriptor_table));
+            }
+        }
+    }
+
+    // Support for Bindless Buffer Layout access
+    if (key == TfToken("VulkanBindlessBufferLayout")) {
+        if (_renderParam && _renderParam->InstanceCollection) {
+            auto layout = _renderParam->InstanceCollection->bindlessData
+                              .bufferBindlessLayout.Get();
+            if (layout) {
+                return VtValue(reinterpret_cast<const void*>(layout));
+            }
+        }
+    }
 #endif
     return HdRenderDelegate::GetRenderSetting(key);
 }
