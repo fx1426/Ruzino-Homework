@@ -1,5 +1,3 @@
-// filepath:
-// c:/Users/Pengfei/WorkSpace/DSH/ext/Framework3D/source/Runtime/renderer/nodes/shaders/shaders/rasterize.vs.slang
 #include "utils/view_cb.h"
 import Scene.SceneTypes;
 

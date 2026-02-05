@@ -1,12 +1,11 @@
-// filepath:
-// c:\Users\Pengfei\WorkSpace\ColBot\ext\Framework3D\tests\application\node_editor.cpp
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 #include <iostream>
 #include <string>
 
 #include "GUI/ImGuiFileDialog.h"
 #include "GUI/window.h"
-#include <spdlog/spdlog.h>
 #include "nodes/core/node_tree.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
@@ -262,25 +261,35 @@ int main(int argc, char** argv)
 
     // Default configuration
     std::string json_path = "node_editor_config.json";
-    std::vector<std::string> config_files = {"geometry_nodes.json", "basic_nodes.json"};
-    std::string plugin_path_str = "./Plugins";    // Parse command line arguments
+    std::vector<std::string> config_files = { "geometry_nodes.json",
+                                              "basic_nodes.json" };
+    std::string plugin_path_str = "./Plugins";  // Parse command line arguments
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        
+
         if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: " << argv[0] << " [options]\n";
             std::cout << "Options:\n";
-            std::cout << "  --main-json <file>   Main node editor configuration file (default: node_editor_config.json)\n";
-            std::cout << "  --config <file>      Add configuration JSON file (can be used multiple times)\n";
-            std::cout << "  --plugin-path <dir>  Set plugin directory path (default: ./Plugins)\n";
-            std::cout << "  --clear-configs      Clear default configuration files\n";
+            std::cout
+                << "  --main-json <file>   Main node editor configuration file "
+                   "(default: node_editor_config.json)\n";
+            std::cout << "  --config <file>      Add configuration JSON file "
+                         "(can be used multiple times)\n";
+            std::cout << "  --plugin-path <dir>  Set plugin directory path "
+                         "(default: ./Plugins)\n";
+            std::cout
+                << "  --clear-configs      Clear default configuration files\n";
             std::cout << "  --help, -h           Show this help message\n";
-            std::cout << "\nDefault configuration files: geometry_nodes.json, basic_nodes.json\n";
+            std::cout << "\nDefault configuration files: geometry_nodes.json, "
+                         "basic_nodes.json\n";
             std::cout << "Default plugin path: ./Plugins\n";
             std::cout << "\nExamples:\n";
             std::cout << "  " << argv[0] << " --main-json my_config.json\n";
-            std::cout << "  " << argv[0] << " --config extra_nodes.json --plugin-path /custom/plugins\n";
-            std::cout << "  " << argv[0] << " --clear-configs --config custom_only.json\n";
+            std::cout
+                << "  " << argv[0]
+                << " --config extra_nodes.json --plugin-path /custom/plugins\n";
+            std::cout << "  " << argv[0]
+                      << " --clear-configs --config custom_only.json\n";
             return 0;
         }
         else if (arg == "--main-json" && i + 1 < argc) {
@@ -304,10 +313,12 @@ int main(int argc, char** argv)
             return 1;
         }
         else {
-            // Backward compatibility: treat first non-option argument as main JSON
+            // Backward compatibility: treat first non-option argument as main
+            // JSON
             if (json_path == "node_editor_config.json") {
                 json_path = arg;
-            } else {
+            }
+            else {
                 std::cerr << "Unexpected argument: " << arg << std::endl;
                 std::cerr << "Use --help for usage information." << std::endl;
                 return 1;
@@ -334,8 +345,10 @@ int main(int argc, char** argv)
         if (std::filesystem::exists(config_file)) {
             spdlog::info("Loading configuration: %s", config_file.c_str());
             system->load_configuration(config_file);
-        } else {
-            spdlog::warn("Configuration file not found: %s", config_file.c_str());
+        }
+        else {
+            spdlog::warn(
+                "Configuration file not found: %s", config_file.c_str());
         }
     }
 
@@ -345,11 +358,13 @@ int main(int argc, char** argv)
         spdlog::info("Loading plugins from: %s", plugin_path_str.c_str());
         for (auto& p : std::filesystem::directory_iterator(plugin_path)) {
             if (p.path().extension() == ".json") {
-                spdlog::info("Loading plugin: %s", p.path().filename().string().c_str());
+                spdlog::info(
+                    "Loading plugin: %s", p.path().filename().string().c_str());
                 system->load_configuration(p.path().string());
             }
         }
-    } else {
+    }
+    else {
         spdlog::warn("Plugin directory not found: %s", plugin_path_str.c_str());
     }
 
