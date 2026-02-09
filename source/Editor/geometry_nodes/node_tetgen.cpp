@@ -3,9 +3,9 @@
 #include "GCore/GOP.h"
 #include "GCore/algorithms/tetgen_algorithm.h"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
-
 NODE_DECLARATION_FUNCTION(tetgen_tetrahedralize)
 {
     b.add_input<Geometry>("Surface Mesh");

@@ -1,8 +1,0 @@
-#pragma once
-#include"RUZINO.h"
-
-RUZINO_NAMESPACE_OPEN_SCOPE
-void RUZINO_API foo()
-{
-}
-RUZINO_NAMESPACE_CLOSE_SCOPE

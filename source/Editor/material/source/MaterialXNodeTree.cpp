@@ -8,8 +8,9 @@
 
 #include <spdlog/spdlog.h>
 
-#include "foo_socket_types.inl"
+#include <iostream>
 
+#include "foo_socket_types.inl"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
@@ -114,6 +115,46 @@ NodeSocket* MaterialXSocketDeclaration::build(NodeTree* ntree, Node* node) const
     update_default_value(socket);
 
     return socket;
+}
+
+MaterialXNodeTree::MaterialXNodeTree(
+    const std::shared_ptr<NodeTreeDescriptor>& descriptor,
+    mx::DocumentPtr doc)
+    : NodeTree(descriptor)
+{
+    _searchPath = mx::getDefaultDataSearchPath();
+    _libraryFolders = { "libraries" };
+
+    loadStandardLibraries();
+
+    spdlog::info(
+        "[MaterialXNodeTree] Constructor called with doc = {}",
+        (void*)doc.get());
+
+    if (doc) {
+        _graphDoc = doc;
+        spdlog::info(
+            "[MaterialXNodeTree] Assigned _graphDoc = {}",
+            (void*)_graphDoc.get());
+        _graphDoc->importLibrary(_stdLib);
+        spdlog::info(
+            "[MaterialXNodeTree] After importLibrary, _graphDoc = {}",
+            (void*)_graphDoc.get());
+    }
+    else {
+        _graphDoc = mx::createDocument();
+        _graphDoc->importLibrary(_stdLib);
+    }
+
+    _materialFilename = "";
+    buildUiBaseGraph(_graphDoc);
+    spdlog::info(
+        "[MaterialXNodeTree] After buildUiBaseGraph, _graphDoc = {}",
+        (void*)_graphDoc.get());
+    _currGraphElem = _graphDoc;
+    spdlog::info(
+        "[MaterialXNodeTree] Constructor finished, _graphDoc = {}",
+        (void*)_graphDoc.get());
 }
 
 void MaterialXNodeTree::loadStandardLibraries()

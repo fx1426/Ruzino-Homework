@@ -1,5 +1,6 @@
 #pragma once
 
+#include "camera.h"
 #include "utils/view_cb.h"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
@@ -9,8 +10,8 @@ inline PlanarViewConstants camera_to_view_constants(Hd_RUZINO_Camera* camera)
     PlanarViewConstants constants;
 
     // Extract matrices and other data from Hd_RUZINO_Camera
-    constants.matWorldToView = GfMatrix4f(camera->viewMatrix);
-    constants.matViewToClip = GfMatrix4f(camera->projMatrix);
+    constants.matWorldToView = pxr::GfMatrix4f(camera->viewMatrix);
+    constants.matViewToClip = pxr::GfMatrix4f(camera->projMatrix);
     constants.matWorldToClip =
         constants.matWorldToView * constants.matViewToClip;
     constants.matClipToView = constants.matViewToClip.GetInverse();
@@ -20,23 +21,23 @@ inline PlanarViewConstants camera_to_view_constants(Hd_RUZINO_Camera* camera)
 
     // Extract viewport data
     constants.viewportOrigin =
-        GfVec2f(0.0f, 0.0f);  // Assuming origin at (0, 0)
-    constants.viewportSize = GfVec2f(camera->dataWindow.GetSize());
+        pxr::GfVec2f(0.0f, 0.0f);  // Assuming origin at (0, 0)
+    constants.viewportSize = pxr::GfVec2f(camera->dataWindow.GetSize());
 
     // Calculate inverse of viewport size for efficient computations
-    constants.viewportSizeInv = GfVec2f(
+    constants.viewportSizeInv = pxr::GfVec2f(
         1.0f / constants.viewportSize[0], 1.0f / constants.viewportSize[1]);
 
     // Other parameters
     constants.pixelOffset =
-        GfVec2f(0.0f, 0.0f);  // Assuming no offset initially
+        pxr::GfVec2f(0.0f, 0.0f);  // Assuming no offset initially
 
     // For camera direction or position, we may need to decide based on the
     // camera implementation
     auto position = camera->inverseViewMatrix.ExtractTranslation();
 
     constants.cameraDirectionOrPosition =
-        GfVec4f(position[0], position[1], position[2], 1.0f);
+        pxr::GfVec4f(position[0], position[1], position[2], 1.0f);
 
     constants.resolution = camera->dataWindow.GetSize();
     return constants;

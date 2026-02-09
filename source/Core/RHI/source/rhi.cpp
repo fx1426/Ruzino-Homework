@@ -1,5 +1,6 @@
 
 #include <nvrhi/nvrhi.h>
+#include <spdlog/spdlog.h>
 
 #include <RHI/internal/nvrhi_equality.hpp>
 #include <RHI/rhi.hpp>
@@ -14,7 +15,9 @@
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <iostream>
 
+#if RUZINO_WITH_VULKAN
 #include "vulkan/vulkan.hpp"
+#endif
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 namespace RHI {
@@ -49,8 +52,8 @@ int init(bool with_window, bool use_dx12)
     params.enableRayTracingExtensions = true;
     params.enableComputeQueue = true;
     params.enableCopyQueue = true;
-    // params.adapterIndex = 0;
-
+// params.adapterIndex = 0;
+#if RUZINO_WITH_VULKAN
     params.optionalVulkanInstanceExtensions = {
         VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME
     };
@@ -68,7 +71,9 @@ int init(bool with_window, bool use_dx12)
 #else
         VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME
 #endif
+
     };
+#endif
 
     params.swapChainFormat = nvrhi::Format::RGBA8_UNORM;
     params.featureLevel = D3D_FEATURE_LEVEL_12_2;
@@ -195,7 +200,8 @@ inline void copy_from_texture(
     command_list->close();
     device->executeCommandList(command_list);
 }
-#if RUZINO_WITH_OPENUSD
+#if RUZINO_WITH_OPENUSD && RUZINO_WITH_VULKAN
+
 nvrhi::TextureHandle load_ogl_texture(
     const nvrhi::TextureDesc& desc,
     unsigned gl_texture)

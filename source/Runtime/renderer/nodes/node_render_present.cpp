@@ -1,6 +1,5 @@
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
-#include "render_node_base.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(present_color)
 {

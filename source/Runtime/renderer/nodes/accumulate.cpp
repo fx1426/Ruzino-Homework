@@ -1,7 +1,10 @@
 
 #include "GPUContext/compute_context.hpp"
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
+#include "spdlog/spdlog.h"
+#include "utils/cam_to_view_contants.h"
+#include "utils/view_cb.h"
 
 NODE_DEF_OPEN_SCOPE
 struct AccumulateStorage {
@@ -11,7 +14,7 @@ struct AccumulateStorage {
     nvrhi::TextureHandle accumulated;
 
     PlanarViewConstants old_constants;
-    GfVec2i image_size = GfVec2i(-1, -1);
+    pxr::GfVec2i image_size = pxr::GfVec2i(-1, -1);
 
     // Cached resources
     ProgramHandle cached_program;
@@ -62,7 +65,7 @@ NODE_EXECUTION_FUNCTION(accumulate)
     auto max_samples = params.get_input<int>("Max Samples");
 
     auto image_size =
-        GfVec2i(texture->getDesc().width, texture->getDesc().height);
+        pxr::GfVec2i(texture->getDesc().width, texture->getDesc().height);
 
     // Check for size changes
     bool size_changed = (storage.image_size != image_size);

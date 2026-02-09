@@ -1,11 +1,13 @@
 
 #include "../source/renderTLAS.h"
 #include "GPUContext/raytracing_context.hpp"
+#include "hd_RUZINO/render_node_base.h"
+#include "material/material.h"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
 #include "nvrhi/utils.h"
-#include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
+#include "spdlog/spdlog.h"
 #include "utils/math.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(material_eval_sample_pdf)
@@ -38,7 +40,7 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     program_desc.shaderType = nvrhi::ShaderType::AllRayTracing;
     program_desc.nvapi_support = true;
 
-    auto &materials = global_payload.get_materials();
+    auto& materials = global_payload.get_materials();
 
     std::unordered_map<unsigned, std::string> callable_shaders;
 
@@ -112,9 +114,8 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     MARK_DESTROY_NVRHI_RESOURCE(sampler);
 
     ProgramVars program_vars(resource_allocator, raytrace_compiled);
-    program_vars["SceneBVH"] =
-        params.get_global_payload<RenderGlobalPayload &>()
-            .InstanceCollection->get_tlas();
+    program_vars["SceneBVH"] = params.get_global_payload<RenderGlobalPayload&>()
+                                   .InstanceCollection->get_tlas();
     program_vars["hitObjects"] = hit_info_buffer;
     program_vars["in_PixelTarget"] = in_pixel_target_buffer;
     program_vars["PixelTarget"] = pixel_target_buffer;
@@ -177,7 +178,7 @@ NODE_EXECUTION_FUNCTION(material_eval_sample_pdf)
     context.announce_miss("Miss");
     context.announce_miss("ShadowMiss", 1);
 
-    for (auto &callable : callable_shaders) {
+    for (auto& callable : callable_shaders) {
         context.announce_callable(callable.second, callable.first);
     }
 

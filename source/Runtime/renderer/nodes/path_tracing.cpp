@@ -10,12 +10,13 @@
 #include "GPUContext/raytracing_context.hpp"
 #include "RHI/internal/resources.hpp"
 #include "Scene/MaterialParamsBuffer.slang"
+#include "camera.h"
+#include "hd_RUZINO/render_node_base.h"
+#include "light.h"
+#include "material/material.h"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
-#include "nvrhi/utils.h"
-#include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
-#include "utils/math.h"
 
 // A traditional path tracing node
 

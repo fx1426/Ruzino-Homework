@@ -1,33 +1,39 @@
 #include "GUI/window.h"
+
 #include "spdlog/spdlog.h"
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 
-#include <any>
 #include <imgui.h>
 
 #include <RHI/rhi.hpp>
+#include <any>
 #include <format>
 
 #include "GUI/ImGuiFileDialog.h"
 #include "RHI/DeviceManager/DeviceManager.h"
 #include "RHI/ShaderFactory/shader.hpp"
 #include "imgui_renderer.h"
-#include "vulkan/vulkan.hpp"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
 
 // WindowEventSystem implementation
-void WindowEventSystem::subscribe(const std::string& event_name, EventCallback callback)
+void WindowEventSystem::subscribe(
+    const std::string& event_name,
+    EventCallback callback)
 {
     subscribers_[event_name].push_back(callback);
 }
 
-void WindowEventSystem::subscribe_any(const std::string& event_name, EventCallbackAny callback)
+void WindowEventSystem::subscribe_any(
+    const std::string& event_name,
+    EventCallbackAny callback)
 {
     subscribers_any_[event_name].push_back(callback);
 }
 
-void WindowEventSystem::emit(const std::string& event_name, const std::string& event_data)
+void WindowEventSystem::emit(
+    const std::string& event_name,
+    const std::string& event_data)
 {
     auto it = subscribers_.find(event_name);
     if (it != subscribers_.end()) {
@@ -37,7 +43,9 @@ void WindowEventSystem::emit(const std::string& event_name, const std::string& e
     }
 }
 
-void WindowEventSystem::emit_any(const std::string& event_name, const std::any& event_data)
+void WindowEventSystem::emit_any(
+    const std::string& event_name,
+    const std::any& event_data)
 {
     auto it = subscribers_any_.find(event_name);
     if (it != subscribers_any_.end()) {
@@ -233,7 +241,7 @@ void DockingImguiRenderer::register_widget(std::unique_ptr<IWidget> widget)
     if (!widget) {
         return;
     }
-    
+
     // If the widget with the "UniqueName" exists, replace it
     std::string unique_name = widget->GetWindowUniqueName();
     for (auto& w : widgets_) {
@@ -290,7 +298,7 @@ void DockingImguiRenderer::buildUI()
         }
         pending_widgets_.clear();
     }
-    
+
     for (auto&& callback : callbacks_before_frame_) {
         callback(window_);
     }
@@ -328,7 +336,7 @@ void DockingImguiRenderer::buildUI()
             spdlog::warn("Empty widget encountered!");
             continue;
         }
-        
+
         if (widget->Begin()) {
             // Draw widget-specific menu bar if it has one
             if (widget->HasMenuBar()) {
@@ -366,10 +374,11 @@ void DockingImguiRenderer::buildUI()
     for (size_t i = 0; i < widgets_.size(); ++i) {
         widgets_[i]->CallBack();
     }
-    
+
     ImGui::End();
 
-    // Handle file dialogs - must be called after ImGui::End() but within the frame
+    // Handle file dialogs - must be called after ImGui::End() but within the
+    // frame
     auto file_dialog = IGFD::FileDialog::Instance();
     if (file_dialog->Display("OpenStageDialog")) {
         if (file_dialog->IsOk()) {
@@ -378,7 +387,7 @@ void DockingImguiRenderer::buildUI()
         }
         file_dialog->Close();
     }
-    
+
     if (file_dialog->Display("SaveStageDialog")) {
         if (file_dialog->IsOk()) {
             std::string file_path = file_dialog->GetFilePathName();
@@ -430,10 +439,10 @@ Window::~Window()
     auto manager = RHI::internal::get_device_manager();
 
     manager->RemoveRenderPass(imguiRenderPass.get());
-    
+
     // Destroy imguiRenderPass first to release RHI resources
     imguiRenderPass.reset();
-    
+
     // Then shutdown RHI (which no longer uses spdlog)
     RHI::shutdown();
 }
@@ -540,7 +549,9 @@ bool Window::IsMaximized() const
     return manager->IsMaximized();
 }
 
-void Window::register_menu_action(const std::string& action_name, std::function<void()> callback)
+void Window::register_menu_action(
+    const std::string& action_name,
+    std::function<void()> callback)
 {
     menu_actions_[action_name] = callback;
 }

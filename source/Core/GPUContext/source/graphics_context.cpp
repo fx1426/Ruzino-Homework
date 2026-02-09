@@ -1,5 +1,7 @@
 #include "GPUContext/graphics_context.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include "nvrhi/utils.h"
 #include "pxr/base/gf/vec2f.h"
 #include "pxr/base/gf/vec3f.h"
@@ -187,14 +189,15 @@ GraphicsContext& GraphicsContext::add_vertex_buffer_desc(
         elementStride = formatInfo.bytesPerBlock * formatInfo.blockSize;
     }
 
-    vertex_attributes_.push_back(nvrhi::VertexAttributeDesc{}
-                                     .setName(name.c_str())
-                                     .setFormat(format)
-                                     .setArraySize(arraySize)
-                                     .setBufferIndex(bufferIndex)
-                                     .setOffset(offset)
-                                     .setElementStride(elementStride)
-                                     .setIsInstanced(isInstanced));
+    vertex_attributes_.push_back(
+        nvrhi::VertexAttributeDesc{}
+            .setName(name.c_str())
+            .setFormat(format)
+            .setArraySize(arraySize)
+            .setBufferIndex(bufferIndex)
+            .setOffset(offset)
+            .setElementStride(elementStride)
+            .setIsInstanced(isInstanced));
     return *this;
 }
 

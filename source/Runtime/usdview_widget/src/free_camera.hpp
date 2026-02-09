@@ -3,11 +3,9 @@
 #include <pxr/base/gf/frustum.h>
 #include <pxr/base/gf/matrix3d.h>
 #include <pxr/base/gf/matrix4d.h>
-#include <pxr/base/gf/quatd.h>
 #include <pxr/base/gf/rotation.h>  // Include GfRotation
 #include <pxr/base/gf/vec2d.h>
 #include <pxr/base/gf/vec3d.h>
-#include <pxr/base/gf/vec4d.h>
 
 #include <optional>
 #include <unordered_map>

@@ -1,9 +1,10 @@
 #include <gtest/gtest.h>
 #include <pxr/base/vt/array.h>
-#include <chrono>
-#include <numeric>
 
+#include <array>
+#include <chrono>
 #include <fem_bem/fem_bem.hpp>
+#include <numeric>
 
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/algorithms/delauney.h"
@@ -140,7 +141,8 @@ TEST(FEMBEMProblem, Laplacian3D_SingleTetrahedronAsCell)
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    // For linear boundary conditions on a tetrahedron, interior values should be reasonable
+    // For linear boundary conditions on a tetrahedron, interior values should
+    // be reasonable
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
         EXPECT_FALSE(std::isinf(val));
@@ -193,7 +195,7 @@ TEST(FEMBEMProblem, Laplacian3D_TwoAdjacentTetrahedra)
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Verify solution validity
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
@@ -213,10 +215,11 @@ TEST(FEMBEMProblem, Laplacian3D_CubicMesh)
     for (int i = 0; i < 2; i++) {
         for (int j = 0; j < 2; j++) {
             for (int k = 0; k < 2; k++) {
-                vertices.push_back(glm::vec3(
-                    static_cast<float>(i),
-                    static_cast<float>(j),
-                    static_cast<float>(k)));
+                vertices.push_back(
+                    glm::vec3(
+                        static_cast<float>(i),
+                        static_cast<float>(j),
+                        static_cast<float>(k)));
             }
         }
     }
@@ -241,12 +244,9 @@ TEST(FEMBEMProblem, Laplacian3D_CubicMesh)
 
     // Subdivide cube into 6 tetrahedra
     std::vector<std::array<int, 4>> cube_tets = {
-        { v000, v001, v011, v111 },
-        { v000, v011, v010, v111 },
-        { v000, v010, v110, v111 },
-        { v000, v110, v100, v111 },
-        { v000, v100, v101, v111 },
-        { v000, v101, v001, v111 }
+        { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+        { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+        { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
     };
 
     for (const auto& tet : cube_tets) {
@@ -273,14 +273,15 @@ TEST(FEMBEMProblem, Laplacian3D_CubicMesh)
 
     // Trigonometric boundary condition
     solver->set_boundary_condition(
-        "sin(3.14159*x)*cos(3.14159*y)*sin(3.14159*z)", 
-        BoundaryCondition::Dirichlet, 0);
+        "sin(3.14159*x)*cos(3.14159*y)*sin(3.14159*z)",
+        BoundaryCondition::Dirichlet,
+        0);
 
     std::vector<float> solution = solver->solve();
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Verify solution validity
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
@@ -303,15 +304,21 @@ TEST(FEMBEMProblem, Laplacian3D_PyramidMesh)
         { 1.0f, 1.0f, 0.0f },    // 2
         { -1.0f, 1.0f, 0.0f },   // 3
         // Apex vertex
-        { 0.0f, 0.0f, 2.0f }     // 4
+        { 0.0f, 0.0f, 2.0f }  // 4
     };
 
     // Create tetrahedra by connecting apex to triangular faces of base
     std::vector<int> cell_vertex_indices = {
         // Tetrahedron 1: apex + triangle (0,1,2)
-        4, 0, 1, 2,
+        4,
+        0,
+        1,
+        2,
         // Tetrahedron 2: apex + triangle (0,2,3)
-        4, 0, 2, 3
+        4,
+        0,
+        2,
+        3
     };
     std::vector<int> cell_vertex_counts = { 4, 4 };
 
@@ -338,7 +345,7 @@ TEST(FEMBEMProblem, Laplacian3D_PyramidMesh)
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Check that apex vertex has a reasonable solution value
     float apex_solution = solution[4];
     EXPECT_FALSE(std::isnan(apex_solution));
@@ -348,7 +355,7 @@ TEST(FEMBEMProblem, Laplacian3D_PyramidMesh)
 TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
 {
     // Test error handling for various invalid scenarios
-    
+
     // Test 1: Empty geometry (should handle gracefully)
     {
         auto geometry = std::make_shared<Geometry>();
@@ -394,7 +401,8 @@ TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x + y + z", BoundaryCondition::Dirichlet, 0);
 
         // Should handle degenerate tetrahedron gracefully
         EXPECT_NO_THROW(solver->solve());
@@ -406,12 +414,10 @@ TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
         geometry->attach_component(mesh_comp);
 
-        std::vector<glm::vec3> vertices = {
-            { 0.0f, 0.0f, 0.0f },
-            { 1.0f, 0.0f, 0.0f },
-            { 0.5f, 0.866f, 0.0f },
-            { 0.5f, 0.289f, 0.816f }
-        };
+        std::vector<glm::vec3> vertices = { { 0.0f, 0.0f, 0.0f },
+                                            { 1.0f, 0.0f, 0.0f },
+                                            { 0.5f, 0.866f, 0.0f },
+                                            { 0.5f, 0.289f, 0.816f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -428,7 +434,7 @@ TEST(FEMBEMProblem, Laplacian3D_ErrorHandling)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        
+
         // Invalid expression should be handled gracefully
         EXPECT_NO_THROW(solver->set_boundary_condition(
             "invalid_function(x,y,z)", BoundaryCondition::Dirichlet, 0));
@@ -448,10 +454,11 @@ TEST(FEMBEMProblem, Laplacian3D_LargeScale)
     for (int i = 0; i < grid_size; i++) {
         for (int j = 0; j < grid_size; j++) {
             for (int k = 0; k < grid_size; k++) {
-                vertices.push_back(glm::vec3(
-                    static_cast<float>(i),
-                    static_cast<float>(j),
-                    static_cast<float>(k)));
+                vertices.push_back(
+                    glm::vec3(
+                        static_cast<float>(i),
+                        static_cast<float>(j),
+                        static_cast<float>(k)));
             }
         }
     }
@@ -479,12 +486,9 @@ TEST(FEMBEMProblem, Laplacian3D_LargeScale)
 
                 // Subdivide cube into 6 tetrahedra
                 std::vector<std::array<int, 4>> cube_tets = {
-                    { v000, v001, v011, v111 },
-                    { v000, v011, v010, v111 },
-                    { v000, v010, v110, v111 },
-                    { v000, v110, v100, v111 },
-                    { v000, v100, v101, v111 },
-                    { v000, v101, v001, v111 }
+                    { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+                    { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+                    { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
                 };
 
                 for (const auto& tet : cube_tets) {
@@ -520,16 +524,16 @@ TEST(FEMBEMProblem, Laplacian3D_LargeScale)
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Verify solution statistics
     float min_val = *std::min_element(solution.begin(), solution.end());
     float max_val = *std::max_element(solution.begin(), solution.end());
-    
+
     EXPECT_FALSE(std::isnan(min_val));
     EXPECT_FALSE(std::isnan(max_val));
     EXPECT_FALSE(std::isinf(min_val));
     EXPECT_FALSE(std::isinf(max_val));
-    
+
     // For linear boundary conditions, solution should have reasonable range
     EXPECT_LE(std::abs(max_val - min_val), 10.0f);  // reasonable spread
 }
@@ -576,21 +580,22 @@ TEST(FEMBEMProblem, Laplacian3D_BoundaryConditionTypes)
 
     // Test different boundary conditions
     std::vector<std::string> boundary_conditions = {
-        "1.0",                         // constant
-        "x",                           // linear in x
-        "y",                           // linear in y
-        "z",                           // linear in z
-        "x + y + z",                   // linear combination
-        "x*x",                         // quadratic in x
-        "y*y",                         // quadratic in y
-        "z*z",                         // quadratic in z
-        "x*x + y*y + z*z",            // radial quadratic
-        "x*y",                         // bilinear
-        "x*y*z",                       // trilinear
-        "sin(3.14159*x)",              // trigonometric
-        "cos(3.14159*y)",              // trigonometric
-        "exp(x)",                      // exponential
-        "sqrt(x*x + y*y + 0.01)"       // square root (with small offset to avoid singularity)
+        "1.0",                    // constant
+        "x",                      // linear in x
+        "y",                      // linear in y
+        "z",                      // linear in z
+        "x + y + z",              // linear combination
+        "x*x",                    // quadratic in x
+        "y*y",                    // quadratic in y
+        "z*z",                    // quadratic in z
+        "x*x + y*y + z*z",        // radial quadratic
+        "x*y",                    // bilinear
+        "x*y*z",                  // trilinear
+        "sin(3.14159*x)",         // trigonometric
+        "cos(3.14159*y)",         // trigonometric
+        "exp(x)",                 // exponential
+        "sqrt(x*x + y*y + 0.01)"  // square root (with small offset to avoid
+                                  // singularity)
     };
 
     for (const auto& bc : boundary_conditions) {
@@ -599,15 +604,17 @@ TEST(FEMBEMProblem, Laplacian3D_BoundaryConditionTypes)
         solver->set_boundary_condition(bc, BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
-        
+
         EXPECT_EQ(solution.size(), vertices.size());
-        
+
         // Verify solution validity for each boundary condition
         for (size_t i = 0; i < solution.size(); i++) {
-            EXPECT_FALSE(std::isnan(solution[i])) << "NaN found with BC: " << bc << " at vertex " << i;
-            EXPECT_FALSE(std::isinf(solution[i])) << "Inf found with BC: " << bc << " at vertex " << i;
+            EXPECT_FALSE(std::isnan(solution[i]))
+                << "NaN found with BC: " << bc << " at vertex " << i;
+            EXPECT_FALSE(std::isinf(solution[i]))
+                << "Inf found with BC: " << bc << " at vertex " << i;
         }
-        
+
         mesh_comp->add_vertex_scalar_quantity("solution_" + bc, solution);
     }
 }
@@ -627,12 +634,10 @@ TEST(FEMBEMProblem, Laplacian3D_MeshQuality)
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
         geometry->attach_component(mesh_comp);
 
-        std::vector<glm::vec3> vertices = {
-            { 0.0f, 0.0f, 0.0f },
-            { 1.0f, 0.0f, 0.0f },
-            { 0.5f, 0.866f, 0.0f },
-            { 0.5f, 0.289f, 0.816f }
-        };
+        std::vector<glm::vec3> vertices = { { 0.0f, 0.0f, 0.0f },
+                                            { 1.0f, 0.0f, 0.0f },
+                                            { 0.5f, 0.866f, 0.0f },
+                                            { 0.5f, 0.289f, 0.816f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -643,7 +648,8 @@ TEST(FEMBEMProblem, Laplacian3D_MeshQuality)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x + y + z", BoundaryCondition::Dirichlet, 0);
 
         EXPECT_NO_THROW(auto solution = solver->solve());
     }
@@ -656,9 +662,9 @@ TEST(FEMBEMProblem, Laplacian3D_MeshQuality)
 
         std::vector<glm::vec3> vertices = {
             { 0.0f, 0.0f, 0.0f },
-            { 10.0f, 0.0f, 0.0f },       // very long edge
-            { 0.1f, 0.1f, 0.0f },        // small triangle
-            { 0.05f, 0.05f, 0.1f }       // stretched in z
+            { 10.0f, 0.0f, 0.0f },  // very long edge
+            { 0.1f, 0.1f, 0.0f },   // small triangle
+            { 0.05f, 0.05f, 0.1f }  // stretched in z
         };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
@@ -685,7 +691,7 @@ TEST(FEMBEMProblem, Laplacian3D_MeshQuality)
             { 0.0f, 0.0f, 0.0f },
             { 1.0f, 0.0f, 0.0f },
             { 0.5f, 0.866f, 0.0f },
-            { 0.5f, 0.433f, 1e-3f }      // very small height
+            { 0.5f, 0.433f, 1e-3f }  // very small height
         };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
@@ -756,12 +762,9 @@ TEST(FEMBEMProblem, Laplacian3D_ConvergenceStudy)
                     int v111 = get_vertex_index(i + 1, j + 1, k + 1);
 
                     std::vector<std::array<int, 4>> cube_tets = {
-                        { v000, v001, v011, v111 },
-                        { v000, v011, v010, v111 },
-                        { v000, v010, v110, v111 },
-                        { v000, v110, v100, v111 },
-                        { v000, v100, v101, v111 },
-                        { v000, v101, v001, v111 }
+                        { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+                        { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+                        { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
                     };
 
                     for (const auto& tet : cube_tets) {
@@ -780,10 +783,11 @@ TEST(FEMBEMProblem, Laplacian3D_ConvergenceStudy)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x*x + y*y + z*z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x*x + y*y + z*z", BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
-        
+
         // Compute L2 norm of solution
         float norm = 0.0f;
         for (float val : solution) {
@@ -812,14 +816,15 @@ TEST(FEMBEMProblem, Laplacian3D_PerformanceTest)
 
     const int grid_size = 5;  // 5x5x5 grid = 125 vertices
     std::vector<glm::vec3> vertices;
-    
+
     for (int i = 0; i < grid_size; i++) {
         for (int j = 0; j < grid_size; j++) {
             for (int k = 0; k < grid_size; k++) {
-                vertices.push_back(glm::vec3(
-                    static_cast<float>(i),
-                    static_cast<float>(j),
-                    static_cast<float>(k)));
+                vertices.push_back(
+                    glm::vec3(
+                        static_cast<float>(i),
+                        static_cast<float>(j),
+                        static_cast<float>(k)));
             }
         }
     }
@@ -844,12 +849,9 @@ TEST(FEMBEMProblem, Laplacian3D_PerformanceTest)
                 int v111 = get_vertex_index(i + 1, j + 1, k + 1);
 
                 std::vector<std::array<int, 4>> cube_tets = {
-                    { v000, v001, v011, v111 },
-                    { v000, v011, v010, v111 },
-                    { v000, v010, v110, v111 },
-                    { v000, v110, v100, v111 },
-                    { v000, v100, v101, v111 },
-                    { v000, v101, v001, v111 }
+                    { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+                    { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+                    { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
                 };
 
                 for (const auto& tet : cube_tets) {
@@ -874,24 +876,26 @@ TEST(FEMBEMProblem, Laplacian3D_PerformanceTest)
 
     auto solver = create_element_solver(desc);
     solver->set_geometry(*geometry);
-    solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "x + y + z", BoundaryCondition::Dirichlet, 0);
 
     // Time the solve (this is a performance test, not just correctness)
     auto start_time = std::chrono::high_resolution_clock::now();
     std::vector<float> solution = solver->solve();
     auto end_time = std::chrono::high_resolution_clock::now();
-    
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_time - start_time);
+
     EXPECT_EQ(solution.size(), vertices.size());
     EXPECT_LT(duration.count(), 10000);  // Should complete within 10 seconds
-    
+
     // Verify solution quality
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
         EXPECT_FALSE(std::isinf(val));
     }
-    
+
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 }
 
@@ -910,12 +914,10 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
         geometry->attach_component(mesh_comp);
 
-        std::vector<glm::vec3> vertices = {
-            { 0.0f, 0.0f, 0.0f },
-            { 1e-6f, 0.0f, 0.0f },
-            { 0.5e-6f, 0.866e-6f, 0.0f },
-            { 0.5e-6f, 0.289e-6f, 0.816e-6f }
-        };
+        std::vector<glm::vec3> vertices = { { 0.0f, 0.0f, 0.0f },
+                                            { 1e-6f, 0.0f, 0.0f },
+                                            { 0.5e-6f, 0.866e-6f, 0.0f },
+                                            { 0.5e-6f, 0.289e-6f, 0.816e-6f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -937,12 +939,10 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
         geometry->attach_component(mesh_comp);
 
-        std::vector<glm::vec3> vertices = {
-            { 0.0f, 0.0f, 0.0f },
-            { 1e6f, 0.0f, 0.0f },
-            { 0.5e6f, 0.866e6f, 0.0f },
-            { 0.5e6f, 0.289e6f, 0.816e6f }
-        };
+        std::vector<glm::vec3> vertices = { { 0.0f, 0.0f, 0.0f },
+                                            { 1e6f, 0.0f, 0.0f },
+                                            { 0.5e6f, 0.866e6f, 0.0f },
+                                            { 0.5e6f, 0.289e6f, 0.816e6f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -964,12 +964,10 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
         auto mesh_comp = std::make_shared<MeshComponent>(geometry.get());
         geometry->attach_component(mesh_comp);
 
-        std::vector<glm::vec3> vertices = {
-            { -1.0f, -1.0f, -1.0f },
-            { 0.0f, -1.0f, -1.0f },
-            { -0.5f, 0.0f, -1.0f },
-            { -0.5f, -0.5f, 0.0f }
-        };
+        std::vector<glm::vec3> vertices = { { -1.0f, -1.0f, -1.0f },
+                                            { 0.0f, -1.0f, -1.0f },
+                                            { -0.5f, 0.0f, -1.0f },
+                                            { -0.5f, -0.5f, 0.0f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -980,11 +978,12 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x + y + z", BoundaryCondition::Dirichlet, 0);
 
         auto solution = solver->solve();
         EXPECT_EQ(solution.size(), vertices.size());
-        
+
         for (float val : solution) {
             EXPECT_FALSE(std::isnan(val));
             EXPECT_FALSE(std::isinf(val));
@@ -998,17 +997,16 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
         geometry->attach_component(mesh_comp);
 
         // Two tetrahedra with very different scales
-        std::vector<glm::vec3> vertices = {
-            // Small tetrahedron
-            { 0.0f, 0.0f, 0.0f },
-            { 0.001f, 0.0f, 0.0f },
-            { 0.0005f, 0.000866f, 0.0f },
-            { 0.0005f, 0.000289f, 0.000816f },
-            // Large tetrahedron
-            { 10.0f, 10.0f, 10.0f },
-            { 20.0f, 10.0f, 10.0f },
-            { 15.0f, 18.66f, 10.0f },
-            { 15.0f, 12.89f, 18.16f }
+        std::vector<glm::vec3> vertices = { // Small tetrahedron
+                                            { 0.0f, 0.0f, 0.0f },
+                                            { 0.001f, 0.0f, 0.0f },
+                                            { 0.0005f, 0.000866f, 0.0f },
+                                            { 0.0005f, 0.000289f, 0.000816f },
+                                            // Large tetrahedron
+                                            { 10.0f, 10.0f, 10.0f },
+                                            { 20.0f, 10.0f, 10.0f },
+                                            { 15.0f, 18.66f, 10.0f },
+                                            { 15.0f, 12.89f, 18.16f }
         };
 
         std::vector<int> cell_vertex_indices = {
@@ -1027,7 +1025,7 @@ TEST(FEMBEMProblem, Laplacian3D_RobustnessTest)
 
         auto solution = solver->solve();
         EXPECT_EQ(solution.size(), vertices.size());
-        
+
         for (float val : solution) {
             EXPECT_FALSE(std::isnan(val));
             EXPECT_FALSE(std::isinf(val));
@@ -1045,7 +1043,7 @@ TEST(FEMBEMProblem, Laplacian3D_SolutionAccuracy)
     // Create a unit cube mesh
     const int n = 3;  // 3x3x3 grid
     std::vector<glm::vec3> vertices;
-    
+
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             for (int k = 0; k < n; k++) {
@@ -1077,12 +1075,9 @@ TEST(FEMBEMProblem, Laplacian3D_SolutionAccuracy)
                 int v111 = get_vertex_index(i + 1, j + 1, k + 1);
 
                 std::vector<std::array<int, 4>> cube_tets = {
-                    { v000, v001, v011, v111 },
-                    { v000, v011, v010, v111 },
-                    { v000, v010, v110, v111 },
-                    { v000, v110, v100, v111 },
-                    { v000, v100, v101, v111 },
-                    { v000, v101, v001, v111 }
+                    { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+                    { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+                    { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
                 };
 
                 for (const auto& tet : cube_tets) {
@@ -1109,25 +1104,29 @@ TEST(FEMBEMProblem, Laplacian3D_SolutionAccuracy)
     {
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x + y + z", BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
-        
-        // For linear boundary conditions, FEM should reproduce the exact solution
+
+        // For linear boundary conditions, FEM should reproduce the exact
+        // solution
         for (size_t i = 0; i < vertices.size(); i++) {
             float expected = vertices[i].x + vertices[i].y + vertices[i].z;
             float computed = solution[i];
-            
+
             // Check if vertex is on boundary
-            bool is_boundary = (vertices[i].x == 0.0f || vertices[i].x == 1.0f ||
-                               vertices[i].y == 0.0f || vertices[i].y == 1.0f ||
-                               vertices[i].z == 0.0f || vertices[i].z == 1.0f);
-            
+            bool is_boundary =
+                (vertices[i].x == 0.0f || vertices[i].x == 1.0f ||
+                 vertices[i].y == 0.0f || vertices[i].y == 1.0f ||
+                 vertices[i].z == 0.0f || vertices[i].z == 1.0f);
+
             if (is_boundary) {
-                EXPECT_NEAR(computed, expected, 1e-5f) << "Boundary value mismatch at vertex " << i;
+                EXPECT_NEAR(computed, expected, 1e-5f)
+                    << "Boundary value mismatch at vertex " << i;
             }
         }
-        
+
         mesh_comp->add_vertex_scalar_quantity("linear_solution", solution);
     }
 
@@ -1138,12 +1137,13 @@ TEST(FEMBEMProblem, Laplacian3D_SolutionAccuracy)
         solver->set_boundary_condition("5.0", BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
-        
+
         // All vertices should have solution value close to 5.0
         for (size_t i = 0; i < solution.size(); i++) {
-            EXPECT_NEAR(solution[i], 5.0f, 1e-3f) << "Constant solution mismatch at vertex " << i;
+            EXPECT_NEAR(solution[i], 5.0f, 1e-3f)
+                << "Constant solution mismatch at vertex " << i;
         }
-        
+
         mesh_comp->add_vertex_scalar_quantity("constant_solution", solution);
     }
 }
@@ -1164,12 +1164,10 @@ TEST(FEMBEMProblem, Laplacian3D_MemoryAndResourceManagement)
         geometry->attach_component(mesh_comp);
 
         // Create a simple tetrahedron
-        std::vector<glm::vec3> vertices = {
-            { 0.0f, 0.0f, 0.0f },
-            { 1.0f, 0.0f, 0.0f },
-            { 0.5f, 0.866f, 0.0f },
-            { 0.5f, 0.289f, 0.816f }
-        };
+        std::vector<glm::vec3> vertices = { { 0.0f, 0.0f, 0.0f },
+                                            { 1.0f, 0.0f, 0.0f },
+                                            { 0.5f, 0.866f, 0.0f },
+                                            { 0.5f, 0.289f, 0.816f } };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
         std::vector<int> cell_vertex_counts = { 4 };
@@ -1180,7 +1178,8 @@ TEST(FEMBEMProblem, Laplacian3D_MemoryAndResourceManagement)
 
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            "x + y + z", BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
         EXPECT_EQ(solution.size(), vertices.size());
@@ -1190,7 +1189,7 @@ TEST(FEMBEMProblem, Laplacian3D_MemoryAndResourceManagement)
         geometry.reset();
         mesh_comp.reset();
     }
-    
+
     // If we reach here without crashes, memory management is working
     SUCCEED();
 }
@@ -1205,37 +1204,73 @@ TEST(FEMBEMProblem, Laplacian3D_NonConvexMesh)
     // Create an L-shaped domain using multiple tetrahedra
     std::vector<glm::vec3> vertices = {
         // Bottom face of L (square)
-        { 0.0f, 0.0f, 0.0f },   // 0
-        { 2.0f, 0.0f, 0.0f },   // 1
-        { 2.0f, 1.0f, 0.0f },   // 2
-        { 1.0f, 1.0f, 0.0f },   // 3
-        { 1.0f, 2.0f, 0.0f },   // 4
-        { 0.0f, 2.0f, 0.0f },   // 5
+        { 0.0f, 0.0f, 0.0f },  // 0
+        { 2.0f, 0.0f, 0.0f },  // 1
+        { 2.0f, 1.0f, 0.0f },  // 2
+        { 1.0f, 1.0f, 0.0f },  // 3
+        { 1.0f, 2.0f, 0.0f },  // 4
+        { 0.0f, 2.0f, 0.0f },  // 5
         // Top face of L (same layout but elevated)
-        { 0.0f, 0.0f, 1.0f },   // 6
-        { 2.0f, 0.0f, 1.0f },   // 7
-        { 2.0f, 1.0f, 1.0f },   // 8
-        { 1.0f, 1.0f, 1.0f },   // 9
-        { 1.0f, 2.0f, 1.0f },   // 10
-        { 0.0f, 2.0f, 1.0f }    // 11
+        { 0.0f, 0.0f, 1.0f },  // 6
+        { 2.0f, 0.0f, 1.0f },  // 7
+        { 2.0f, 1.0f, 1.0f },  // 8
+        { 1.0f, 1.0f, 1.0f },  // 9
+        { 1.0f, 2.0f, 1.0f },  // 10
+        { 0.0f, 2.0f, 1.0f }   // 11
     };
 
     // Create tetrahedra to fill the L-shaped prism
     std::vector<int> cell_vertex_indices = {
         // First rectangular section (0,1,2,3 to 6,7,8,9)
-        0, 1, 2, 6,    // tet 1
-        2, 6, 7, 1,    // tet 2
-        2, 3, 6, 9,    // tet 3
-        3, 6, 9, 0,    // tet 4
-        6, 7, 8, 9,    // tet 5
-        2, 7, 8, 9,    // tet 6
+        0,
+        1,
+        2,
+        6,  // tet 1
+        2,
+        6,
+        7,
+        1,  // tet 2
+        2,
+        3,
+        6,
+        9,  // tet 3
+        3,
+        6,
+        9,
+        0,  // tet 4
+        6,
+        7,
+        8,
+        9,  // tet 5
+        2,
+        7,
+        8,
+        9,  // tet 6
         // Second rectangular section (0,3,4,5 to 6,9,10,11)
-        0, 3, 4, 6,    // tet 7
-        4, 6, 9, 3,    // tet 8
-        4, 5, 6, 10,   // tet 9
-        5, 6, 10, 0,   // tet 10
-        6, 9, 10, 11,  // tet 11
-        4, 9, 10, 11   // tet 12
+        0,
+        3,
+        4,
+        6,  // tet 7
+        4,
+        6,
+        9,
+        3,  // tet 8
+        4,
+        5,
+        6,
+        10,  // tet 9
+        5,
+        6,
+        10,
+        0,  // tet 10
+        6,
+        9,
+        10,
+        11,  // tet 11
+        4,
+        9,
+        10,
+        11  // tet 12
     };
     std::vector<int> cell_vertex_counts(12, 4);  // 12 tetrahedra
 
@@ -1255,13 +1290,14 @@ TEST(FEMBEMProblem, Laplacian3D_NonConvexMesh)
     EXPECT_EQ(solver->get_boundary_count(), 1);
 
     // Test with harmonic boundary condition
-    solver->set_boundary_condition("x*y + y*z + z*x", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "x*y + y*z + z*x", BoundaryCondition::Dirichlet, 0);
 
     std::vector<float> solution = solver->solve();
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Verify solution validity
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
@@ -1282,13 +1318,13 @@ TEST(FEMBEMProblem, Laplacian3D_IrregularTetrahedra)
         { 5.0f, 0.0f, 0.0f },
         { 0.1f, 0.1f, 0.0f },
         { 0.05f, 0.05f, 0.1f },
-        
+
         // Irregular tetrahedron 2 (flat)
         { 1.0f, 1.0f, 1.0f },
         { 2.0f, 1.0f, 1.0f },
         { 1.5f, 2.0f, 1.0f },
         { 1.5f, 1.5f, 1.01f },  // very small height
-        
+
         // Irregular tetrahedron 3 (twisted)
         { 3.0f, 0.0f, 0.0f },
         { 3.0f, 1.0f, 1.0f },
@@ -1297,9 +1333,9 @@ TEST(FEMBEMProblem, Laplacian3D_IrregularTetrahedra)
     };
 
     std::vector<int> cell_vertex_indices = {
-        0, 1, 2, 3,    // needle tetrahedron
-        4, 5, 6, 7,    // flat tetrahedron
-        8, 9, 10, 11   // twisted tetrahedron
+        0, 1, 2,  3,  // needle tetrahedron
+        4, 5, 6,  7,  // flat tetrahedron
+        8, 9, 10, 11  // twisted tetrahedron
     };
     std::vector<int> cell_vertex_counts = { 4, 4, 4 };
 
@@ -1316,13 +1352,14 @@ TEST(FEMBEMProblem, Laplacian3D_IrregularTetrahedra)
     auto solver = create_element_solver(desc);
     solver->set_geometry(*geometry);
 
-    solver->set_boundary_condition("x + y + z", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "x + y + z", BoundaryCondition::Dirichlet, 0);
 
     std::vector<float> solution = solver->solve();
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Check that solver handles irregular shapes gracefully
     for (float val : solution) {
         EXPECT_FALSE(std::isnan(val));
@@ -1371,32 +1408,36 @@ TEST(FEMBEMProblem, Laplacian3D_BoundaryConditionAccuracy)
 
     // Test polynomial boundary conditions of different orders
     std::vector<std::pair<std::string, std::string>> bc_tests = {
-        {"constant", "3.14159"},
-        {"linear_x", "2*x"},
-        {"linear_y", "3*y"},
-        {"linear_z", "4*z"},
-        {"linear_combo", "x + 2*y + 3*z"},
-        {"quadratic", "x*x + y*y"},
-        {"cubic", "x*x*x"},
-        {"mixed_degree", "x*x + y*z"},
-        {"harmonic", "x*y + y*z + z*x"}
+        { "constant", "3.14159" },
+        { "linear_x", "2*x" },
+        { "linear_y", "3*y" },
+        { "linear_z", "4*z" },
+        { "linear_combo", "x + 2*y + 3*z" },
+        { "quadratic", "x*x + y*y" },
+        { "cubic", "x*x*x" },
+        { "mixed_degree", "x*x + y*z" },
+        { "harmonic", "x*y + y*z + z*x" }
     };
 
     for (const auto& [name, bc_expr] : bc_tests) {
         auto solver = create_element_solver(desc);
         solver->set_geometry(*geometry);
-        solver->set_boundary_condition(bc_expr, BoundaryCondition::Dirichlet, 0);
+        solver->set_boundary_condition(
+            bc_expr, BoundaryCondition::Dirichlet, 0);
 
         std::vector<float> solution = solver->solve();
-        
-        EXPECT_EQ(solution.size(), vertices.size()) << "Failed for BC: " << name;
-        
+
+        EXPECT_EQ(solution.size(), vertices.size())
+            << "Failed for BC: " << name;
+
         // Verify solution validity
         for (size_t i = 0; i < solution.size(); i++) {
-            EXPECT_FALSE(std::isnan(solution[i])) << "NaN in solution for BC: " << name << " at vertex " << i;
-            EXPECT_FALSE(std::isinf(solution[i])) << "Inf in solution for BC: " << name << " at vertex " << i;
+            EXPECT_FALSE(std::isnan(solution[i]))
+                << "NaN in solution for BC: " << name << " at vertex " << i;
+            EXPECT_FALSE(std::isinf(solution[i]))
+                << "Inf in solution for BC: " << name << " at vertex " << i;
         }
-        
+
         mesh_comp->add_vertex_scalar_quantity("solution_" + name, solution);
     }
 }
@@ -1411,22 +1452,22 @@ TEST(FEMBEMProblem, Laplacian3D_MeshConnectivity)
     // Create a mesh where vertices have varying connectivity
     std::vector<glm::vec3> vertices = {
         // Central hub vertex (high connectivity)
-        { 0.0f, 0.0f, 0.0f },   // 0 - hub
-        
+        { 0.0f, 0.0f, 0.0f },  // 0 - hub
+
         // Ring of vertices around hub
-        { 1.0f, 0.0f, 0.0f },   // 1
-        { 0.707f, 0.707f, 0.0f }, // 2
-        { 0.0f, 1.0f, 0.0f },   // 3
-        { -0.707f, 0.707f, 0.0f }, // 4
-        { -1.0f, 0.0f, 0.0f },  // 5
-        { -0.707f, -0.707f, 0.0f }, // 6
-        { 0.0f, -1.0f, 0.0f },  // 7
-        { 0.707f, -0.707f, 0.0f }, // 8
-        
+        { 1.0f, 0.0f, 0.0f },        // 1
+        { 0.707f, 0.707f, 0.0f },    // 2
+        { 0.0f, 1.0f, 0.0f },        // 3
+        { -0.707f, 0.707f, 0.0f },   // 4
+        { -1.0f, 0.0f, 0.0f },       // 5
+        { -0.707f, -0.707f, 0.0f },  // 6
+        { 0.0f, -1.0f, 0.0f },       // 7
+        { 0.707f, -0.707f, 0.0f },   // 8
+
         // Top and bottom vertices
         { 0.0f, 0.0f, 1.0f },   // 9 - top
         { 0.0f, 0.0f, -1.0f },  // 10 - bottom
-        
+
         // Outer vertices (low connectivity)
         { 2.0f, 0.0f, 0.0f },   // 11
         { 0.0f, 2.0f, 0.0f },   // 12
@@ -1437,26 +1478,74 @@ TEST(FEMBEMProblem, Laplacian3D_MeshConnectivity)
     // Create tetrahedra with hub vertex connected to many elements
     std::vector<int> cell_vertex_indices = {
         // Tetrahedra connecting hub to ring (high connectivity for vertex 0)
-        0, 1, 2, 9,    // hub connected to 1,2,9
-        0, 2, 3, 9,    // hub connected to 2,3,9
-        0, 3, 4, 9,    // hub connected to 3,4,9
-        0, 4, 5, 9,    // hub connected to 4,5,9
-        0, 5, 6, 9,    // hub connected to 5,6,9
-        0, 6, 7, 9,    // hub connected to 6,7,9
-        0, 7, 8, 9,    // hub connected to 7,8,9
-        0, 8, 1, 9,    // hub connected to 8,1,9
-        
+        0,
+        1,
+        2,
+        9,  // hub connected to 1,2,9
+        0,
+        2,
+        3,
+        9,  // hub connected to 2,3,9
+        0,
+        3,
+        4,
+        9,  // hub connected to 3,4,9
+        0,
+        4,
+        5,
+        9,  // hub connected to 4,5,9
+        0,
+        5,
+        6,
+        9,  // hub connected to 5,6,9
+        0,
+        6,
+        7,
+        9,  // hub connected to 6,7,9
+        0,
+        7,
+        8,
+        9,  // hub connected to 7,8,9
+        0,
+        8,
+        1,
+        9,  // hub connected to 8,1,9
+
         // Bottom tetrahedra
-        0, 1, 2, 10,
-        0, 2, 3, 10,
-        0, 3, 4, 10,
-        0, 4, 5, 10,
-        
+        0,
+        1,
+        2,
+        10,
+        0,
+        2,
+        3,
+        10,
+        0,
+        3,
+        4,
+        10,
+        0,
+        4,
+        5,
+        10,
+
         // Outer tetrahedra (low connectivity for outer vertices)
-        1, 11, 2, 9,   // outer vertex 11 with low connectivity
-        3, 12, 4, 9,   // outer vertex 12 with low connectivity
-        5, 13, 6, 10,  // outer vertex 13 with low connectivity
-        7, 14, 8, 10   // outer vertex 14 with low connectivity
+        1,
+        11,
+        2,
+        9,  // outer vertex 11 with low connectivity
+        3,
+        12,
+        4,
+        9,  // outer vertex 12 with low connectivity
+        5,
+        13,
+        6,
+        10,  // outer vertex 13 with low connectivity
+        7,
+        14,
+        8,
+        10  // outer vertex 14 with low connectivity
     };
     std::vector<int> cell_vertex_counts(16, 4);
 
@@ -1473,22 +1562,25 @@ TEST(FEMBEMProblem, Laplacian3D_MeshConnectivity)
     auto solver = create_element_solver(desc);
     solver->set_geometry(*geometry);
 
-    solver->set_boundary_condition("x*x + y*y + z*z", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "x*x + y*y + z*z", BoundaryCondition::Dirichlet, 0);
 
     std::vector<float> solution = solver->solve();
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
+
     // Verify that high-connectivity vertex (hub) has reasonable solution
     float hub_solution = solution[0];
     EXPECT_FALSE(std::isnan(hub_solution));
     EXPECT_FALSE(std::isinf(hub_solution));
-    
+
     // Verify low-connectivity vertices also have valid solutions
     for (int i = 11; i <= 14; i++) {
-        EXPECT_FALSE(std::isnan(solution[i])) << "Invalid solution at low-connectivity vertex " << i;
-        EXPECT_FALSE(std::isinf(solution[i])) << "Invalid solution at low-connectivity vertex " << i;
+        EXPECT_FALSE(std::isnan(solution[i]))
+            << "Invalid solution at low-connectivity vertex " << i;
+        EXPECT_FALSE(std::isinf(solution[i]))
+            << "Invalid solution at low-connectivity vertex " << i;
     }
 }
 
@@ -1504,14 +1596,14 @@ TEST(FEMBEMProblem, Laplacian3D_SymmetryTest)
         // Shared edge vertices
         { 0.0f, -1.0f, 0.0f },  // 0
         { 0.0f, 1.0f, 0.0f },   // 1
-        
+
         // Left tetrahedron vertices
         { -1.0f, 0.0f, 0.0f },  // 2
         { 0.0f, 0.0f, 1.0f },   // 3
-        
+
         // Right tetrahedron vertices (symmetric)
-        { 1.0f, 0.0f, 0.0f },   // 4
-        { 0.0f, 0.0f, -1.0f }   // 5
+        { 1.0f, 0.0f, 0.0f },  // 4
+        { 0.0f, 0.0f, -1.0f }  // 5
     };
 
     std::vector<int> cell_vertex_indices = {
@@ -1534,26 +1626,27 @@ TEST(FEMBEMProblem, Laplacian3D_SymmetryTest)
     solver->set_geometry(*geometry);
 
     // Use symmetric boundary condition
-    solver->set_boundary_condition("y*y + z*z", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "y*y + z*z", BoundaryCondition::Dirichlet, 0);
 
     std::vector<float> solution = solver->solve();
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 
     EXPECT_EQ(solution.size(), vertices.size());
-    
-    // Check symmetry: left and right symmetric vertices should have similar solutions
-    // Vertices 2 and 4 are symmetric (x-coordinate sign flipped)
+
+    // Check symmetry: left and right symmetric vertices should have similar
+    // solutions Vertices 2 and 4 are symmetric (x-coordinate sign flipped)
     float left_solution = solution[2];
     float right_solution = solution[4];
-    
-    EXPECT_NEAR(left_solution, right_solution, 1e-3f) 
+
+    EXPECT_NEAR(left_solution, right_solution, 1e-3f)
         << "Symmetric vertices should have similar solutions";
-    
+
     // Vertices 3 and 5 are symmetric (z-coordinate sign flipped)
     float top_solution = solution[3];
     float bottom_solution = solution[5];
-    
-    EXPECT_NEAR(top_solution, bottom_solution, 1e-3f) 
+
+    EXPECT_NEAR(top_solution, bottom_solution, 1e-3f)
         << "Symmetric vertices should have similar solutions";
 }
 
@@ -1574,9 +1667,9 @@ TEST(FEMBEMProblem, Laplacian3D_ExtremeAspectRatios)
 
         std::vector<glm::vec3> vertices = {
             { 0.0f, 0.0f, 0.0f },
-            { 100.0f, 0.0f, 0.0f },    // very long in x
-            { 50.0f, 0.01f, 0.0f },    // thin in y
-            { 50.0f, 0.005f, 0.01f }   // thin in z
+            { 100.0f, 0.0f, 0.0f },   // very long in x
+            { 50.0f, 0.01f, 0.0f },   // thin in y
+            { 50.0f, 0.005f, 0.01f }  // thin in z
         };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
@@ -1603,7 +1696,7 @@ TEST(FEMBEMProblem, Laplacian3D_ExtremeAspectRatios)
             { 0.0f, 0.0f, 0.0f },
             { 1.0f, 0.0f, 0.0f },
             { 0.5f, 1.0f, 0.0f },
-            { 0.5f, 0.5f, 1e-5f }      // extremely small height
+            { 0.5f, 0.5f, 1e-5f }  // extremely small height
         };
 
         std::vector<int> cell_vertex_indices = { 0, 1, 2, 3 };
@@ -1630,21 +1723,28 @@ TEST(FEMBEMProblem, Laplacian3D_StressTestLarge)
 
     const int grid_size = 6;  // 6x6x6 = 216 vertices, 750 tetrahedra
     std::vector<glm::vec3> vertices;
-    
+
     // Create vertices with some randomness to avoid perfectly regular mesh
     std::srand(42);  // Deterministic randomness
     for (int i = 0; i < grid_size; i++) {
         for (int j = 0; j < grid_size; j++) {
             for (int k = 0; k < grid_size; k++) {
                 float noise_scale = 0.05f;
-                float noise_x = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * noise_scale;
-                float noise_y = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * noise_scale;
-                float noise_z = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * noise_scale;
-                
-                vertices.push_back(glm::vec3(
-                    static_cast<float>(i) + noise_x,
-                    static_cast<float>(j) + noise_y,
-                    static_cast<float>(k) + noise_z));
+                float noise_x =
+                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) *
+                    noise_scale;
+                float noise_y =
+                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) *
+                    noise_scale;
+                float noise_z =
+                    (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) *
+                    noise_scale;
+
+                vertices.push_back(
+                    glm::vec3(
+                        static_cast<float>(i) + noise_x,
+                        static_cast<float>(j) + noise_y,
+                        static_cast<float>(k) + noise_z));
             }
         }
     }
@@ -1669,12 +1769,9 @@ TEST(FEMBEMProblem, Laplacian3D_StressTestLarge)
                 int v111 = get_vertex_index(i + 1, j + 1, k + 1);
 
                 std::vector<std::array<int, 4>> cube_tets = {
-                    { v000, v001, v011, v111 },
-                    { v000, v011, v010, v111 },
-                    { v000, v010, v110, v111 },
-                    { v000, v110, v100, v111 },
-                    { v000, v100, v101, v111 },
-                    { v000, v101, v001, v111 }
+                    { v000, v001, v011, v111 }, { v000, v011, v010, v111 },
+                    { v000, v010, v110, v111 }, { v000, v110, v100, v111 },
+                    { v000, v100, v101, v111 }, { v000, v101, v001, v111 }
                 };
 
                 for (const auto& tet : cube_tets) {
@@ -1700,32 +1797,34 @@ TEST(FEMBEMProblem, Laplacian3D_StressTestLarge)
     auto solver = create_element_solver(desc);
     solver->set_geometry(*geometry);
 
-    solver->set_boundary_condition("sin(x)*cos(y)*sin(z)", BoundaryCondition::Dirichlet, 0);
+    solver->set_boundary_condition(
+        "sin(x)*cos(y)*sin(z)", BoundaryCondition::Dirichlet, 0);
 
     auto start_time = std::chrono::steady_clock::now();
     std::vector<float> solution = solver->solve();
     auto end_time = std::chrono::steady_clock::now();
-    
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        end_time - start_time);
+
     EXPECT_EQ(solution.size(), vertices.size());
     EXPECT_LT(duration.count(), 30000);  // Should complete within 30 seconds
-    
+
     // Verify solution quality and statistics
     float min_val = *std::min_element(solution.begin(), solution.end());
     float max_val = *std::max_element(solution.begin(), solution.end());
     float sum = std::accumulate(solution.begin(), solution.end(), 0.0f);
     float mean = sum / solution.size();
-    
+
     EXPECT_FALSE(std::isnan(min_val));
     EXPECT_FALSE(std::isnan(max_val));
     EXPECT_FALSE(std::isnan(mean));
     EXPECT_FALSE(std::isinf(min_val));
     EXPECT_FALSE(std::isinf(max_val));
     EXPECT_FALSE(std::isinf(mean));
-    
+
     // Check solution range is reasonable
     EXPECT_LT(std::abs(max_val - min_val), 100.0f);
-    
+
     mesh_comp->add_vertex_scalar_quantity("solution", solution);
 }

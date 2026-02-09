@@ -1,13 +1,9 @@
 
 
-
-#include "pxr/imaging/hd/tokens.h"
-#include "render_node_base.h"
-
-
-#include "utils/draw_fullscreen.h"
-
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
+#include "pxr/imaging/hd/tokens.h"
+#include "utils/draw_fullscreen.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(ssao)
 {
@@ -23,8 +19,8 @@ NODE_DECLARATION_FUNCTION(ssao)
 
 NODE_EXECUTION_FUNCTION(ssao)
 {
-#ifdef RUZINO_BACKEND_OPENGL  // Temporarily only enable opengl. Later it can be refactored to
-                               // support nvrhi
+#ifdef RUZINO_BACKEND_OPENGL  // Temporarily only enable opengl. Later it can be
+                              // refactored to support nvrhi
     auto color = params.get_input<TextureHandle>("Color");
 
     auto size = color->desc.size;
@@ -46,13 +42,18 @@ NODE_EXECUTION_FUNCTION(ssao)
         std::filesystem::path("shaders/fullscreen.vs"));
 
     shader_desc.set_fragment_path(
-        std::filesystem::path(RENDER_NODES_FILES_DIR) / std::filesystem::path(shaderPath));
+        std::filesystem::path(RENDER_NODES_FILES_DIR) /
+        std::filesystem::path(shaderPath));
     auto shader = resource_allocator.create(shader_desc);
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glFramebufferTexture2D(
-        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_texture->texture_id, 0);
+        GL_FRAMEBUFFER,
+        GL_COLOR_ATTACHMENT0,
+        GL_TEXTURE_2D,
+        color_texture->texture_id,
+        0);
 
     glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -71,8 +72,6 @@ NODE_EXECUTION_FUNCTION(ssao)
 #endif
     return true;
 }
-
-
 
 NODE_DECLARATION_UI(ssao);
 NODE_DEF_CLOSE_SCOPE

@@ -1,10 +1,5 @@
 #include <nanobind/nanobind.h>
-#include <nanobind/ndarray.h>
-#include <nanobind/stl/shared_ptr.h>
-#include <nanobind/stl/string.h>
-#include <nanobind/stl/vector.h>
 
-#include <entt/meta/factory.hpp>
 #include <entt/meta/meta.hpp>
 
 #include "RHI/rhi.hpp"
@@ -30,6 +25,7 @@
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/camera.h"
 #include "pxr/usdImaging/usdImagingGL/engine.h"
+#include "spdlog/spdlog.h"
 
 #ifdef _WIN32
 #include <windows.h>

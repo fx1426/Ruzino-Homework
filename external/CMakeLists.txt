@@ -18,6 +18,7 @@ set_target_properties(glfw update_mappings PROPERTIES ${OUTPUT_DIR})
 # nvrhi (with vulkan headers)
 if(WIN32)
     set(NVRHI_WITH_NVAPI ON)
+    set(NVRHI_WITH_VULKAN OFF CACHE BOOL "" FORCE)
 endif()
 
 set(NVRHI_BUILD_SHARED ON CACHE INTERNAL "Override default shared build of nvrhi")
@@ -58,7 +59,12 @@ else()
     target_compile_options(imgui PRIVATE -fvisibility=hidden)
 endif()
 
-target_link_libraries(imgui PUBLIC glfw Vulkan::Headers)
+if(WIN32)
+else()
+    target_link_libraries(imgui PUBLIC Vulkan::Headers)
+endif()
+
+target_link_libraries(imgui PUBLIC glfw)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES=1)
 set_target_properties(imgui PROPERTIES FOLDER "external" ${OUTPUT_DIR})
 

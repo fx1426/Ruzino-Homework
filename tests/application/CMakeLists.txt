@@ -12,7 +12,7 @@ add_dependencies(headless_render render_nodes)
 
 add_dependencies(Ruzino geometry_nodes)
 add_dependencies(Ruzino basic_nodes)
-add_dependencies(Ruzino optimization)
+# add_dependencies(Ruzino optimization)
 # add back the renderer
 add_dependencies(Ruzino hd_RUZINO)
 add_dependencies(Ruzino render_nodes)

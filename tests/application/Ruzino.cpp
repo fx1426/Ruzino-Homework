@@ -14,15 +14,12 @@
 #include <rzpython/interpreter.hpp>
 #include <rzpython/rzpython.hpp>
 
-#include "GCore/GOP.h"
 #include "GCore/algorithms/intersection.h"
 #include "GCore/geom_payload.hpp"
 #include "GUI/ImGuiFileDialog.h"
 #include "GUI/window.h"
-#include "MCore/MaterialXDocumentViewer.hpp"
 #include "MCore/MaterialXNodeTree.hpp"
 #include "MCore/MaterialXNodeTreeWidget.h"
-#include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
 #include "nodes/ui/imgui.hpp"
 #include "pxr/base/tf/setenv.h"

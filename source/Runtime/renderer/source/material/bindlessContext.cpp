@@ -1,8 +1,8 @@
 #include "bindlessContext.h"
 
 #include <MaterialXGenShader/TypeDesc.h>
-#include <pxr/imaging/hd/materialNetwork2Interface.h>
 #include <pxr/imaging/hio/image.h>
+#include <spdlog/spdlog.h>
 
 #include <filesystem>
 

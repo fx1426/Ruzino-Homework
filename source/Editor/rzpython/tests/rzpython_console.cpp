@@ -5,7 +5,6 @@
 #include <rzconsole/ConsoleObjects.h>
 #include <rzconsole/imgui_console.h>
 #include <rzconsole/spdlog_console_sink.h>
-#include <spdlog/spdlog.h>
 
 #include <memory>
 #include <rzpython/interpreter.hpp>

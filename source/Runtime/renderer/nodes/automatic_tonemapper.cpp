@@ -1,7 +1,9 @@
 
 #include "GPUContext/compute_context.hpp"
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
+#include "pxr/base/gf/vec2i.h"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(automatic_tonemapper)
@@ -32,8 +34,7 @@ NODE_EXECUTION_FUNCTION(automatic_tonemapper)
     program_vars["gInputTexture"] = input_texture;
     program_vars["gOutputTexture"] = output_texture;
 
-    auto image_size = GfVec2i(
-        input_texture->getDesc().width, input_texture->getDesc().height);
+    auto image_size = get_size(params);
     auto size_cb = create_constant_buffer(params, image_size);
     MARK_DESTROY_NVRHI_RESOURCE(size_cb);
 

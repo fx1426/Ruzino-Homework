@@ -28,13 +28,12 @@
 #include <openvdb/io/File.h>
 #include <openvdb/openvdb.h>
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "DescriptorTableManager.h"
 #include "../api.h"
+#include "DescriptorTableManager.h"
 #include "nvrhi/nvrhi.h"
 #include "pxr/base/gf/bbox3d.h"
 #include "pxr/base/gf/matrix4f.h"
@@ -69,11 +68,11 @@ struct VolumeFieldData {
 
     // Default constructor
     VolumeFieldData() = default;
-    
+
     // Move constructor and assignment
     VolumeFieldData(VolumeFieldData&& other) noexcept = default;
     VolumeFieldData& operator=(VolumeFieldData&& other) noexcept = default;
-    
+
     // Delete copy constructor and assignment
     VolumeFieldData(const VolumeFieldData&) = delete;
     VolumeFieldData& operator=(const VolumeFieldData&) = delete;

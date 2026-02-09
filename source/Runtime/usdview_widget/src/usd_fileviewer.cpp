@@ -5,8 +5,6 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <any>
-#include <cmath>
 #include <filesystem>
 #include <future>
 #include <map>
@@ -15,7 +13,6 @@
 #include "GUI/ImGuiFileDialog.h"
 #include "GUI/window.h"
 #include "imgui.h"
-#include "macro_map.h"
 #include "pxr/base/gf/matrix4f.h"
 #include "pxr/base/gf/rotation.h"
 #include "pxr/base/vt/typeHeaders.h"
@@ -23,7 +20,6 @@
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usd/primRange.h"
-#include "pxr/usd/usd/property.h"
 #include "pxr/usd/usdGeom/xformOp.h"
 #include "pxr/usd/usdShade/material.h"
 #include "pxr/usd/usdShade/materialBindingAPI.h"
@@ -377,8 +373,9 @@ void UsdFileViewer::ShowPrimInfo()
                         else {
                             // For unknown array types, show size and type info
                             size_t arraySize = v.GetArraySize();
-                            displayString = v.GetTypeName() + " [" + 
-                                          std::to_string(arraySize) + " elements]";
+                            displayString = v.GetTypeName() + " [" +
+                                            std::to_string(arraySize) +
+                                            " elements]";
                         }
                         return displayString;
                     }
@@ -768,7 +765,8 @@ void UsdFileViewer::EditValue()
                     for (auto&& attr : attrs) {
                         VtValue v;
                         // Get value at time 0 or default time
-                        // Try getting at time 0 first, then fall back to default
+                        // Try getting at time 0 first, then fall back to
+                        // default
                         if (!attr.Get(&v, 0.0)) {
                             attr.Get(&v, pxr::UsdTimeCode::Default());
                         }
@@ -1009,7 +1007,7 @@ void UsdFileViewer::EditValue()
                                 if (typeName.empty()) {
                                     typeName = "Unknown";
                                 }
-                                
+
                                 ImGui::TextDisabled(
                                     "%s [%zu elements]",
                                     typeName.c_str(),
@@ -1029,58 +1027,78 @@ void UsdFileViewer::EditValue()
                                 PREVIEW_SCALAR_ARRAY(
                                     VtArray<double>, "[%zu]: %.3f")
                                 PREVIEW_SCALAR_ARRAY(VtArray<int>, "[%zu]: %d")
-                        PREVIEW_SCALAR_ARRAY(VtArray<unsigned int>, "[%zu]: %u")
-                        PREVIEW_SCALAR_ARRAY(VtArray<int64_t>, "[%zu]: %lld")
-                        PREVIEW_SCALAR_ARRAY(VtArray<uint64_t>, "[%zu]: %llu")
-                        PREVIEW_VEC2_ARRAY(VtArray<GfVec2f>)
-                        PREVIEW_VEC2_ARRAY(VtArray<GfVec2d>)
-                        PREVIEW_VEC2_ARRAY(VtArray<GfVec2i>)
-                        PREVIEW_VEC3_ARRAY(VtArray<GfVec3f>)
-                        PREVIEW_VEC3_ARRAY(VtArray<GfVec3d>)
-                        PREVIEW_VEC3_ARRAY(VtArray<GfVec3i>)
-                        PREVIEW_VEC4_ARRAY(VtArray<GfVec4f>)
-                        PREVIEW_VEC4_ARRAY(VtArray<GfVec4d>)
-                        PREVIEW_VEC4_ARRAY(VtArray<GfVec4i>)
-                        else if (v.IsHolding<VtArray<std::string>>())
-                        {
-                            auto arr = v.Get<VtArray<std::string>>();
-                            for (size_t i = 0; i < previewCount; ++i) {
-                                ImGui::Text("[%zu]: \"%s\"", i, arr[i].c_str());
-                            }
-                            if (hasMore) {
-                                ImGui::TextDisabled(
-                                    "... (%zu elements omitted) ...", arraySize - 6);
-                                for (size_t i = arraySize - previewCount; i < arraySize; ++i) {
-                                    ImGui::Text("[%zu]: \"%s\"", i, arr[i].c_str());
+                                PREVIEW_SCALAR_ARRAY(
+                                    VtArray<unsigned int>, "[%zu]: %u")
+                                PREVIEW_SCALAR_ARRAY(
+                                    VtArray<int64_t>, "[%zu]: %lld")
+                                PREVIEW_SCALAR_ARRAY(
+                                    VtArray<uint64_t>, "[%zu]: %llu")
+                                PREVIEW_VEC2_ARRAY(VtArray<GfVec2f>)
+                                PREVIEW_VEC2_ARRAY(VtArray<GfVec2d>)
+                                PREVIEW_VEC2_ARRAY(VtArray<GfVec2i>)
+                                PREVIEW_VEC3_ARRAY(VtArray<GfVec3f>)
+                                PREVIEW_VEC3_ARRAY(VtArray<GfVec3d>)
+                                PREVIEW_VEC3_ARRAY(VtArray<GfVec3i>)
+                                PREVIEW_VEC4_ARRAY(VtArray<GfVec4f>)
+                                PREVIEW_VEC4_ARRAY(VtArray<GfVec4d>)
+                                PREVIEW_VEC4_ARRAY(VtArray<GfVec4i>)
+                                else if (v.IsHolding<VtArray<std::string>>())
+                                {
+                                    auto arr = v.Get<VtArray<std::string>>();
+                                    for (size_t i = 0; i < previewCount; ++i) {
+                                        ImGui::Text(
+                                            "[%zu]: \"%s\"", i, arr[i].c_str());
+                                    }
+                                    if (hasMore) {
+                                        ImGui::TextDisabled(
+                                            "... (%zu elements omitted) ...",
+                                            arraySize - 6);
+                                        for (size_t i =
+                                                 arraySize - previewCount;
+                                             i < arraySize;
+                                             ++i) {
+                                            ImGui::Text(
+                                                "[%zu]: \"%s\"",
+                                                i,
+                                                arr[i].c_str());
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        else if (v.IsHolding<VtArray<TfToken>>())
-                        {
-                            auto arr = v.Get<VtArray<TfToken>>();
-                            for (size_t i = 0; i < previewCount; ++i) {
-                                ImGui::Text("[%zu]: %s", i, arr[i].GetText());
-                            }
-                            if (hasMore) {
-                                ImGui::TextDisabled(
-                                    "... (%zu elements omitted) ...", arraySize - 6);
-                                for (size_t i = arraySize - previewCount; i < arraySize; ++i) {
-                                    ImGui::Text("[%zu]: %s", i, arr[i].GetText());
+                                else if (v.IsHolding<VtArray<TfToken>>())
+                                {
+                                    auto arr = v.Get<VtArray<TfToken>>();
+                                    for (size_t i = 0; i < previewCount; ++i) {
+                                        ImGui::Text(
+                                            "[%zu]: %s", i, arr[i].GetText());
+                                    }
+                                    if (hasMore) {
+                                        ImGui::TextDisabled(
+                                            "... (%zu elements omitted) ...",
+                                            arraySize - 6);
+                                        for (size_t i =
+                                                 arraySize - previewCount;
+                                             i < arraySize;
+                                             ++i) {
+                                            ImGui::Text(
+                                                "[%zu]: %s",
+                                                i,
+                                                arr[i].GetText());
+                                        }
+                                    }
                                 }
-                            }
-                        }
-                        else
-                        {
-                            // Unknown array type - show type name
-                            std::string typeName = v.GetTypeName();
-                            if (typeName.empty()) {
-                                typeName = "Unknown array type";
-                            }
-                            ImGui::TextDisabled(
-                                "(preview not available for %s)", typeName.c_str());
-                        }
+                                else
+                                {
+                                    // Unknown array type - show type name
+                                    std::string typeName = v.GetTypeName();
+                                    if (typeName.empty()) {
+                                        typeName = "Unknown array type";
+                                    }
+                                    ImGui::TextDisabled(
+                                        "(preview not available for %s)",
+                                        typeName.c_str());
+                                }
 
-                        ImGui::Unindent();
+                                ImGui::Unindent();
                             }
                             else {
                                 // For scalar unsupported types, show type name
@@ -1088,8 +1106,7 @@ void UsdFileViewer::EditValue()
                                 if (typeName.empty()) {
                                     typeName = "void";
                                 }
-                                ImGui::TextDisabled(
-                                    "[%s]", typeName.c_str());
+                                ImGui::TextDisabled("[%s]", typeName.c_str());
                             }
                         }
 

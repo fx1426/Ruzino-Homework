@@ -4,9 +4,7 @@
 
 #include "GUI/widget.h"
 #include "nvrhi/nvrhi.h"
-#include "pxr/base/gf/vec3d.h"
 #include "pxr/base/tf/token.h"
-#include "pxr/usd/sdf/path.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usdImaging/usdImagingGL/engine.h"
 #include "stage/stage.hpp"

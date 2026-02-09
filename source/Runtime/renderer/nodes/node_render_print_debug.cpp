@@ -1,6 +1,9 @@
+#include "camera.h"
+#include "hd_RUZINO/render_node_base.h"
+#include "light.h"
 #include "nodes/core/def/node_def.hpp"
 #include "pxr/imaging/hd/tokens.h"
-#include "render_node_base.h"
+using namespace pxr;
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(debug_info)
 {

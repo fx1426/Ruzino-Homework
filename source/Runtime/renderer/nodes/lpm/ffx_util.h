@@ -1,7 +1,7 @@
 // This file is part of the FidelityFX SDK.
 //
 // Copyright (C) 2024 Advanced Micro Devices, Inc.
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files(the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -22,11 +22,13 @@
 
 #pragma once
 
+#include <bit>
+
 #include "ffx_types.h"
 
 /// @defgroup Utils Utilities
 /// Utility Macros used by the FidelityFX SDK
-/// 
+///
 /// @ingroup ffxHost
 
 /// The value of Pi.
@@ -42,29 +44,31 @@ const float FFX_EPSILON = 1e-06f;
 /// Helper macro to create the version number.
 ///
 /// @ingroup Utils
-#define FFX_MAKE_VERSION(major, minor, patch) ((major << 22) | (minor << 12) | patch)
+#define FFX_MAKE_VERSION(major, minor, patch) \
+    ((major << 22) | (minor << 12) | patch)
 
 ///< Use this to specify no version.
 ///
 /// @ingroup Utils
-#define FFX_UNSPECIFIED_VERSION     0xFFFFAD00
+#define FFX_UNSPECIFIED_VERSION 0xFFFFAD00
 
 /// Helper macro to avoid warnings about unused variables.
 ///
 /// @ingroup Utils
-#define FFX_UNUSED(x)               ((void)(x))
+#define FFX_UNUSED(x) ((void)(x))
 
 /// Helper macro to align an integer to the specified power of 2 boundary
 ///
 /// @ingroup Utils
-#define FFX_ALIGN_UP(x, y)          (((x) + ((y)-1)) & ~((y)-1))
+#define FFX_ALIGN_UP(x, y) (((x) + ((y) - 1)) & ~((y) - 1))
 
 /// Helper macro to check if a value is aligned.
 ///
 /// @ingroup Utils
-#define FFX_IS_ALIGNED(x)           (((x) != 0) && ((x) & ((x)-1)))
+#define FFX_IS_ALIGNED(x) (((x) != 0) && ((x) & ((x) - 1)))
 
-/// Helper macro to compute the rounded-up integer division of two unsigned integers
+/// Helper macro to compute the rounded-up integer division of two unsigned
+/// integers
 ///
 /// @ingroup Utils
 #define FFX_DIVIDE_ROUNDING_UP(x, y) ((x + y - 1) / y)
@@ -72,55 +76,56 @@ const float FFX_EPSILON = 1e-06f;
 /// Helper macro to stringify a value.
 ///
 /// @ingroup Utils
-#define FFX_STR(s)                  FFX_XSTR(s)
-#define FFX_XSTR(s)                 #s
+#define FFX_STR(s)  FFX_XSTR(s)
+#define FFX_XSTR(s) #s
 
 /// Helper macro to forward declare a structure.
 ///
 /// @ingroup Utils
-#define FFX_FORWARD_DECLARE(x)      typedef struct x x
+#define FFX_FORWARD_DECLARE(x) typedef struct x x
 
 /// Helper macro to return the maximum of two values.
 ///
 /// @ingroup Utils
-#define FFX_MAXIMUM(x, y)           (((x) > (y)) ? (x) : (y))
+#define FFX_MAXIMUM(x, y) (((x) > (y)) ? (x) : (y))
 
 /// Helper macro to return the minimum of two values.
 ///
 /// @ingroup Utils
-#define FFX_MINIMUM(x, y)           (((x) < (y)) ? (x) : (y))
+#define FFX_MINIMUM(x, y) (((x) < (y)) ? (x) : (y))
 
 /// Helper macro to do safe free on a pointer.
 ///
 /// @ingroup Utils
 #define FFX_SAFE_FREE(x, freeFunc) \
-    do {                 \
-        if (x)           \
-        {                \
-            freeFunc(x); \
-            x = nullptr; \
-        }                \
+    do {                           \
+        if (x) {                   \
+            freeFunc(x);           \
+            x = nullptr;           \
+        }                          \
     } while (false)
 
 /// Helper macro to return the abs of an integer value.
 ///
 /// @ingroup Utils
-#define FFX_ABSOLUTE(x)                 (((x) < 0) ? (-(x)) : (x))
+#define FFX_ABSOLUTE(x) (((x) < 0) ? (-(x)) : (x))
 
 /// Helper macro to return sign of a value.
 ///
 /// @ingroup Utils
-#define FFX_SIGN(x)                     (((x) < 0) ? -1 : 1)
+#define FFX_SIGN(x) (((x) < 0) ? -1 : 1)
 
 /// Helper macro to work out the number of elements in an array.
 ///
 /// @ingroup Utils
-#define FFX_ARRAY_ELEMENTS(x)           (int32_t)((sizeof(x) / sizeof(0 [x])) / ((size_t)(!(sizeof(x) % sizeof(0 [x])))))
+#define FFX_ARRAY_ELEMENTS(x)               \
+    (int32_t)((sizeof(x) / sizeof(0 [x])) / \
+              ((size_t)(!(sizeof(x) % sizeof(0 [x])))))
 
 /// The maximum length of a path that can be specified to the FidelityFX API.
 ///
 /// @ingroup Utils
-#define FFX_MAXIMUM_PATH                (260)
+#define FFX_MAXIMUM_PATH (260)
 
 /// Helper macro to check if the specified key is set in a bitfield.
 ///
@@ -131,39 +136,40 @@ const float FFX_EPSILON = 1e-06f;
 /// Lock mutex exclusively.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_LOCK(x)               x.lock()
+#define FFX_MUTEX_LOCK(x) x.lock()
 /// Lock mutex for shared access.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_LOCK_SHARED(x)        x.lock_shared()
+#define FFX_MUTEX_LOCK_SHARED(x) x.lock_shared()
 /// Unlock exclusive mutex lock.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_UNLOCK(x)             x.unlock()
+#define FFX_MUTEX_UNLOCK(x) x.unlock()
 /// Unlock shared mutex lock.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_UNLOCK_SHARED(x)      x.unlock_shared()
+#define FFX_MUTEX_UNLOCK_SHARED(x) x.unlock_shared()
 #elif defined(FFX_MUTEX_IMPL_STANDARD)
 /// Lock mutex exclusively.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_LOCK(x)               x.lock()
+#define FFX_MUTEX_LOCK(x)          x.lock()
 /// Lock mutex for shared access.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_LOCK_SHARED(x)        FFX_MUTEX_LOCK(x)
+#define FFX_MUTEX_LOCK_SHARED(x)   FFX_MUTEX_LOCK(x)
 /// Unlock exclusive mutex lock.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_UNLOCK(x)             x.unlock()
+#define FFX_MUTEX_UNLOCK(x)        x.unlock()
 /// Unlock shared mutex lock.
 ///
 /// @ingroup Utils
-#define FFX_MUTEX_UNLOCK_SHARED(x)      FFX_MUTEX_UNLOCK(x)
-#elif !defined(FFX_MUTEX_LOCK) || !defined(FFX_MUTEX_LOCK_SHARED) || !defined(FFX_MUTEX_UNLOCK) || !defined(FFX_MUTEX_UNLOCK_SHARED)
+#define FFX_MUTEX_UNLOCK_SHARED(x) FFX_MUTEX_UNLOCK(x)
+#elif !defined(FFX_MUTEX_LOCK) || !defined(FFX_MUTEX_LOCK_SHARED) || \
+    !defined(FFX_MUTEX_UNLOCK) || !defined(FFX_MUTEX_UNLOCK_SHARED)
 #error When using custom mutex you have to provide all following operations too: FFX_MUTEX_LOCK, FFX_MUTEX_LOCK_SHARED, FFX_MUTEX_UNLOCK, FFX_MUTEX_UNLOCK_SHARED!
-#endif // #if defined(FFX_MUTEX_IMPL_SHARED)
+#endif  // #if defined(FFX_MUTEX_IMPL_SHARED)
 
 /// Computes the number of bits set to 1 in a integer.
 ///

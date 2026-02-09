@@ -1,6 +1,6 @@
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-#include "nvrhi/utils.h"
-#include "render_node_base.h"
+#include "spdlog/spdlog.h"
 #include "utils/math.h"
 NODE_DEF_OPEN_SCOPE
 struct RNGStorage {
@@ -17,7 +17,7 @@ NODE_DECLARATION_FUNCTION(rng_texture)
 NODE_EXECUTION_FUNCTION(rng_texture)
 {
     Hd_RUZINO_Camera* free_camera = get_free_camera(params);
-    auto size = free_camera->dataWindow.GetSize();
+    auto size = get_size(params);
 
     nvrhi::TextureDesc output_desc;
     output_desc.debugName = "Random Number Texture";

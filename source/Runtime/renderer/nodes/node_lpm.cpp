@@ -1,6 +1,8 @@
 #include <pxr/base/gf/vec2f.h>
 #include <pxr/base/gf/vec3f.h>
 
+#include "spdlog/spdlog.h"
+
 // Use the actual OpenUSD internal namespace
 using namespace pxr;
 
@@ -61,13 +63,13 @@ static void LpmSetupOut(uint32_t i, uint32_t* v)
     }
 }
 
+#include "hd_RUZINO/render_node_base.h"
 #include "lpm/ffx_common_types.h"
 #include "lpm/ffx_core_cpu.h"
 #include "lpm/ffx_lpm.h"
 #include "lpm/ffx_lpm_host.h"
 #include "lpm/ffx_lpm_private.h"
 #include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
 
 NODE_DEF_OPEN_SCOPE
 

@@ -2,7 +2,6 @@
 
 #include <RHI/internal/map.h>
 
-#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <iterator>

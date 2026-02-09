@@ -15,8 +15,6 @@
 // Framework includes
 #include <spdlog/spdlog.h>
 
-#include "GCore/GOP.h"
-#include "GCore/algorithms/intersection.h"
 #include "RHI/rhi.hpp"
 #include "cmdparser.hpp"
 #include "nodes/system/node_system.hpp"
@@ -686,9 +684,7 @@ int main(int argc, char* argv[])
 
             if (!is_sequence) {
                 // For single frame, print summary
-                printf(
-                    "Rendering completed in %.2fs",
-                    total_duration / 1000.0);
+                printf("Rendering completed in %.2fs", total_duration / 1000.0);
                 if (timed_samples > 0) {
                     printf(
                         ", Avg per sample: %.2fs",

@@ -1,6 +1,7 @@
 
 #include <Eigen/Eigen>
 #include <functional>
+#include <iostream>
 
 #include "nodes/core/def/node_def.hpp"
 std::function<Eigen::MatrixXd(const Eigen::MatrixXd&)> generate_weight_function(

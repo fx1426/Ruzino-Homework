@@ -4,6 +4,7 @@
 
 #include "GCore/Components/MaterialComponent.h"
 #include "geom_node_base.h"
+#include "spdlog/spdlog.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(set_texture)
 {

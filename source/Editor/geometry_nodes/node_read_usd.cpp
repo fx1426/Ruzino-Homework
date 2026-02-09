@@ -4,25 +4,19 @@
 #include <pxr/base/gf/matrix4f.h>
 #include <pxr/base/gf/rotation.h>
 #include <pxr/usd/usd/prim.h>
-#include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdGeom/mesh.h>
-#include <pxr/usd/usdGeom/primvarsAPI.h>
 #include <pxr/usd/usdShade/material.h>
 #include <pxr/usd/usdShade/materialBindingAPI.h>
-#include <pxr/usd/usdSkel/cache.h>
-#include <pxr/usd/usdSkel/skeleton.h>
 
 #include <filesystem>
 #include <memory>
 
 #include "GCore/Components/MaterialComponent.h"
 #include "GCore/Components/MeshComponent.h"
-#include "GCore/Components/SkelComponent.h"
-#include "GCore/Components/XformComponent.h"
+#include "GCore/usd_extension.h"
 #include "geom_node_base.h"
-#include "pxr/usd/usdSkel/bindingAPI.h"
-#include "pxr/usd/usdSkel/skeletonQuery.h"
+#include "spdlog/spdlog.h"
 
 struct ReadUsdCache {
     static constexpr bool has_storage = false;
@@ -56,13 +50,6 @@ NODE_EXECUTION_FUNCTION(read_usd)
         params.set_output("Geometry", cache.read_geometry);
         return true;
     }
-
-    Geometry geometry;
-    std::shared_ptr<MeshComponent> mesh =
-        std::make_shared<MeshComponent>(&geometry);
-    geometry.attach_component(mesh);
-
-    auto mesh_usd_view = mesh->get_usd_view();
 
     pxr::UsdTimeCode time = pxr::UsdTimeCode(t);
     if (t == 0) {
@@ -102,121 +89,25 @@ NODE_EXECUTION_FUNCTION(read_usd)
 
     auto stage = pxr::UsdStage::Open(abs_path.string().c_str());
 
-    if (stage) {
-        // Here 'c_str' call is necessary since prim_path
-        auto sdf_path = pxr::SdfPath(prim_path.c_str());
-        pxr::UsdGeomMesh usdgeom = pxr::UsdGeomMesh::Get(stage, sdf_path);
-
-        if (usdgeom) {
-            pxr::VtArray<pxr::GfVec3f> points;
-            if (usdgeom.GetPointsAttr())
-                usdgeom.GetPointsAttr().Get(&points, time);
-            mesh_usd_view.set_vertices(points);
-
-            pxr::VtArray<int> counts;
-            if (usdgeom.GetFaceVertexCountsAttr())
-                usdgeom.GetFaceVertexCountsAttr().Get(&counts, time);
-
-            pxr::VtArray<int> indices;
-            if (usdgeom.GetFaceVertexIndicesAttr())
-                usdgeom.GetFaceVertexIndicesAttr().Get(&indices, time);
-            mesh_usd_view.set_face_topology(counts, indices);
-
-            pxr::VtArray<pxr::GfVec3f> norms;
-            if (usdgeom.GetNormalsAttr())
-                usdgeom.GetNormalsAttr().Get(&norms, time);
-            mesh_usd_view.set_normals(norms);
-
-            pxr::VtArray<pxr::GfVec3f> colors;
-            if (usdgeom.GetDisplayColorAttr())
-                usdgeom.GetDisplayColorAttr().Get(&colors, time);
-            mesh_usd_view.set_display_colors(colors);
-
-            pxr::UsdGeomPrimvarsAPI primVarAPI(usdgeom);
-            auto primvar = primVarAPI.GetPrimvar(pxr::TfToken("UVMap"));
-            if (primvar) {
-                pxr::VtArray<pxr::GfVec2f> texcoords;
-                primvar.Get(&texcoords, time);
-                mesh_usd_view.set_uv_coordinates(texcoords);
-            }
-
-            primvar = primVarAPI.GetPrimvar(pxr::TfToken("st"));
-            if (primvar) {
-                pxr::VtArray<pxr::GfVec2f> texcoords;
-                primvar.Get(&texcoords, time);
-                mesh_usd_view.set_uv_coordinates(texcoords);
-            }
-
-            pxr::GfMatrix4d final_transform =
-                usdgeom.ComputeLocalToWorldTransform(time);
-
-            if (final_transform != pxr::GfMatrix4d().SetIdentity()) {
-                auto xform_component =
-                    std::make_shared<XformComponent>(&geometry);
-                geometry.attach_component(xform_component);
-
-                auto rotation = final_transform.ExtractRotation();
-                auto translation = final_transform.ExtractTranslation();
-                // TODO: rotation not read.
-
-                xform_component->translation.push_back(
-                    glm::vec3(translation[0], translation[1], translation[2]));
-                xform_component->rotation.push_back(glm::vec<3, float>((0.0f)));
-                xform_component->scale.push_back(glm::vec<3, float>((1.0f)));
-            }
-            using namespace pxr;
-            UsdSkelBindingAPI binding = UsdSkelBindingAPI(usdgeom);
-            SdfPathVector targets;
-            binding.GetSkeletonRel().GetTargets(&targets);
-            if (targets.size() == 1) {
-                auto prim = stage->GetPrimAtPath(targets[0]);
-
-                pxr::UsdSkelSkeleton skeleton(prim);
-                if (skeleton) {
-                    using namespace pxr;
-                    UsdSkelCache skelCache;
-                    UsdSkelSkeletonQuery skelQuery =
-                        skelCache.GetSkelQuery(skeleton);
-
-                    auto skel_component =
-                        std::make_shared<SkelComponent>(&geometry);
-                    geometry.attach_component(skel_component);
-
-                    VtArray<GfMatrix4f> xforms;
-                    skelQuery.ComputeJointLocalTransforms(&xforms, time);
-
-                    skel_component->localTransforms = xforms;
-                    skel_component->jointOrder = skelQuery.GetJointOrder();
-                    skel_component->topology = skelQuery.GetTopology();
-
-                    VtArray<float> jointWeight;
-                    binding.GetJointWeightsAttr().Get(&jointWeight, time);
-
-                    VtArray<GfMatrix4d> bindTransforms;
-                    skeleton.GetBindTransformsAttr().Get(&bindTransforms, time);
-                    skel_component->bindTransforms = bindTransforms;
-
-                    VtArray<int> jointIndices;
-                    binding.GetJointIndicesAttr().Get(&jointIndices, time);
-                    skel_component->jointWeight = jointWeight;
-                    skel_component->jointIndices = jointIndices;
-                }
-                else {
-                    spdlog::warn("Unable to read the skeleton.");
-                    return false;
-                }
-            }
-        }
-
-        else {
-            spdlog::warn("Unable to read the prim.");
-            return false;
-        }
-
-        // TODO: add material reading
+    if (!stage) {
+        spdlog::error("Failed to open USD stage: {}", abs_path.string());
+        return false;
     }
-    else {
-        // TODO: throw something
+
+    auto sdf_path = pxr::SdfPath(prim_path.c_str());
+    auto prim = stage->GetPrimAtPath(sdf_path);
+
+    if (!prim) {
+        spdlog::warn("Unable to read the prim.");
+        return false;
+    }
+
+    Geometry geometry;
+
+    // Use the shared read_geometry_from_usd function
+    if (!read_geometry_from_usd(geometry, prim, time)) {
+        spdlog::error("Failed to read geometry from USD");
+        return false;
     }
 
     cache.file_name = file_name;

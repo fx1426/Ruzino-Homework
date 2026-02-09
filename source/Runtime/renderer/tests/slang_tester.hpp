@@ -14,10 +14,10 @@
 #include <MaterialXGenShader/TypeDesc.h>
 #include <MaterialXGenShader/UnitSystem.h>
 #include <MaterialXGenShader/Util.h>
+#include <spdlog/fwd.h>
 
 #include <random>
 
-#include <spdlog/spdlog.h>
 #include "RHI/ShaderFactory/shader.hpp"
 
 RUZINO_NAMESPACE_OPEN_SCOPE
@@ -359,8 +359,7 @@ void checkImplementations(
         { "libraries/targets", "libraries/stdlib", "libraries/pbrlib" },
         searchPath,
         doc);
-    mx::loadLibraries(
-        { "usd/hd_RUZINO/resources/libraries" }, searchPath, doc);
+    mx::loadLibraries({ "usd/hd_RUZINO/resources/libraries" }, searchPath, doc);
 
     const std::string& target = shadergen.getTarget();
 
@@ -571,8 +570,7 @@ void testUniqueNames(mx::GenContext& context, const std::string& stage)
 
     mx::FileSearchPath searchPath = mx::getDefaultDataSearchPath();
     loadLibraries({ "libraries/targets", "libraries/stdlib" }, searchPath, doc);
-    mx::loadLibraries(
-        { "usd/hd_RUZINO/resources/libraries" }, searchPath, doc);
+    mx::loadLibraries({ "usd/hd_RUZINO/resources/libraries" }, searchPath, doc);
 
     const std::string exampleName = "unique_names";
 

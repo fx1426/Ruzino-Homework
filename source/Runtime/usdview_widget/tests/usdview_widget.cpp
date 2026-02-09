@@ -1,10 +1,9 @@
 #include "widgets/usdview/usdview_widget.hpp"
 
 #include <gtest/gtest.h>
+#include <spdlog/spdlog.h>
 
 #include "GUI/window.h"
-#include <spdlog/spdlog.h>
-#include "RHI/rhi.hpp"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/sphere.h"
 #include "stage/stage.hpp"
@@ -12,31 +11,29 @@
 using namespace Ruzino;
 int main()
 {
-    // Currently this is not runnable on my CI machine.
+    spdlog::set_level(spdlog::level::debug);
+    spdlog::set_pattern("%^[%T] %n: %v%$");
 
-    // spdlog::set_level(spdlog::level::debug);
-    // spdlog::set_pattern("%^[%T] %n: %v%$");
+    auto stage = create_global_stage();
+    // Add a sphere
+    stage->create_sphere(pxr::SdfPath("/sphere"));
 
-    // auto stage = create_global_stage();
-    // // Add a sphere
-    // stage->create_sphere(pxr::SdfPath("/sphere"));
+    auto widget = std::make_unique<UsdFileViewer>(stage.get());
+    auto render = std::make_unique<UsdviewEngine>(stage.get());
 
-    // auto widget = std::make_unique<UsdFileViewer>(stage.get());
-    // auto render = std::make_unique<UsdviewEngine>(stage.get());
+    auto window = std::make_unique<Window>();
 
-    // auto window = std::make_unique<Window>();
+    window->register_widget(std::move(widget));
+    window->register_widget(std::move(render));
+    window->register_function_after_frame([](Window* window) {
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count > 100) {
+            window->close();
+        }
+    });
 
-    // window->register_widget(std::move(widget));
-    // window->register_widget(std::move(render));
-    // window->register_function_after_frame([](Window* window) {
-    //     static int frame_count = 0;
-    //     frame_count++;
-    //     if (frame_count > 100) {
-    //         window->close();
-    //     }
-    // });
+    window->run();
 
-    // window->run();
-
-    // window.reset();
+    window.reset();
 }

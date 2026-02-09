@@ -2,7 +2,7 @@
 
 #include <MCore/MaterialXNodeTreeWidget.h>
 #include <MaterialXFormat/Util.h>
-#include <spdlog/spdlog.h>
+#include <spdlog/fwd.h>
 
 namespace mx = MaterialX;
 
@@ -48,43 +48,7 @@ class MCORE_API MaterialXNodeTree : public NodeTree {
     // Constructor for creating a new empty MaterialX document
     MaterialXNodeTree(
         const std::shared_ptr<NodeTreeDescriptor>& descriptor,
-        mx::DocumentPtr doc)
-        : NodeTree(descriptor)
-    {
-        _searchPath = mx::getDefaultDataSearchPath();
-        _libraryFolders = { "libraries" };
-
-        loadStandardLibraries();
-
-        spdlog::info(
-            "[MaterialXNodeTree] Constructor called with doc = {}",
-            (void*)doc.get());
-
-        if (doc) {
-            _graphDoc = doc;
-            spdlog::info(
-                "[MaterialXNodeTree] Assigned _graphDoc = {}",
-                (void*)_graphDoc.get());
-            _graphDoc->importLibrary(_stdLib);
-            spdlog::info(
-                "[MaterialXNodeTree] After importLibrary, _graphDoc = {}",
-                (void*)_graphDoc.get());
-        }
-        else {
-            _graphDoc = mx::createDocument();
-            _graphDoc->importLibrary(_stdLib);
-        }
-
-        _materialFilename = "";
-        buildUiBaseGraph(_graphDoc);
-        spdlog::info(
-            "[MaterialXNodeTree] After buildUiBaseGraph, _graphDoc = {}",
-            (void*)_graphDoc.get());
-        _currGraphElem = _graphDoc;
-        spdlog::info(
-            "[MaterialXNodeTree] Constructor finished, _graphDoc = {}",
-            (void*)_graphDoc.get());
-    }
+        mx::DocumentPtr doc);
 
     // Delete copy constructor and assignment operator to prevent issues with
     // MaterialX pointers

@@ -1,13 +1,9 @@
-#include <float.h>
 #include <pxr/usd/usdGeom/mesh.h>
 
 #include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Sparse>
-#include <cmath>
+#include <Eigen/Eigen>
+#include <cfloat>
 #include <cstdlib>
-#include <limits>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -17,7 +13,6 @@
 #include "GCore/util_openmesh_bind.h"
 #include "geom_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-
 
 using Vec = Eigen::Vector3d;
 NODE_DEF_OPEN_SCOPE

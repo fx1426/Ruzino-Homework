@@ -1,18 +1,12 @@
 
 
-
-#include "pxr/imaging/hd/tokens.h"
-#include "render_node_base.h"
-
-
-#include "utils/draw_fullscreen.h"
-
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
+#include "pxr/imaging/hd/tokens.h"
+#include "utils/draw_fullscreen.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(shadertoy)
 {
-
-
     b.add_input<std::string>("Shader").default_val("shaders/Raymarching.fs");
     b.add_output<nvrhi::TextureHandle>("Color");
 }
@@ -42,13 +36,18 @@ NODE_EXECUTION_FUNCTION(shadertoy)
         std::filesystem::path("shaders/fullscreen.vs"));
 
     shader_desc.set_fragment_path(
-        std::filesystem::path(RENDER_NODES_FILES_DIR) / std::filesystem::path(shaderPath));
+        std::filesystem::path(RENDER_NODES_FILES_DIR) /
+        std::filesystem::path(shaderPath));
     auto shader = resource_allocator.create(shader_desc);
     GLuint framebuffer;
     glGenFramebuffers(1, &framebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     glFramebufferTexture2D(
-        GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, color_texture->texture_id, 0);
+        GL_FRAMEBUFFER,
+        GL_COLOR_ATTACHMENT0,
+        GL_TEXTURE_2D,
+        color_texture->texture_id,
+        0);
 
     glClearColor(0.f, 0.f, 0.f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -65,8 +64,6 @@ NODE_EXECUTION_FUNCTION(shadertoy)
 #endif
     return true;
 }
-
-
 
 NODE_DECLARATION_UI(shadertoy);
 NODE_DEF_CLOSE_SCOPE

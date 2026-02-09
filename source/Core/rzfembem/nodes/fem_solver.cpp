@@ -6,6 +6,7 @@
 #include "GCore/GOP.h"
 #include "GCore/algorithms/delauney.h"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 using namespace Ruzino::fem_bem;
 using namespace Ruzino;
@@ -57,7 +58,8 @@ NODE_EXECUTION_FUNCTION(fem_solver)
     if (problem_dim == 2) {
         // 2D问题：对输入几何体进行Delaunay三角化
         processed_geometry = geom_algorithm::delaunay(input_geometry);
-    } else {
+    }
+    else {
         // 3D问题：直接使用输入几何体（假设已经是四面体网格）
         processed_geometry = input_geometry;
     }

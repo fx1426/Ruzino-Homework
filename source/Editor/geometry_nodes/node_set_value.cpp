@@ -6,6 +6,7 @@
 #include "GCore/GOP.h"
 #include "fem_bem/Expression.hpp"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 using namespace Ruzino;
 using namespace Ruzino::fem_bem;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <spdlog/spdlog.h>
+#include <spdlog/fwd.h>
 
 #include <algorithm>
 #include <filesystem>

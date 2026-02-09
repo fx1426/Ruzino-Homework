@@ -35,7 +35,6 @@
 #include "pxr/pxr.h"
 // SceneTypes
 #include "../nodes/shaders/shaders/Scene/SceneTypes.slang"
-#include "internal/memory/DeviceMemoryPool.hpp"
 RUZINO_NAMESPACE_OPEN_SCOPE
 class Hd_RUZINO_RenderParam;
 using namespace pxr;

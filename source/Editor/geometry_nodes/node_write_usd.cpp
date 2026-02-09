@@ -1,7 +1,5 @@
 #ifdef GEOM_USD_EXTENSION
 
-#include <pxr/base/tf/stringUtils.h>
-#include <pxr/usd/usd/primRange.h>
 #include <pxr/usd/usdGeom/basisCurves.h>
 #include <pxr/usd/usdGeom/mesh.h>
 #include <pxr/usd/usdShade/material.h>
@@ -10,16 +8,12 @@
 #include <string>
 
 #include "GCore/Components/CurveComponent.h"
-#include "GCore/Components/InstancerComponent.h"
-#include "GCore/Components/VolumeComponent.h"
 #include "GCore/geom_payload.hpp"
 #include "GCore/usd_extension.h"
 #include "geom_node_base.h"
-#include "pxr/base/gf/rotation.h"
-#include "pxr/usd/usd/payloads.h"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
-
 bool legal(const std::string& string)
 {
     if (string.empty()) {

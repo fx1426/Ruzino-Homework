@@ -47,9 +47,12 @@ freely, subject to the following restrictions:
    distribution.
 */
 
+#if RUZINO_WITH_VULKAN
+
 #include <RHI/DeviceManager/DeviceManager.h>
 #include <nvrhi/validation.h>
 #include <nvrhi/vulkan.h>
+#include <spdlog/spdlog.h>
 
 #include <queue>
 #include <string>
@@ -1422,3 +1425,10 @@ DeviceManager* DeviceManager::CreateVK()
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
+#else
+#include "RHI/DeviceManager/DeviceManager.h"
+Ruzino::DeviceManager* Ruzino::DeviceManager::CreateVK()
+{
+    return nullptr;
+}
+#endif

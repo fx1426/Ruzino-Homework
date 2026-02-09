@@ -1,10 +1,10 @@
 
-#include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
 #include "GPUContext/compute_context.hpp"
+#include "hd_RUZINO/render_node_base.h"
+#include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
-
 NODE_DECLARATION_FUNCTION(tone_mapping)
 {
     // Function content omitted
@@ -16,7 +16,8 @@ NODE_EXECUTION_FUNCTION(tone_mapping)
 {
     ProgramDesc cs_program_desc;
     cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
-    cs_program_desc.set_path("shaders/utils/ToneMapping.slang").set_entry_name("main");
+    cs_program_desc.set_path("shaders/utils/ToneMapping.slang")
+        .set_entry_name("main");
     ProgramHandle cs_program = resource_allocator.create(cs_program_desc);
     MARK_DESTROY_NVRHI_RESOURCE(cs_program);
     CHECK_PROGRAM_ERROR(cs_program);
@@ -29,7 +30,7 @@ NODE_EXECUTION_FUNCTION(tone_mapping)
     auto mapped = resource_allocator.create(texture->getDesc());
     program_vars["MappedTexture"] = mapped;
 
-    auto image_size = GfVec2i(texture->getDesc().width, texture->getDesc().height);
+    auto image_size = get_size(params);
     auto size_cb = create_constant_buffer(params, image_size);
     MARK_DESTROY_NVRHI_RESOURCE(size_cb);
 

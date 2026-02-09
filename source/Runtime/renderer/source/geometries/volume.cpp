@@ -28,14 +28,13 @@
 #include <nanovdb/util/OpenToNanoVDB.h>
 #include <openvdb/io/File.h>
 #include <openvdb/openvdb.h>
+#include <spdlog/spdlog.h>
 
 #include <filesystem>
 #include <fstream>
 
 #include "../renderParam.h"
-#include <spdlog/spdlog.h>
 #include "RHI/rhi.hpp"
-#include "pxr/imaging/hd/tokens.h"
 
 // OpenVDB and NanoVDB - placeholder includes (adjust to your actual setup)
 
@@ -343,7 +342,8 @@ bool Hd_RUZINO_Volume::_LoadOpenVDB(
                         "Using first grid: %s", baseGrid->getName().c_str());
                 }
                 else {
-                    spdlog::error("No grids found in file '%s'", filePath.c_str());
+                    spdlog::error(
+                        "No grids found in file '%s'", filePath.c_str());
                 }
             }
             catch (const std::exception& e) {
@@ -433,7 +433,8 @@ bool Hd_RUZINO_Volume::_LoadField3D(
     fieldData.isLoaded = true;
     fieldData.dataSize = 32 * 32 * 32 * sizeof(float);
 
-    spdlog::info("Field3D placeholder loaded (implement actual Field3D support)");
+    spdlog::info(
+        "Field3D placeholder loaded (implement actual Field3D support)");
     return true;
 }
 

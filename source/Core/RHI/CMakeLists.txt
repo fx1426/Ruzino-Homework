@@ -4,14 +4,19 @@ if(SLANG_FOUND)
         SHARED
         WITH_CUDA
         PUBLIC_LIBS nvrhi SLANG::slang nodes_core
-        PRIVATE_LIBS Vulkan::Headers spdlog::spdlog glfw glm::glm 
+        PRIVATE_LIBS spdlog::spdlog glfw glm::glm 
         PYTHON_WRAP_DIR python
         COMPILE_DEFS
         NOMINMAX
-        VULKAN_HPP_STORAGE_SHARED
-        VULKAN_HPP_STORAGE_SHARED_IMPORT
         RUZINO_BACKEND_NVRHI
     )
+
+    if(WIN32)
+    else()
+        target_link_libraries(RHI PRIVATE Vulkan::Headers)
+        target_compile_definitions(RHI PRIVATE VULKAN_HPP_STORAGE_SHARED)
+        target_compile_definitions(RHI PRIVATE VULKAN_HPP_STORAGE_SHARED_IMPORT)
+    endif()
 
     target_compile_definitions(RHI PRIVATE RELATIVE_TO_PROJROOT="${RELATIVE_TO_PROJROOT}")
 
@@ -22,7 +27,11 @@ if(SLANG_FOUND)
 
     if(WIN32)
         target_compile_definitions(RHI PUBLIC RUZINO_WITH_DX12=1)
+        target_compile_definitions(RHI PUBLIC RUZINO_WITH_VULKAN=0)
         target_link_libraries(RHI PUBLIC d3d12 dxgi)
+    else()
+        target_compile_definitions(RHI PUBLIC RUZINO_WITH_DX12=0)
+        target_compile_definitions(RHI PUBLIC RUZINO_WITH_VULKAN=1)
     endif()
 
     if(TARGET garch)

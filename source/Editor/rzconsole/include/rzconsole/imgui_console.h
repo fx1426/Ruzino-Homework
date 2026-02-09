@@ -48,7 +48,7 @@ SOFTWARE.
 
 #include <GUI/widget.h>
 #include <imgui.h>
-#include <spdlog/spdlog.h>
+#include <spdlog/fwd.h>
 
 #include <array>
 #include <memory>

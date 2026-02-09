@@ -1,14 +1,14 @@
 ﻿
 #include <pxr/base/gf/vec2i.h>
+#include <spdlog/spdlog.h>
 
 #include <cstring>
 
-#include <spdlog/spdlog.h>
+#include "GPUContext/compute_context.hpp"
 #include "RHI/internal/nvrhi_patch.hpp"
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
-#include "render_node_base.h"
-#include "GPUContext/compute_context.hpp"
 #include "shaders/shaders/utils/cpp_shader_macro.h"
 #include "utils/math.h"
 
@@ -42,7 +42,7 @@ NODE_EXECUTION_FUNCTION(scatter_contribution)
         MARK_DESTROY_NVRHI_RESOURCE(atomic_scatter_program);
         CHECK_PROGRAM_ERROR(atomic_scatter_program);
 
-        auto source_texture_size = GfVec2i(
+        auto source_texture_size = pxr::GfVec2i(
             source_texture->getDesc().width, source_texture->getDesc().height);
 
         nvrhi::BufferDesc desc;

@@ -62,7 +62,9 @@ freely, subject to the following restrictions:
 #include <d3d12.h>
 #endif
 
+#if RUZINO_WITH_VULKAN
 #include <nvrhi/vulkan.h>
+#endif
 
 #if RUZINO_WITH_AFTERMATH
 #include "AftermathCrashDump.h"
@@ -75,7 +77,7 @@ freely, subject to the following restrictions:
 #endif  // _WIN32
 #include <GLFW/glfw3native.h>
 #include <nvrhi/nvrhi.h>
-#include <spdlog/spdlog.h>
+#include <spdlog/fwd.h>
 
 #include <functional>
 #include <list>
@@ -95,7 +97,7 @@ struct InstanceParameters {
     bool enableAftermath = false;
 #endif
 
-#if 1
+#if RUZINO_WITH_VULKAN
     std::vector<std::string> requiredVulkanInstanceExtensions;
     std::vector<std::string> requiredVulkanLayers;
     std::vector<std::string> optionalVulkanInstanceExtensions;
@@ -125,7 +127,8 @@ struct DeviceCreationParameters : public InstanceParameters {
 
     // Severity of the information log messages from the device manager, like
     // the device name or enabled extensions.
-    spdlog::level::level_enum infoLogSeverity = spdlog::level::info;
+    spdlog::level::level_enum infoLogSeverity =
+        static_cast<spdlog::level::level_enum>(2);
 
     // Index of the adapter (DX11, DX12) or physical device (Vk) on which to
     // initialize the device. Negative values mean automatic detection. The
@@ -155,8 +158,9 @@ struct DeviceCreationParameters : public InstanceParameters {
     std::vector<std::string> requiredVulkanDeviceExtensions;
     std::vector<std::string> optionalVulkanDeviceExtensions;
     std::vector<size_t> ignoredVulkanValidationMessageLocations;
+#if RUZINO_WITH_VULKAN
     std::function<void(VkDeviceCreateInfo&)> deviceCreateInfoCallback;
-
+#endif
     // This pointer specifies an optional structure to be put at the end of the
     // chain for 'vkGetPhysicalDeviceFeatures2' call. The structure may also be
     // a chain, and must be alive during the device initialization process. The
@@ -177,7 +181,9 @@ struct AdapterInfo {
 #if RUZINO_WITH_DX11 || RUZINO_WITH_DX12
     nvrhi::RefCountPtr<IDXGIAdapter> dxgiAdapter;
 #endif
+#if RUZINO_WITH_VULKAN
     VkPhysicalDevice vkPhysicalDevice = nullptr;
+#endif
 };
 
 class RHI_API DeviceManager {

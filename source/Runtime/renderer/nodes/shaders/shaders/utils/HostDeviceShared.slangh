@@ -56,7 +56,7 @@
 #define CONST_FUNCTION const
 #define STD_NAMESPACE std::
 
-#include "Core/Enum.h"
+// #include "Core/Enum.h"
 #include "utils/Math/ScalarMath.h"
 #include "utils/Math/Vector.h"
 #include "utils/Math/Matrix.h"

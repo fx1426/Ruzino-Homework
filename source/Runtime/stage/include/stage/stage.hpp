@@ -2,22 +2,18 @@
 #include <pxr/usd/sdf/path.h>
 #include <pxr/usd/usd/stage.h>
 #include <pxr/usd/usdLux/sphereLight.h>
-#include <pxr/usd/usdSkel/skeletonQuery.h>
 
-#include "entt/entt.hpp"
 #include "pxr/usd/usdGeom/cube.h"
 #include "pxr/usd/usdGeom/cylinder.h"
 #include "pxr/usd/usdGeom/mesh.h"
 #include "pxr/usd/usdGeom/sphere.h"
 #include "pxr/usd/usdGeom/xform.h"
-#include "pxr/usd/usdGeom/xformCache.h"
 #include "pxr/usd/usdLux/diskLight.h"
 #include "pxr/usd/usdLux/distantLight.h"
 #include "pxr/usd/usdLux/domeLight.h"
 #include "pxr/usd/usdLux/rectLight.h"
 #include "pxr/usd/usdShade/material.h"
 #include "stage/api.h"
-#include "stage/ecs_components.hpp"
 #include "stage/ecs_systems.hpp"
 
 RUZINO_NAMESPACE_OPEN_SCOPE

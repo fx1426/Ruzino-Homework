@@ -114,10 +114,10 @@ class HD_RUZINO_API Hd_RUZINO_RenderDelegate final : public HdRenderDelegate {
     std::shared_ptr<Hd_RUZINO_RenderParam> _renderParam;
     HdRenderThread _renderThread;
     std::shared_ptr<Hd_RUZINO_Renderer> _renderer;
-    pxr::VtArray<Hd_RUZINO_Light*> lights;
-    pxr::VtArray<Hd_RUZINO_Camera*> cameras;
+    std::vector<Hd_RUZINO_Light*> lights;
+    std::vector<Hd_RUZINO_Camera*> cameras;
+    std::vector<Hd_RUZINO_Mesh*> meshes;
     MaterialMap materials;
-    pxr::VtArray<Hd_RUZINO_Mesh*> meshes;
     nvrhi::IDevice* nvrhi_device;
     std::unique_ptr<RenderGlobalPayload> _globalPayload;
     std::shared_ptr<NodeSystem> node_system;

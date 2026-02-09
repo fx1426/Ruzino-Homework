@@ -1,7 +1,6 @@
 #pragma once
 #include "RHI/ResourceManager/resource_allocator.hpp"
-#include "pxr/base/vt/array.h"
-#include "pxr/base/vt/hash.h"
+#include "api.h"
 #include "pxr/usd/sdf/path.h"
 
 namespace Ruzino {
@@ -15,41 +14,17 @@ class Hd_RUZINO_Material;
 
 namespace Ruzino {
 
-struct RenderGlobalPayload {
-    RenderGlobalPayload()
-    {
-    }
+struct HD_RUZINO_API RenderGlobalPayload {
+    RenderGlobalPayload();
+
     RenderGlobalPayload(
-        pxr::VtArray<Hd_RUZINO_Camera*>* cameras,
-        pxr::VtArray<Hd_RUZINO_Light*>* lights,
+        std::vector<Hd_RUZINO_Camera*>* cameras,
+        std::vector<Hd_RUZINO_Light*>* lights,
         pxr::TfHashMap<pxr::SdfPath, Hd_RUZINO_Material*, pxr::TfHash>*
             materials,
-        nvrhi::IDevice* nvrhi_device)
-        : cameras(cameras),
-          lights(lights),
-          materials(materials),
-          nvrhi_device(nvrhi_device),
-          shader_factory(&resource_allocator)
-    {
-        shader_factory.set_search_path(RENDERER_SHADER_DIR);
-        shader_factory.add_search_path("usd/hd_RUZINO/resources/libraries");
-        resource_allocator.device = RHI::get_device();
-        resource_allocator.shader_factory = &shader_factory;
-    }
+        nvrhi::IDevice* nvrhi_device);
 
-    RenderGlobalPayload(const RenderGlobalPayload& rhs)
-        : cameras(rhs.cameras),
-          lights(rhs.lights),
-          materials(rhs.materials),
-          nvrhi_device(rhs.nvrhi_device),
-          shader_factory(&resource_allocator)
-    {
-        shader_factory.set_search_path(RENDERER_SHADER_DIR);
-        shader_factory.add_search_path("usd/hd_RUZINO/resources/libraries");
-
-        resource_allocator.device = nvrhi_device;
-        resource_allocator.shader_factory = &shader_factory;
-    }
+    RenderGlobalPayload(const RenderGlobalPayload& rhs);
 
     RenderGlobalPayload& operator=(const RenderGlobalPayload& rhs)
     {
@@ -75,27 +50,32 @@ struct RenderGlobalPayload {
     // Scene dirty flags for tracking changes
     enum class SceneDirtyBits : uint32_t {
         Clean = 0,
-        DirtyMaterials = 1 << 0,      // Material shaders changed
-        DirtyGeometry = 1 << 1,        // Mesh topology/vertices changed
-        DirtyLights = 1 << 2,          // Light count or properties changed
+        DirtyMaterials = 1 << 0,  // Material shaders changed
+        DirtyGeometry = 1 << 1,   // Mesh topology/vertices changed
+        DirtyLights = 1 << 2,     // Light count or properties changed
         DirtyAll = 0xFFFFFFFF
     };
-    
-    uint32_t scene_dirty_flags = static_cast<uint32_t>(SceneDirtyBits::DirtyAll);
-    
-    void mark_dirty(SceneDirtyBits bits) {
+
+    uint32_t scene_dirty_flags =
+        static_cast<uint32_t>(SceneDirtyBits::DirtyAll);
+
+    void mark_dirty(SceneDirtyBits bits)
+    {
         scene_dirty_flags |= static_cast<uint32_t>(bits);
     }
-    
-    void clear_dirty(SceneDirtyBits bits) {
+
+    void clear_dirty(SceneDirtyBits bits)
+    {
         scene_dirty_flags &= ~static_cast<uint32_t>(bits);
     }
-    
-    bool is_dirty(SceneDirtyBits bits) const {
+
+    bool is_dirty(SceneDirtyBits bits) const
+    {
         return (scene_dirty_flags & static_cast<uint32_t>(bits)) != 0;
     }
-    
-    void clear_all_dirty() {
+
+    void clear_all_dirty()
+    {
         scene_dirty_flags = static_cast<uint32_t>(SceneDirtyBits::Clean);
     }
 
@@ -117,8 +97,8 @@ struct RenderGlobalPayload {
     LensSystem* lens_system;
 
    private:
-    pxr::VtArray<Hd_RUZINO_Camera*>* cameras;
-    pxr::VtArray<Hd_RUZINO_Light*>* lights;
+    std::vector<Hd_RUZINO_Camera*>* cameras;
+    std::vector<Hd_RUZINO_Light*>* lights;
     pxr::TfHashMap<pxr::SdfPath, Hd_RUZINO_Material*, pxr::TfHash>* materials;
 };
 

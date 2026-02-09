@@ -1,11 +1,12 @@
 #include "GPUContext/compute_context.hpp"
 #include "RHI/internal/resources.hpp"
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
 #include "nvrhi/nvrhi.h"
-#include "render_node_base.h"
 #include "shaders/shaders/utils/CameraParameters.h"
 #include "shaders/shaders/utils/ray.slang"
 #include "shaders/shaders/utils/view_cb.h"
+#include "spdlog/spdlog.h"
 #include "utils/cam_to_view_contants.h"
 #include "utils/math.h"
 #include "utils/resource_cleaner.hpp"
@@ -129,12 +130,10 @@ NODE_EXECUTION_FUNCTION(node_render_ray_generation)
             params, image_size[0] * image_size[1], false, true);
 
     if (any_change) {
-        //spdlog::info(
-        //    "Ray Generation Node: view changed: {}, size changed: {}, camera "
-        //    "param changed: {}",
-        //    view_changed,
-        //    size_changed,
-        //    camera_param_changed);
+        // spdlog::info(
+        //     "Ray Generation Node: view changed: {}, size changed: {}, camera
+        //     " "param changed: {}", view_changed, size_changed,
+        //     camera_param_changed);
         auto random_seeds =
             params.get_input<nvrhi::TextureHandle>("random seeds");
         auto constant_buffer = get_free_camera_planarview_cb(params);

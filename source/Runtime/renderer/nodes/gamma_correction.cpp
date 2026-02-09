@@ -1,18 +1,20 @@
 #include "GPUContext/compute_context.hpp"
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
+#include "pxr/base/gf/vec2i.h"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
 struct GammaCorrectionStorage {
     constexpr static bool has_storage = false;
 
-    GfVec2i image_size = GfVec2i(-1, -1);
-    
+    pxr::GfVec2i image_size = pxr::GfVec2i(-1, -1);
+
     // Cached resources
     ProgramHandle cached_program;
     std::unique_ptr<ProgramVars> cached_program_vars;
     std::unique_ptr<ComputeContext> cached_compute_context;
-    
+
     // Cached parameters to detect changes
     float cached_gamma = -1.0f;
 
@@ -43,7 +45,8 @@ NODE_EXECUTION_FUNCTION(gamma_correction)
     auto texture = params.get_input<nvrhi::TextureHandle>("Texture");
     auto gamma = params.get_input<float>("Gamma");
 
-    auto image_size = GfVec2i(texture->getDesc().width, texture->getDesc().height);
+    auto image_size =
+        pxr::GfVec2i(texture->getDesc().width, texture->getDesc().height);
 
     // Check for size changes
     bool size_changed = (storage.image_size != image_size);
@@ -58,7 +61,8 @@ NODE_EXECUTION_FUNCTION(gamma_correction)
     if (!storage.cached_program) {
         ProgramDesc cs_program_desc;
         cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
-        cs_program_desc.set_path("shaders/gamma_correction.slang").set_entry_name("main");
+        cs_program_desc.set_path("shaders/gamma_correction.slang")
+            .set_entry_name("main");
         storage.cached_program = resource_allocator.create(cs_program_desc);
         CHECK_PROGRAM_ERROR(storage.cached_program);
     }
@@ -70,7 +74,8 @@ NODE_EXECUTION_FUNCTION(gamma_correction)
     bool any_change = size_changed || params_changed;
 
     // Rebuild cached resources only when necessary
-    if (any_change || !storage.cached_program_vars || !storage.cached_compute_context) {
+    if (any_change || !storage.cached_program_vars ||
+        !storage.cached_compute_context) {
         // Update cached parameters
         storage.cached_gamma = gamma;
 
@@ -93,8 +98,8 @@ NODE_EXECUTION_FUNCTION(gamma_correction)
         program_vars.finish_setting_vars();
 
         // Create compute context
-        storage.cached_compute_context = std::make_unique<ComputeContext>(
-            resource_allocator, program_vars);
+        storage.cached_compute_context =
+            std::make_unique<ComputeContext>(resource_allocator, program_vars);
         storage.cached_compute_context->finish_setting_pso();
     }
 

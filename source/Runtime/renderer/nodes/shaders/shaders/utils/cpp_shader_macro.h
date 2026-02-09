@@ -3,6 +3,13 @@
 
 #ifdef __cplusplus
 #include "pxr/base/gf/matrix4f.h"
+#include "pxr/base/gf/vec2f.h"
+#include "pxr/base/gf/vec2i.h"
+#include "pxr/base/gf/vec3f.h"
+#include "pxr/base/gf/vec3i.h"
+#include "pxr/base/gf/vec4f.h"
+#include "pxr/base/gf/vec4i.h"
+
 #define USING_PXR_MATH_TYPES          \
     using uint = unsigned;            \
     using float4x4 = pxr::GfMatrix4f; \

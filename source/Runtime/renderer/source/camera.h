@@ -1,10 +1,9 @@
 #pragma once
-#include "config.h"
 #include "api.h"
 #include "pxr/base/gf/matrix4f.h"
 #include "pxr/base/gf/rect2i.h"
 #include "pxr/imaging/hd/camera.h"
-#include "pxr/imaging/hdx/renderSetupTask.h"
+#include "pxr/imaging/hd/renderPassState.h"
 #include "pxr/pxr.h"
 #include "pxr/usd/sdf/path.h"
 

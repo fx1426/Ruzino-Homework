@@ -13,6 +13,7 @@
 
 #include "GUI/window.h"
 #include "MCore/MaterialXNodeTree.hpp"
+#include "spdlog/spdlog.h"
 namespace mx = MaterialX;
 
 RUZINO_NAMESPACE_OPEN_SCOPE
@@ -998,7 +999,7 @@ void MaterialXNodeTreeWidget::handle_suspended_popups()
 
     if (ImGui::BeginPopup("Color Picker")) {
         bool colorChanged = false;
-        
+
         if (_colorPickerState.numComponents == 3) {
             colorChanged = ImGui::ColorPicker3(
                 (_colorPickerState.socketId + "_picker").c_str(),
@@ -1013,12 +1014,15 @@ void MaterialXNodeTreeWidget::handle_suspended_popups()
 
         if (colorChanged && _colorPickerState.socket) {
             auto mtlx_tree = static_cast<MaterialXNodeTree*>(tree_);
-            mx::InputPtr mtlxInput = getMaterialXPinInput(_colorPickerState.socket);
-            
+            mx::InputPtr mtlxInput =
+                getMaterialXPinInput(_colorPickerState.socket);
+
             if (mtlxInput) {
-                mtlx_tree->addNodeInput(_colorPickerState.socket->node, mtlxInput);
-                mx::NodePtr mxNode = getMaterialXNode(_colorPickerState.socket->node);
-                
+                mtlx_tree->addNodeInput(
+                    _colorPickerState.socket->node, mtlxInput);
+                mx::NodePtr mxNode =
+                    getMaterialXNode(_colorPickerState.socket->node);
+
                 if (mxNode) {
                     mtlxInput = mxNode->getInput(mtlxInput->getName());
                     if (mtlxInput) {
@@ -1223,8 +1227,11 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
             std::string colorId = widgetId + "_color";
 
             // Display color button
-            if (ImGui::ColorButton(colorId.c_str(), ImVec4(colorArray[0], colorArray[1], colorArray[2], 1.0f), 
-                                   ImGuiColorEditFlags_NoTooltip, ImVec2(120, 20))) {
+            if (ImGui::ColorButton(
+                    colorId.c_str(),
+                    ImVec4(colorArray[0], colorArray[1], colorArray[2], 1.0f),
+                    ImGuiColorEditFlags_NoTooltip,
+                    ImVec2(120, 20))) {
                 // Store state to open picker in suspended context
                 _colorPickerState.isOpen = true;
                 _colorPickerState.socketId = colorId;
@@ -1244,8 +1251,16 @@ bool MaterialXNodeTreeWidget::draw_socket_controllers(NodeSocket* input)
             std::string colorId = widgetId + "_color";
 
             // Display color button
-            if (ImGui::ColorButton(colorId.c_str(), ImVec4(colorArray[0], colorArray[1], colorArray[2], colorArray[3]), 
-                                   ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_AlphaPreview, ImVec2(120, 20))) {
+            if (ImGui::ColorButton(
+                    colorId.c_str(),
+                    ImVec4(
+                        colorArray[0],
+                        colorArray[1],
+                        colorArray[2],
+                        colorArray[3]),
+                    ImGuiColorEditFlags_NoTooltip |
+                        ImGuiColorEditFlags_AlphaPreview,
+                    ImVec2(120, 20))) {
                 // Store state to open picker in suspended context
                 _colorPickerState.isOpen = true;
                 _colorPickerState.socketId = colorId;

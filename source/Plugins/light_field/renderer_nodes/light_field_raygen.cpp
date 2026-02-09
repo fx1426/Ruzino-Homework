@@ -3,6 +3,7 @@
 
 #include "GPUContext/compute_context.hpp"
 #include "shaders/shaders/utils/ray.slang"
+#include "spdlog/spdlog.h"
 
 // Use the actual OpenUSD internal namespace
 using namespace pxr;
@@ -53,8 +54,8 @@ struct ValueTrait<pxr::GfVec2f> {
 
 #include <pxr/base/gf/vec2f.h>
 
+#include "hd_RUZINO/render_node_base.h"
 #include "nodes/core/def/node_def.hpp"
-#include "render_node_base.h"
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(light_field_raygen)
@@ -90,8 +91,7 @@ NODE_DECLARATION_FUNCTION(light_field_raygen)
 
 NODE_EXECUTION_FUNCTION(light_field_raygen)
 {
-    Hd_RUZINO_Camera* free_camera = get_free_camera(params);
-    auto image_size = free_camera->dataWindow.GetSize();
+    auto image_size = get_size(params);
 
     auto display_screen_z = params.get_input<float>("Display Screen Z");
     auto view_distance = params.get_input<float>("View Distance");
@@ -102,8 +102,9 @@ NODE_EXECUTION_FUNCTION(light_field_raygen)
     ProgramDesc cs_program_desc;
     cs_program_desc.shaderType = nvrhi::ShaderType::Compute;
     cs_program_desc
-        .set_path(LIGHT_FIELD_SHADERS_DIR
-                  "/shaders/light_field_init_closest_lens.slang")
+        .set_path(
+            LIGHT_FIELD_SHADERS_DIR
+            "/shaders/light_field_init_closest_lens.slang")
         .set_entry_name("main");
 
     ProgramHandle cs_program = resource_allocator.create(cs_program_desc);

@@ -2,6 +2,7 @@
 
 #include "geom_node_base.h"
 #include "macro_map.h"
+#include "spdlog/spdlog.h"
 
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(print_debug_info)

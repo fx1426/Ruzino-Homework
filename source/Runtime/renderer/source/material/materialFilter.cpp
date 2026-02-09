@@ -1,5 +1,7 @@
 #include "materialFilter.h"
 
+#include <spdlog/spdlog.h>
+
 #include "MaterialXGenShader/TypeDesc.h"
 #include "MaterialXGenShader/Util.h"
 #include "pxr/base/arch/library.h"

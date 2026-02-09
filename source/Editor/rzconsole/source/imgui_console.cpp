@@ -49,6 +49,7 @@ SOFTWARE.
 #include <rzconsole/imgui_console.h>
 #include <rzconsole/spdlog_console_sink.h>
 #include <rzconsole/string_utils.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cctype>

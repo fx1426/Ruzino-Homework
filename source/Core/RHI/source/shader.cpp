@@ -1,5 +1,7 @@
 #include "RHI/ShaderFactory/shader.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <atomic>
 #include <filesystem>
 #include <fstream>

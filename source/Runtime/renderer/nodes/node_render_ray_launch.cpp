@@ -1,9 +1,8 @@
 
 #include <cassert>
 
+#include "hd_RUZINO/render_node_base.h"
 #include "nvrhi/nvrhi.h"
-#include "nvrhi/utils.h"
-#include "render_node_base.h"
 #include "shaders/shaders/utils/HitObject.h"
 #include "shaders/shaders/utils/ray.slang"
 
@@ -11,6 +10,7 @@
 
 #include "../source/renderTLAS.h"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(scene_ray_launch)
 {
@@ -24,8 +24,7 @@ NODE_DECLARATION_FUNCTION(scene_ray_launch)
 
 NODE_EXECUTION_FUNCTION(scene_ray_launch)
 {
-    Hd_RUZINO_Camera* free_camera = get_free_camera(params);
-    auto size = free_camera->dataWindow.GetSize();
+    auto size = get_size(params);
 
     auto m_CommandList = resource_allocator.create(CommandListDesc{});
 

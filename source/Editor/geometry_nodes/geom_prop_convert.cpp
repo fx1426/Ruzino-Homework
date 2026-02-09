@@ -6,6 +6,7 @@
 #include "GCore/Components/MeshComponent.h"
 #include "GCore/geom_payload.hpp"
 #include "nodes/core/def/node_def.hpp"
+#include "spdlog/spdlog.h"
 
 using namespace Ruzino;
 
