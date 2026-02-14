@@ -218,7 +218,7 @@ def render_scene(
 ):
     """Render a USD scene using headless_render.exe"""
     render_exe = binary_dir / "headless_render.exe"
-    render_nodes = assets_dir / "render_nodes_save.json"
+    render_nodes = assets_dir / "Hd_RUZINO_RendererPlugin" / "render_nodes_save.json"
 
     # Use relative paths from binary directory
     usd_file_rel = os.path.relpath(usd_file, binary_dir)

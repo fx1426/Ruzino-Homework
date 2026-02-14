@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "GUI/widget.h"
 #include "nvrhi/nvrhi.h"
@@ -24,6 +25,8 @@ class USDVIEW_WIDGET_API UsdviewEngine final : public IWidget {
     void ChooseRenderer(
         const pxr::TfTokenVector& available_renderers,
         unsigned i);
+
+    std::string GetCurrentRenderer() const;
     ~UsdviewEngine() override;
     bool BuildUI() override;
     void SetEditMode(bool editing);

@@ -198,22 +198,28 @@ int main(int argc, char* argv[])
     std::shared_ptr<UsdviewEngine*> render_bare_ptr =
         std::make_shared<UsdviewEngine*>(render.get());
 
-    render->SetCallBack(
-        [render_bare_ptr](Window* window, IWidget* render_widget) {
-            auto node_system = static_cast<const std::shared_ptr<NodeSystem>*>(
-                dynamic_cast<UsdviewEngine*>(render_widget)
-                    ->emit_create_renderer_ui_control());
-            if (node_system) {
-                FileBasedNodeWidgetSettings desc;
-                desc.system = *node_system;
-                desc.json_path = "../../Assets/render_nodes_save.json";
+    render->SetCallBack([render_bare_ptr](
+                            Window* window, IWidget* render_widget) {
+        auto node_system = static_cast<const std::shared_ptr<NodeSystem>*>(
+            dynamic_cast<UsdviewEngine*>(render_widget)
+                ->emit_create_renderer_ui_control());
 
-                std::unique_ptr<IWidget> node_widget =
-                    std::move(create_node_imgui_widget(desc));
+        if (node_system) {
+            UsdviewEngine* engine =
+                dynamic_cast<UsdviewEngine*>(*render_bare_ptr);
+            auto current_renderer = engine->GetCurrentRenderer();
 
-                window->register_widget(std::move(node_widget));
-            }
-        });
+            FileBasedNodeWidgetSettings desc;
+            desc.system = *node_system;
+            desc.json_path =
+                "../../Assets/" + current_renderer + "/render_nodes_save.json";
+
+            std::unique_ptr<IWidget> node_widget =
+                std::move(create_node_imgui_widget(desc));
+
+            window->register_widget(std::move(node_widget));
+        }
+    });
 
     window->register_widget(std::move(render));
     window->register_widget(std::move(usd_file_viewer));
@@ -293,9 +299,14 @@ int main(int argc, char* argv[])
                             dynamic_cast<UsdviewEngine*>(render_widget)
                                 ->emit_create_renderer_ui_control());
                     if (node_system) {
+                        UsdviewEngine* engine =
+                            dynamic_cast<UsdviewEngine*>(*render_bare_ptr);
+                        auto current_renderer = engine->GetCurrentRenderer();
+
                         FileBasedNodeWidgetSettings desc;
                         desc.system = *node_system;
-                        desc.json_path = "../../Assets/render_nodes_save.json";
+                        desc.json_path = "../../Assets/" + current_renderer +
+                                         "/render_nodes_save.json";
 
                         std::unique_ptr<IWidget> node_widget =
                             std::move(create_node_imgui_widget(desc));

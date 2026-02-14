@@ -126,7 +126,7 @@ def main():
     render_cmd = [
         str(binaries_dir / "headless_render.exe"),
         "-u", r"..\..\Assets\main_sponza\NewSponza_Main_USD_Zup_003.usdc",
-        "-j", r"..\..\Assets\render_nodes_save.json",
+        "-j", r"..\..\Assets\Hd_RUZINO_RendererPlugin\render_nodes_save.json",
         "-o", "sponza.png",
         "-w", "3840",
         "-h", "2160",

@@ -139,6 +139,12 @@ void UsdviewEngine::ChooseRenderer(
     renderer_->SetSelectionColor(pxr::GfVec4f(1.0f, 0.7f, 0.0f, 1.0f));
 }
 
+std::string UsdviewEngine::GetCurrentRenderer() const
+{
+    auto plugins = renderer_->GetRendererPlugins();
+    return plugins[engine_status.renderer_id].GetString();
+}
+
 void UsdviewEngine::DrawMenuBar()
 {
     ImGui::BeginMenuBar();

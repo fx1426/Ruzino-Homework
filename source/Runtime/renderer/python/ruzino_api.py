@@ -183,7 +183,7 @@ if __name__ == "__main__":
     # Example render
     success, stats = renderer.render_with_verification(
         usd_scene=renderer.assets_dir / "shader_ball.usdc",
-        render_graph=renderer.assets_dir / "render_nodes_save.json",
+        render_graph=renderer.assets_dir / "Hd_RUZINO_RendererPlugin" / "render_nodes_save.json",
         output_image="python_api_test.png",
         width=512,
         height=512,

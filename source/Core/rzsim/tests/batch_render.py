@@ -158,7 +158,7 @@ def main():
     parser.add_argument(
         '-j', '--json',
         help='Render nodes JSON file',
-        default='../../Assets/render_nodes_save.json'
+        default='../../Assets/Hd_RUZINO_RendererPlugin/render_nodes_save.json'
     )
     
     parser.add_argument(

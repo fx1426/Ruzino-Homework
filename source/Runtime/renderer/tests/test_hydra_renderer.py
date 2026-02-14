@@ -36,7 +36,7 @@ def _prepare_env():
 
 def _locate_config(binary_dir: Path) -> Path:
     primary = binary_dir / "render_nodes.json"
-    fallback = binary_dir / "render_nodes_save.json"
+    fallback = binary_dir.parent.parent / "Assets" / "Hd_RUZINO_RendererPlugin" / "render_nodes_save.json"
     if primary.exists():
         return primary
     if fallback.exists():
