@@ -420,7 +420,7 @@ def extract_and_setup_sdk(sdk_zip_path, targets=None, dry_run=False):
             )
         
         # Copy Slang
-        folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin/x64"}
+        folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin/x64", "embree": "embree/bin"}
         for target in targets:
             copytree_common_to_binaries(
                 folders["slang"], target=target, dry_run=dry_run
@@ -437,6 +437,12 @@ def extract_and_setup_sdk(sdk_zip_path, targets=None, dry_run=False):
         for target in targets:
             copytree_common_to_binaries(
                 folders["dxc"], target=target, dry_run=dry_run
+            )
+        
+        # Copy Embree
+        for target in targets:
+            copytree_common_to_binaries(
+                folders["embree"], target=target, dry_run=dry_run
             )
         
         # Copy Python DLLs
@@ -775,7 +781,7 @@ def main():
     )
     parser.add_argument(
         "--library",
-        choices=["slang", "openusd", "d3d12", "dxc"],
+        choices=["slang", "openusd", "d3d12", "dxc", "embree"],
         help="Specify the library to configure.",
     )
     parser.add_argument("--all", action="store_true", help="Configure all libraries.")
@@ -829,7 +835,7 @@ def main():
             exit(1)
 
     if args.all:
-        args.library = ["openusd", "slang", "d3d12", "dxc"]
+        args.library = ["openusd", "slang", "d3d12", "dxc", "embree"]
     elif not args.library:
         print(
             "No library specified and --all not set. No libraries will be configured."
@@ -846,18 +852,21 @@ def main():
             "slang": "https://github.com/shader-slang/slang/releases/download/v2025.22.1/slang-2025.22.1-windows-x86_64.zip",
             "d3d12": "https://globalcdn.nuget.org/packages/microsoft.direct3d.d3d12.1.616.1.nupkg",
             "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
+            "embree": "https://github.com/RenderKit/embree/releases/download/v4.4.0/embree-4.4.0.x64.windows.zip",
         }
     elif os.name == "posix":
         urls = {
             "slang": "https://github.com/shader-slang/slang/releases/download/v2025.22.1/slang-2025.22.1-macos-x86_64.zip",
             "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
+            "embree": "https://github.com/RenderKit/embree/releases/download/v4.4.0/embree-4.4.0.x64.windows.zip",
         }
     else:
         urls = {
             "slang": "https://github.com/shader-slang/slang/releases/download/v2025.22.1/slang-2025.22.1-linux-x86_64.zip",
             "dxc": "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505.1/dxc_2025_07_14.zip",
+            "embree": "https://github.com/RenderKit/embree/releases/download/v4.4.0/embree-4.4.0.x64.windows.zip",
         }
-    folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin/x64"}
+    folders = {"slang": "slang/bin", "d3d12": "d3d12/bin", "dxc": "dxc/bin/x64", "embree": "embree/bin"}
 
 
     for lib in args.library:
@@ -949,6 +958,20 @@ def main():
                         print(f"DXC files prepared in {bin_dir}")
                     except Exception as e:
                         print(f"Error extracting DXC: {e}")            # Copy the DXC files to the binaries folder
+            for target in targets:
+                copytree_common_to_binaries(
+                    folders[lib], target=target, dry_run=dry_run
+                )
+        elif lib == "embree":
+            if not copy_only:
+                download_and_extract(
+                    urls[lib],
+                    os.path.dirname(__file__) + "/SDK/embree",
+                    folders[lib],
+                    targets,
+                    dry_run,
+                )
+            # Copy the embree bin files to the binaries folder
             for target in targets:
                 copytree_common_to_binaries(
                     folders[lib], target=target, dry_run=dry_run
