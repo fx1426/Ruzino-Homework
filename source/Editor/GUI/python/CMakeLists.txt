@@ -6,11 +6,26 @@ project(gui_python)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 
 # Find nanobind
-execute_process(
-    COMMAND "${Python3_EXECUTABLE}" -m nanobind --cmake_dir
-    OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE NB_DIR)
-list(APPEND CMAKE_PREFIX_PATH "${NB_DIR}")
-find_package(nanobind CONFIG REQUIRED)
+if(NOT TARGET nanobind AND NOT TARGET nanobind-static)
+    set(_ruzino_nanobind_config_dir
+        "${CMAKE_SOURCE_DIR}/external/nanobind/cmake")
+
+    if(EXISTS "${_ruzino_nanobind_config_dir}/nanobind-config.cmake")
+        list(APPEND CMAKE_PREFIX_PATH "${_ruzino_nanobind_config_dir}")
+    else()
+        execute_process(
+            COMMAND "${Python3_EXECUTABLE}" -m nanobind --cmake_dir
+            RESULT_VARIABLE _ruzino_nanobind_result
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            OUTPUT_VARIABLE NB_DIR
+            ERROR_QUIET)
+        if(_ruzino_nanobind_result EQUAL 0 AND NB_DIR)
+            list(APPEND CMAKE_PREFIX_PATH "${NB_DIR}")
+        endif()
+    endif()
+
+    find_package(nanobind CONFIG REQUIRED)
+endif()
 
 # Add the GUI library path (adjust as needed)
 # set(GUI_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../include")

@@ -99,6 +99,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(MSVC)
   add_compile_options(-utf-8)
+  # Reduce MSVC compiler heap pressure for large template-heavy translation units
+  # (e.g., OpenUSD / Boost.Python / giant header amalgamations) to mitigate C1060.
+  add_compile_options(/bigobj /Zm300)
+
+  # Limit parallel C++ compilations under Ninja to avoid process-level memory exhaustion
+  # (D8027/C1060 often happens when too many cl.exe instances run concurrently).
+  if(CMAKE_GENERATOR MATCHES "Ninja")
+    set_property(GLOBAL PROPERTY JOB_POOLS compile_pool=2)
+    set(CMAKE_JOB_POOL_COMPILE compile_pool)
+  endif()
 endif()
 
 if(NOT MSVC)
