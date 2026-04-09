@@ -39,3 +39,6 @@ submissions/lisi_homework
 *.log
 .venv
 .python-version
+build_hw5_debug/
+build_hw5_ninja/
+ReadMe/
