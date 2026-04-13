@@ -9,6 +9,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Eigen>
+#include <Eigen/LU>
 #include <algorithm>
 #include <cfloat>
 #include <cstdlib>
@@ -24,6 +25,7 @@
 #include "geom_node_base.h"
 #include "nodes/core/def/node_def.hpp"
 #include "geom_node_base.h"
+#include <GCore/Components/MeshCUDAView.h>
 
 /*
 ** @brief HW4_TutteParameterization
@@ -46,6 +48,7 @@ enum class WeightMode
     Uniform,
     Cotangent,
     Floater,
+    MVC,
 };
 
 struct MinimalSurfaceTopology // 边界及内部顶点的拓扑信息
@@ -80,9 +83,10 @@ inline double cross2d(const Eigen::Vector2d& a, const Eigen::Vector2d& b)
     return a.x() * b.y() - a.y() * b.x();
 }
 
+template <typename DerivedL, typename DerivedR>
 inline double safe_angle_between(
-    const Eigen::Vector3d& lhs,
-    const Eigen::Vector3d& rhs)
+    const Eigen::MatrixBase<DerivedL>& lhs,
+    const Eigen::MatrixBase<DerivedR>& rhs)
 {
     const double lhs_norm = lhs.norm();
     const double rhs_norm = rhs.norm();
@@ -312,7 +316,7 @@ inline Eigen::Vector3d compute_origin_barycentric(
             "compute_origin_barycentric: degenerate Floater triangle.");
     }
 
-    const Eigen::Vector2d uv = basis.fullPivLu().solve(-a);
+    const Eigen::Vector2d uv = basis.inverse() * (-a);
     Eigen::Vector3d barycentric(1.0 - uv[0] - uv[1], uv[0], uv[1]);
 
     for (int i = 0; i < 3; ++i) {
@@ -368,6 +372,60 @@ std::vector<double> compute_floater_weights(
         lambda /= static_cast<double>(degree);
     }
 
+    return lambdas;
+}
+
+template <typename MeshT>
+std::vector<double> compute_mvc_weights(
+    const MeshT& mesh,
+    int vid,
+    const std::vector<int>& ordered_neighbors)
+{
+    const int degree = static_cast<int>(ordered_neighbors.size());
+    if (degree < 3) {
+        throw std::runtime_error(
+            "compute_mvc_weights: MVC weights need degree >= 3.");
+    }
+
+    const auto local_polygon =
+        build_floater_local_polygon(mesh, vid, ordered_neighbors);
+
+    std::vector<double> lambdas(degree, 0.0);
+    double sum = 0.0;
+    for (int l = 0; l < degree; ++l) {
+        const int prev_l = (l - 1 + degree) % degree;
+        const int next_l = (l + 1) % degree;
+
+        const Eigen::Vector2d ui = local_polygon[l];
+        const Eigen::Vector2d u_prev = local_polygon[prev_l];
+        const Eigen::Vector2d u_next = local_polygon[next_l];
+
+        const double theta_prev = safe_angle_between(u_prev, ui);
+        const double theta_next = safe_angle_between(ui, u_next);
+
+        const double r = ui.norm();
+        if (r <= kGeometricEps) {
+            throw std::runtime_error(
+                "compute_mvc_weights: degenerate local point.");
+        }
+
+        const double weight =
+            (std::tan(theta_prev / 2.0) + std::tan(theta_next / 2.0)) / r;
+        if (!std::isfinite(weight)) {
+            throw std::runtime_error(
+                "compute_mvc_weights: invalid MVC weight.");
+        }
+
+        lambdas[l] = weight;
+        sum += lambdas[l];
+    }
+    if (sum <= kGeometricEps) {
+        throw std::runtime_error(
+            "compute_mvc_weights: weight sum is too small.");
+    }
+    for (double& lambda : lambdas) {
+        lambda /= sum;
+    }
     return lambdas;
 }
 
@@ -499,6 +557,18 @@ std::vector<double> compute_normalized_weights(
 
             lambdas =
                 compute_floater_weights(reference_mesh, vid, ordered_neighbors);
+            break;
+        }
+        case WeightMode::MVC: {
+            const auto ordered_neighbors =
+                collect_ordered_one_ring_neighbors(reference_mesh, vid);
+            if (ordered_neighbors.size() != neighbors.size()) {
+                throw std::runtime_error(
+                    "compute_normalized_weights: inconsistent one-ring size for MVC.");
+            }
+
+            lambdas =
+                compute_mvc_weights(reference_mesh, vid, ordered_neighbors);
             break;
         }
         default:
@@ -635,6 +705,55 @@ inline Ruzino::Geometry solve_with_weight_mode(
     return std::move(*geometry);
 }
 
+inline Ruzino::Geometry annotate_delta_norm_with_weight_mode(
+    Ruzino::Geometry input,
+    Ruzino::Geometry reference_input,
+    WeightMode weight_mode)
+{
+    auto halfedge_mesh = operand_to_openmesh(&input);
+    auto reference_halfedge_mesh = operand_to_openmesh(&reference_input);
+
+    validate_reference_mesh_compatibility(
+        *halfedge_mesh, *reference_halfedge_mesh);
+
+    const auto topo = build_minimal_surface_topology(*reference_halfedge_mesh);
+    std::vector<float> delta_norms(reference_halfedge_mesh->n_vertices(), 0.0f);
+
+    for (const auto& vertex_handle : reference_halfedge_mesh->vertices()) {
+        const int vid = vertex_handle.idx();
+        if (topo.is_boundary[vid]) {
+            continue;
+        }
+
+        const auto neighbors = collect_neighbors(*reference_halfedge_mesh, vid);
+        const auto lambdas = compute_normalized_weights(
+            *reference_halfedge_mesh, vid, neighbors, weight_mode);
+
+        Eigen::Vector3d neighbor_sum = Eigen::Vector3d::Zero();
+        for (size_t j = 0; j < neighbors.size(); ++j) {
+            const int neighbor_vid = neighbors[j];
+            const auto neighbor_handle = halfedge_mesh->vertex_handle(neighbor_vid);
+            const auto neighbor_point =
+                point_to_eigen3(halfedge_mesh->point(neighbor_handle));
+            neighbor_sum += lambdas[j] * neighbor_point;
+        }
+
+        const auto current_handle = halfedge_mesh->vertex_handle(vid);
+        const auto current_point = point_to_eigen3(halfedge_mesh->point(current_handle));
+        delta_norms[vid] = static_cast<float>((current_point - neighbor_sum).norm());
+    }
+
+    auto geometry = Ruzino::openmesh_to_operand(halfedge_mesh.get());
+    auto mesh_component = geometry->get_component<::Ruzino::MeshComponent>();
+    if (!mesh_component) {
+        throw std::runtime_error(
+            "Delta Norm: failed to create output mesh component.");
+    }
+
+    mesh_component->add_vertex_scalar_quantity("delta_norm", delta_norms);
+    return std::move(*geometry);
+}
+
 }  // namespace
 
 NODE_DEF_OPEN_SCOPE
@@ -665,6 +784,7 @@ NODE_DECLARATION_FUNCTION(hw5_param)
     b.add_output<Geometry>("Uniform");
     b.add_output<Geometry>("Cotangent");
     b.add_output<Geometry>("Floater");
+    b.add_output<Geometry>("MVC");
 }
 
 NODE_EXECUTION_FUNCTION(hw5_param)
@@ -675,13 +795,13 @@ NODE_EXECUTION_FUNCTION(hw5_param)
         auto reference_input = input;
 
         // (TO BE UPDATED) Avoid processing the node when there is no input
-        if (!input.get_component<MeshComponent>()) {
+        if (!input.get_component<::Ruzino::MeshComponent>()) {
             params.set_error("Minimal Surface: Need Geometry Input.");
             return false;
         }
         if (params.has_input("Reference Mesh")) {
             reference_input = params.get_input<Geometry>("Reference Mesh");
-            if (!reference_input.get_component<MeshComponent>()) {
+            if (!reference_input.get_component<::Ruzino::MeshComponent>()) {
                 params.set_error(
                     "Minimal Surface: Reference Mesh must contain a mesh.");
                 return false;
@@ -698,6 +818,9 @@ NODE_EXECUTION_FUNCTION(hw5_param)
         params.set_output(
             "Floater",
             solve_with_weight_mode(input, reference_input, WeightMode::Floater));
+        params.set_output(
+            "MVC",
+            solve_with_weight_mode(input, reference_input, WeightMode::MVC));
 
         return true;
     }
@@ -707,5 +830,59 @@ NODE_EXECUTION_FUNCTION(hw5_param)
     }
 }
 
+NODE_DECLARATION_FUNCTION(hw5_delta_norm)
+{
+    b.add_input<Geometry>("Input");
+    b.add_input<Geometry>("Reference Mesh");
+    b.add_output<Geometry>("Uniform");
+    b.add_output<Geometry>("Cotangent");
+    b.add_output<Geometry>("Floater");
+    b.add_output<Geometry>("MVC");
+}
+
+NODE_EXECUTION_FUNCTION(hw5_delta_norm)
+{
+    try {
+        auto input = params.get_input<Geometry>("Input");
+        auto reference_input = input;
+
+        if (!input.get_component<::Ruzino::MeshComponent>()) {
+            params.set_error("Delta Norm: Need Geometry Input.");
+            return false;
+        }
+        if (params.has_input("Reference Mesh")) {
+            reference_input = params.get_input<Geometry>("Reference Mesh");
+            if (!reference_input.get_component<::Ruzino::MeshComponent>()) {
+                params.set_error(
+                    "Delta Norm: Reference Mesh must contain a mesh.");
+                return false;
+            }
+        }
+
+        params.set_output(
+            "Uniform",
+            annotate_delta_norm_with_weight_mode(
+                input, reference_input, WeightMode::Uniform));
+        params.set_output(
+            "Cotangent",
+            annotate_delta_norm_with_weight_mode(
+                input, reference_input, WeightMode::Cotangent));
+        params.set_output(
+            "Floater",
+            annotate_delta_norm_with_weight_mode(
+                input, reference_input, WeightMode::Floater));
+        params.set_output(
+            "MVC",
+            annotate_delta_norm_with_weight_mode(
+                input, reference_input, WeightMode::MVC));
+        return true;
+    }
+    catch (const std::exception& e) {
+        params.set_error(e.what());
+        return false;
+    }
+}
+
 NODE_DECLARATION_UI(hw5_param);
+NODE_DECLARATION_UI(hw5_delta_norm);
 NODE_DEF_CLOSE_SCOPE
