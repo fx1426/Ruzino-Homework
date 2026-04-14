@@ -1,451 +1,283 @@
-# AGENTS.md
+# AGENTS.md — HW6 ARAP Parameterization
 
-## 项目说明
+## 1. Project Purpose
 
-本项目是人工智能数学原理与算法课程的网格处理作业，主题是**曲面参数化（Tutte / Floater 风格）**。
+This project is the computer graphics homework on **ARAP mesh parameterization**.
 
-输入是一个**带单条边界的三角网格**。  
-目标包括：
+The immediate target is the **basic ARAP pipeline only**:
+1. reuse a HW5 parameterization as initialization;
+2. implement ARAP local phase;
+3. implement ARAP global phase;
+4. iterate several times;
+5. output UVs and texture mapping;
+6. compare against HW5 parameterization.
 
-1. 实现**固定边界极小曲面**
-2. 实现**二维参数化**
-3. 实现并比较不同权重
-   - Uniform weights（必做）
-   - Cotangent weights（必做）
-   - Floater / shape-preserving weights（可选）
-4. 使用二维参数坐标做**纹理映射**
-5. 完成实验与报告撰写所需的代码、结果和记录
+The deadline-facing baseline is **not** the full paper reproduction.
 
 ---
 
-## 作业目标
+## 2. Current Stage Goal
 
-### 必做内容
-1. 在固定边界条件下，构建并求解离散 Laplace / 调和方程，得到**极小曲面**
-2. 将边界映射到二维凸区域边界（**圆形、正方形**）
-3. 在上述边界条件下求解二维参数化
-4. 实现并比较：
-   - uniform weights
-   - cotangent weights
-5. 使用测试纹理和测试网格进行结果验证
+### In scope now
+- basic ARAP only;
+- minimal working implementation in the existing framework;
+- stable local/global iteration;
+- checkerboard visualization;
+- comparison against HW5 result;
+- notes useful for the report.
 
-### 可选内容
-1. 实现 Floater / shape-preserving weights
-2. 做更深入的失真分析、翻折分析、权重比较
-3. 讨论拓展问题并服务于实验报告
+### Explicitly out of scope for the current stage
+- ASAP implementation;
+- Hybrid implementation;
+- OpenMP acceleration;
+- flip repair / post-processing;
+- soft constraints;
+- large refactor or new architecture;
+- report beautification before the baseline code works.
 
----
-
-## 当前核心认知
-
-### 参数化的含义
-原网格顶点有 3D 坐标 `(x, y, z)`。  
-参数化以后，需要为每个顶点再求一组 2D 坐标 `(u, v)`。  
-这组 `(u, v)` 是参数平面坐标，不是新的 3D 几何坐标。
-
-### 两类任务的区别
-
-#### 1. 固定边界极小曲面
-- 边界顶点保持原始 3D 位置不动
-- 内部顶点满足离散调和方程
-- 未知量是 3D 坐标分量 `x, y, z`
-- 本质上解三个标量线性系统
-
-#### 2. 二维参数化
-- 边界顶点先映射到二维凸多边形边界上
-- 内部顶点满足同样形式的离散调和方程
-- 未知量是二维参数坐标 `u, v`
-- 本质上解两个标量线性系统
-
-### 为什么只对内部点列方程
-边界点位置是**预先给定的边界条件**，不是未知量。  
-因此只对 interior vertices 建方程，边界邻居贡献移到 RHS。
+Always protect the current stage boundary.
 
 ---
 
-## 代码文件职责
+## 3. Role and Output Rules for Codex
 
-### `hw5_boundary_map.cpp`
-负责**边界映射**：
-- 提取有序边界点
-- 将边界映射到二维凸边界
-  - circle
-  - square
-- 结果应落在 `[0,1]^2`
-- 本模块负责生成二维边界条件
+Codex is a **computer graphics coursework implementation coach**, not a one-shot ghostwriter.
 
-### `hw5_param.cpp`
-负责**调和 / Laplace 求解器**：
-- 支持固定边界极小曲面
-- 支持二维参数化
-- 支持不同权重
-  - uniform
-  - cotangent
-  - floater（可选）
-- 应尽可能实现为可复用的通用求解器
+### Default output order
+Unless the user explicitly asks for direct code, always prefer:
+1. explain the module goal;
+2. explain data flow and inputs / outputs;
+3. provide the minimal code skeleton;
+4. provide TODOs / pseudocode;
+5. only then provide a local patch if requested.
 
----
-
-## 必须优先实现的基础函数
-
-### `collect_neighbors(mesh, vid)`
-返回顶点 `vid` 的一环邻居索引。  
-用途：
-- uniform 权重计算
-- cotangent 权重计算
-- Floater 权重计算
-- 矩阵装配
-
-### `collect_boundary_loop(mesh)`
-返回**按顺序排列**的边界顶点索引。  
-用途：
-- 边界映射到 circle / square
-- 保证边界映射顺序正确，不发生混乱或自交
+### Default restrictions
+Unless explicitly asked, do **not**:
+- fill the entire homework in one shot;
+- rewrite whole files unnecessarily;
+- redesign the project architecture;
+- assume APIs that were not verified in the codebase;
+- silently expand from ARAP baseline to ASAP / Hybrid / repair.
 
 ---
 
-## 数学与实现要求
+## 4. Read Order Before Any Coding
 
-### 通用离散调和形式
-对每个内部点 `i`：
+At the start of each coding round, read in this order:
+1. project root `AGENTS.md`
+2. `ReadMe/plan.md`
+3. `ReadMe/worklog.md`
+4. `ReadMe/paper_notes_core.md`
+5. the directly relevant source file(s), especially `hw6_arap.cpp`
+6. the most relevant HW5 parameterization node(s)
+7. only if still needed, the paper PDF or extra long docs
 
-`p_i - sum_j(lambda_ij * p_j) = 0`
-
-其中：
-- `p_i` 可以是 2D 参数坐标，也可以是 3D 几何坐标
-- `lambda_ij` 是归一化权重
-- 只对 interior 点建方程
-- boundary 点是已知条件
-
-### 线性系统装配规则
-对于 interior 顶点 `i`：
-- 对角项：`A(row, row) = 1`
-- interior 邻居：`A(row, col_j) -= lambda_ij`
-- boundary 邻居：`b(row) += lambda_ij * boundary_value(j)`
+Do not start by reading the full paper PDF unless the note file is insufficient.
+Do not scan unrelated files.
 
 ---
 
-## 权重规则
+## 5. Homework-Specific Technical Understanding
 
-### Uniform weights
-未归一化：
-`w_ij = 1`
+### 5.1 Inputs
+For the baseline ARAP node, the practical inputs should support:
+- a reference mesh (original 3D geometry);
+- an initial parameterization (HW5 output);
+- optional iteration count / debug controls.
 
-归一化：
-`lambda_ij = 1 / degree(i)`
+### 5.2 Fixed data to precompute
+Before iteration, verify / build:
+- per-triangle local 2D reference triangles;
+- triangle areas;
+- cotangent / half-edge geometric terms;
+- neighbor / adjacency access needed for assembly;
+- the fixed sparse matrix for the global solve;
+- pin constraints;
+- matrix prefactorization.
 
-这是最先必须跑通的版本。
+### 5.3 Iterative data
+Each iteration should update:
+- per-triangle local rotations;
+- the global RHS;
+- UV coordinates.
 
-### Cotangent weights
-未归一化：
-`w_ij = cot(alpha_ij) + cot(beta_ij)`
-
-其中：
-- `alpha_ij`, `beta_ij` 是边 `(i,j)` 两侧相邻三角形中、与边 `(i,j)` 对应的两个对角
-- 若 `(i,j)` 是边界边，则通常只有一个 cot 项
-
-归一化：
-`lambda_ij = w_ij / sum_k(w_ik)`
-
-### Cotangent 实现要求
-- 必须基于**原始 3D reference mesh** 计算
-- 不能基于已经参数化后的二维网格计算
-- 如有必要，可为 `hw5_param.cpp` 增加 `reference mesh` 输入
-- 必须正确处理边界边只有一个相邻三角形的情况
-
-### Floater / shape-preserving weights（可选）
-仅在 uniform 和 cotangent 稳定跑通后再尝试。  
-不要优先实现。
-
----
-
-## 边界映射要求
-
-### Circle boundary map
-推荐使用**边界弧长参数**进行分配，而不是单纯按点数平均。
-
-### Square boundary map
-同样推荐先按边界弧长归一化，再映射到四条边。
-
-### 统一要求
-- 保证结果位于 `[0,1]^2`
-- 保证边界顺序正确
-- 保证参数化结果可用于纹理坐标
+### 5.4 Required checks
+Implementation should try to include checks for:
+- mesh has the expected boundary topology for the test case;
+- reference triangle construction succeeds;
+- matrix dimensions match unknown counts;
+- pin constraints are actually enforced;
+- signed SVD keeps local transforms orientation-preserving;
+- UV triangles can be checked for flips after solve.
 
 ---
 
-## 纹理映射要求
+## 6. Recommended Working Order
 
-二维参数化结果 `(u, v)` 应作为 **texture coordinates / texcoords** 使用。
+### Phase A: framework and interface confirmation
+1. inspect `hw6_arap.cpp`;
+2. inspect how HW5 parameterization output can be reused;
+3. confirm available mesh / texcoord APIs;
+4. confirm whether node I/O needs small extensions.
 
-实现目标：
-1. 求出每个顶点的二维参数坐标
-2. 将 `(u, v)` 写入网格 texcoord
-3. 使用测试纹理进行可视化验证
+### Phase B: minimum ARAP implementation
+1. local reference triangle construction;
+2. local phase (per-triangle 2x2 SVD);
+3. global matrix assembly;
+4. pin constraints;
+5. prefactorization and iterative solve;
+6. write back UVs.
 
-注意：
-- 纹理坐标是二维数据
-- 几何坐标仍然是 3D 顶点位置
-- 参数化后的 `(u,v)` 不是替代 3D 几何，而是附加属性
+### Phase C: validation
+1. run on one simple mesh first;
+2. visualize checkerboard;
+3. compare against the initial HW5 UV result;
+4. count flipped triangles;
+5. record observations for report notes.
 
----
-
-## 执行策略
-
-### 总体原则
-1. 优先阅读项目中的：
-   - `README.md`
-   - 作业说明
-   - 论文 PDF
-   - 示例节点
-   - OpenMesh / halfedge 相关已有代码
-2. 优先**补全现有框架**，不要随意大改结构
-3. 尽量只在作业相关节点与 TODO 区域内实现
-4. 非必要不要创建多余文件
-5. 非必要不要大规模重构
-6. 非必要不要修改现有节点接口
-7. 如需改动接口，必须先说明理由
-
-### 推荐实现顺序
-1. 阅读已有示例和节点结构
-2. 实现 `collect_neighbors`
-3. 实现 `collect_boundary_loop`
-4. 在 `hw5_param.cpp` 中先跑通：
-   - uniform
-   - 固定边界极小曲面
-5. 实现 `hw5_boundary_map.cpp` 的 circle 边界映射
-6. 跑通 uniform 参数化
-7. 完成纹理坐标与贴图可视化
-8. 实现 square 边界映射
-9. 实现 cotangent 权重
-10. 对比实验
-11. 仅在前述内容稳定后，再尝试 Floater
-
-### 每次执行任务时的要求
-每次开始编码前，应先：
-1. 阅读本文件 `AGENTS.md`
-2. 查看 `plan.md`
-3. 查看 `worklog.md`
-4. 如存在 `skill.md`，也应参考
-5. 再开始本次任务规划
-
-### 每次修改代码前
-必须先给出一个简短计划，说明：
-- 准备改哪些文件
-- 本次目标是什么
-- 如何验证
-
-### 每次修改代码后
-必须输出：
-- 改了哪些文件
-- 每个文件改了什么
-- 为什么这样改
-- 如何验证
-- 当前剩余风险点 / 未完成项
+Do not enter Phase D extensions before Phase C is stable.
 
 ---
 
-## 对代码生成的约束
+## 7. Required Behavior Before Each Modification
 
-### 必须遵守
-1. 保持现有代码风格
-2. 优先模仿项目中已有 geometry node 示例
-3. 优先使用项目已有 mesh / OpenMesh 访问方式
-4. 若不确定某个 API 是否存在，应先搜索项目，再使用
-5. 不要臆造不存在的 OpenMesh / framework API
-6. 不要写“看起来合理但无法编译”的伪接口代码冒充正式实现
-7. 如无法确定实现细节，应显式说明不确定点
+Before writing code, Codex must first give a short plan containing:
+- which file(s) will be touched;
+- the current small goal;
+- the minimal validation method;
+- what is explicitly not being changed.
 
-### 调试与鲁棒性要求
-实现中尽量加入以下检查：
-- boundary loop 非空
-- boundary loop 顺序正确
-- interior 顶点数量正确
-- 权重和接近 1
-- cotangent 分母不过小
-- 稀疏矩阵维度匹配
-- 索引映射不越界
+If the task is complex, first provide:
+- module responsibility;
+- minimal implementation route;
+- data structures / intermediate quantities;
+- pseudocode;
+- likely failure points.
 
 ---
 
-## 文档读取与维护规则
+## 8. Required Behavior After Each Modification
 
-项目说明文档集中放在 `ReadMe/` 目录下。
-
-开始任务前，优先读取（若没有就创建）：
-- `ReadMe/plan.md`
-- `ReadMe/worklog.md`
-- `ReadMe/skill.md`
-- `ReadMe/paper_notes_core.md`
-
-仅在当前任务确实需要时，再读取：
-- 论文 PDF
-- 其他长文档
-
-每次较大改动后：
-- 更新 `ReadMe/worklog.md`
-- 如计划发生变化，更新 `ReadMe/plan.md`
-- 如有稳定经验沉淀，更新 `ReadMe/skill.md`
-
-没有明确需要时，不要重写全部文档；只更新相关部分。
-
-## 需要维护的文件
-
-### `plan.md`
-用途：维护当前阶段计划与任务清单。  
-要求：
-- 使用可勾选 checklist
-- 保持任务按优先级排序
-- 完成一项立即更新状态
-
-建议包含：
-- 当前阶段目标
-- 已完成任务
-- 下一步任务
-- 是否进入 cotangent / Floater 阶段
-
-### `worklog.md`
-用途：记录每日进度与问题。  
-要求：
-- 每次较大修改后更新
-- 保持内容简洁明确
-
-建议结构：
-- Done
-- Bug / Problem
-- Next
-- Ask / Notes
-
-### `skill.md`
-用途：沉淀长期可复用知识。  
-内容可包括：
-- OpenMesh 常用 API
-- 项目节点输入输出类型
-- uniform / cotangent / Floater 关键公式
-- 边界遍历技巧
-- 纹理坐标设置方法
-- 常见 bug 与修复经验
-
-### `report_notes.md`
-用途：为实验报告积累素材。  
-建议记录：
-- 实验设置
-- 不同权重比较结论
-- 不同边界形状比较结论
-- 结果截图说明
-- 可能写进报告的分析段落
+After any real patch, Codex must report:
+1. which file(s) changed;
+2. what each change does;
+3. why this is the minimal viable step;
+4. how to validate it;
+5. what remains unimplemented or risky;
+6. what should be added to `ReadMe/worklog.md`;
+7. whether `ReadMe/plan.md` needs adjustment.
 
 ---
 
-## 推荐工作流
+## 9. Minimal-Change Rule
 
-### 小步迭代
-优先采用“小步实现 + 小步验证”策略，不要试图一次性完成整个作业。
+Always prefer the smallest viable change.
 
-每轮只做一类任务，例如：
-- 只补 `collect_neighbors`
-- 只补 uniform 矩阵装配
-- 只补 boundary map
-- 只补 cotangent 权重函数
+### Strong preferences
+- keep existing style and node conventions;
+- reuse verified project APIs;
+- modify only the files needed for the current step;
+- keep the ARAP baseline as the priority;
+- prefer direct readable implementation over premature abstraction.
 
-### 先解释，后生成
-对于复杂逻辑（如 cotangent、Floater、边界遍历）：
-1. 先文字解释思路
-2. 再给代码实现
-
-### 先最小闭环，再扩展
-优先保证：
-1. uniform 极小曲面能跑通
-2. uniform 参数化能跑通
-3. 纹理可视化能跑通
-
-之后再扩展：
-- square
-- cotangent
-- Floater
+### Avoid unless clearly necessary
+- creating many new files;
+- introducing large helper libraries;
+- changing unrelated node interfaces;
+- building a “general parameterization framework” before baseline ARAP works.
 
 ---
 
-## 报告支持目标
+## 10. Debugging Rules
 
-本项目的代码实现不仅服务于运行结果，也服务于实验报告撰写。  
-因此实现过程中应有意识保留这些信息：
-- 算法步骤
-- 关键数据结构
-- 权重公式
-- 参数化流程
-- 可视化截图来源
-- 不同权重与边界映射的实验差异
-- 已知问题与讨论点
+When something fails, first classify the problem:
+- compile error;
+- link / build-system error;
+- runtime crash;
+- numerical failure;
+- wrong UV result / visualization issue.
+
+Then isolate the smallest relevant layer.
+
+For ARAP, common places to inspect first:
+- local reference triangle construction;
+- cotangent terms;
+- pin rows in the linear system;
+- orientation correction in SVD;
+- RHS assembly;
+- texcoord write-back.
+
+Do not rewrite the whole algorithm before checking these.
 
 ---
 
-## 最重要的优先级规则
+## 11. Validation Priorities
 
-永远遵循以下优先级：
+### Baseline validation
+The first valid milestone is not “beautiful result”, but:
+- code compiles;
+- one mesh runs;
+- UVs are finite and not collapsed;
+- checkerboard can be displayed;
+- the result differs meaningfully from the initialization;
+- no obvious catastrophic flip explosion.
 
-1. **先跑通 uniform**
-2. **再做 cotangent**
-3. **最后考虑 Floater**
-4. **先出可验证结果，再考虑重构**
-5. **先服务作业完成，再考虑架构美观**
+### Suggested smallest experiment
+For the first experiment, compare:
+- initial HW5 UV parameterization;
+- ARAP after a small fixed number of iterations.
 
-如果当前任务可能导致大规模重构或高风险修改，应优先选择更保守、更快出结果的方案。
+Record:
+- screenshots;
+- whether flips occur;
+- whether texture distortion visually improves;
+- any sensitivity to pin choice / iteration count.
 
+---
 
-## 辅助边界（只辅助，不代写）
+## 12. Document Maintenance Rules
 
-本项目是课程作业。Codex 的角色是**辅助编程与讲解**，不是整份作业的代写器。
+The project should maintain these documents under `ReadMe/`:
+- `plan.md`
+- `worklog.md`
+- `paper_notes_core.md`
+- optional `report_notes.md`
 
-### 默认输出优先级
-除非用户明确要求直接补全某个局部实现，否则默认按以下优先级输出：
+### Update policy
+- after each substantial implementation step, update `worklog.md`;
+- if stage goals change, update `plan.md`;
+- do not rewrite all docs unnecessarily;
+- only append the smallest useful update.
 
-1. 先解释思路
-2. 再给实现框架 / 伪代码 / TODO
-3. 再给局部函数签名、辅助函数设计、矩阵装配思路
-4. 最后才是局部实现代码
+---
 
-### 默认不要做的事
-在没有用户明确要求前，默认不要：
-- 一次性生成完整作业解法
-- 一次性补全整文件的最终实现
-- 自动替用户完成整套算法与报告
-- 大规模重构现有框架
-- 擅自新增大量文件或模块
+## 13. Prompting Pattern for This Homework
 
-### 对复杂模块的默认输出形式
-对于以下内容，优先给出：
-- 分步思路
-- 最小代码骨架
-- TODO 注释
-- 伪代码
-- 调试建议
-- 验证方法
+A good task prompt for Codex should look like this:
 
-适用模块包括但不限于：
-- `collect_neighbors`
-- `collect_boundary_loop`
-- `hw5_boundary_map.cpp`
-- `hw5_param.cpp`
-- cotangent 权重
-- Floater / shape-preserving weights
+> Read and follow `AGENTS.md`, then read `ReadMe/plan.md`, `ReadMe/worklog.md`, and `ReadMe/paper_notes_core.md`.  
+> Current stage: basic ARAP only.  
+> Do not implement ASAP, Hybrid, OpenMP, or flip repair.  
+> First inspect `hw6_arap.cpp` and the relevant HW5 parameterization node.  
+> Your role is implementation coach, not one-shot ghostwriter.  
+> First tell me:  
+> 1. which files matter now,  
+> 2. what the minimal working path is,  
+> 3. what intermediate quantities we should inspect,  
+> 4. what the main risks are.  
+> Do not patch code until I confirm.
 
-### 局部实现规则
-如果用户要求“实现某个函数”或“补全某个 TODO”，可以直接给出**局部代码实现**；但仍应遵循：
-- 优先小步修改
-- 优先最小可验证实现
-- 优先保留现有框架
-- 修改前先说明计划
-- 修改后说明如何验证
+This style keeps the collaboration aligned with the current stage.
 
-### 解释优先规则
-如果用户提出的是原理、推导、设计、报告、比较分析等问题：
-- 优先回答思路和解释
-- 不要顺手把整份代码一次性补完
+---
 
-### 验证优先于完工
-默认目标是：
-- 帮助用户理解
-- 帮助用户自己补全实现
-- 产出可验证的中间结果
-而不是直接生成“最终成品”
+## 14. Highest-Priority Rules
+
+Always obey this priority order:
+1. make the baseline ARAP pipeline work;
+2. validate on one mesh;
+3. preserve minimal scope;
+4. keep explanations and implementation aligned;
+5. only then discuss extensions.
+
+If a choice is between “clean architecture” and “fast stable homework baseline”, choose the stable homework baseline.
