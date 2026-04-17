@@ -45,7 +45,7 @@ float roughness = metalnessRoughness.y;
 for(int i = 0; i < light_count; i ++) {
 
 float shadow_map_value = texture(shadow_maps, vec3(uv, lights[i].shadow_map_id)).x;
-
+Color = vec4(0,0,0,1);
 // Visualization of shadow map
 Color += vec4(shadow_map_value, 0, 0, 1);
 
