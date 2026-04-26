@@ -5,10 +5,15 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/SparseLU>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <vector>
+
+#if defined(HW6_ARAP_ENABLE_OPENMP) && defined(_OPENMP)
+#include <omp.h>
+#endif
 
 #include "GCore/Components.h"
 #include "GCore/Components/MeshComponent.h"
@@ -41,6 +46,15 @@
 namespace {
 
 constexpr double kArapEps = 1e-12;
+
+constexpr bool is_openmp_available()
+{
+#if defined(HW6_ARAP_ENABLE_OPENMP) && defined(_OPENMP)
+    return true;
+#else
+    return false;
+#endif
+}
 
 template <typename PointT>
 Eigen::Vector3d point_to_eigen3(const PointT& point)
@@ -219,11 +233,14 @@ public:
     ARAPParameterizer(
         const Ruzino::PolyMesh& reference_mesh,
         const Ruzino::PolyMesh& initial_parameterization_mesh,
-        int iterations);
+        int iterations,
+        bool use_openmp);
 
     void initialize();
     void iterate();
     const std::vector<Eigen::Vector2d>& current_uv() const;
+    double local_phase_time_seconds() const;
+    double total_time_seconds() const;
     std::shared_ptr<Ruzino::Geometry> build_planar_output_geometry() const;
 
 private:
@@ -260,6 +277,9 @@ private:
     const Ruzino::PolyMesh& reference_mesh_;
     const Ruzino::PolyMesh& initial_parameterization_mesh_;
     int iterations_ = 10;
+    bool use_openmp_ = false;
+    double local_phase_time_seconds_ = 0.0;
+    double total_time_seconds_ = 0.0;
 
     std::vector<ARAPTriangleData> triangles_;
     std::vector<ARAPPinConstraint> pin_constraints_;
@@ -481,10 +501,12 @@ std::shared_ptr<Ruzino::Geometry> ARAPParameterizer::build_planar_output_geometr
 ARAPParameterizer::ARAPParameterizer(
     const Ruzino::PolyMesh& reference_mesh,
     const Ruzino::PolyMesh& initial_parameterization_mesh,
-    int iterations)
+    int iterations,
+    bool use_openmp)
     : reference_mesh_(reference_mesh),
       initial_parameterization_mesh_(initial_parameterization_mesh),
-      iterations_(iterations)
+      iterations_(iterations),
+      use_openmp_(use_openmp)
 {
 }
 
@@ -503,15 +525,32 @@ void ARAPParameterizer::initialize()
 
 void ARAPParameterizer::iterate()
 {
+    local_phase_time_seconds_ = 0.0;
+    total_time_seconds_ = 0.0;
+
+    const auto total_start = std::chrono::steady_clock::now();
     for (int iter = 0; iter < iterations_; ++iter) {
         local_phase();
         global_phase();
     }
+    const auto total_end = std::chrono::steady_clock::now();
+    total_time_seconds_ =
+        std::chrono::duration<double>(total_end - total_start).count();
 }
 
 const std::vector<Eigen::Vector2d>& ARAPParameterizer::current_uv() const
 {
     return current_uv_;
+}
+
+double ARAPParameterizer::local_phase_time_seconds() const
+{
+    return local_phase_time_seconds_;
+}
+
+double ARAPParameterizer::total_time_seconds() const
+{
+    return total_time_seconds_;
 }
 
 void ARAPParameterizer::build_fixed_data()
@@ -540,10 +579,21 @@ void ARAPParameterizer::build_fixed_data()
 
 void ARAPParameterizer::local_phase()
 {
-    for (const auto& triangle : triangles_) {
+    const auto local_start = std::chrono::steady_clock::now();
+    const int triangle_count = static_cast<int>(triangles_.size());
+
+#if defined(HW6_ARAP_ENABLE_OPENMP) && defined(_OPENMP)
+    const bool run_parallel = use_openmp_;
+#pragma omp parallel for if(run_parallel) schedule(static)
+#endif
+    for (int triangle_index = 0; triangle_index < triangle_count; ++triangle_index) {
+        const auto& triangle = triangles_[triangle_index];
         const Eigen::Matrix2d covariance = compute_triangle_covariance(triangle);
         local_rotations_[triangle.face_id()] = compute_signed_rotation(covariance);
     }
+    const auto local_end = std::chrono::steady_clock::now();
+    local_phase_time_seconds_ +=
+        std::chrono::duration<double>(local_end - local_start).count();
 }
 
 void ARAPParameterizer::global_phase()
@@ -833,6 +883,7 @@ NODE_DECLARATION_FUNCTION(hw6_arap)
     b.add_input<Geometry>("Reference Mesh");
     b.add_input<Geometry>("Initial Parameterization");
     b.add_input<int>("Iterations").min(1).max(50).default_val(10);
+    b.add_input<bool>("Use OpenMP").default_val(false);
 
     /*
     ** NOTE: You can add more inputs or outputs if necessary. For example, in
@@ -850,62 +901,112 @@ NODE_DECLARATION_FUNCTION(hw6_arap)
     */
 
     b.add_output<Geometry>("Output");
+    b.add_output<float>("Local Phase Time");
+    b.add_output<float>("Total Time");
+    b.add_output<float>("Speedup");
 }
 
 NODE_EXECUTION_FUNCTION(hw6_arap)
 {
-    // Get the input from params
-    auto reference_input = params.get_input<Geometry>("Reference Mesh");
-    auto initial_input = params.get_input<Geometry>("Initial Parameterization");
-    auto iterations = params.get_input<int>("Iterations");
+    try {
+        // Get the input from params
+        auto reference_input = params.get_input<Geometry>("Reference Mesh");
+        auto initial_input = params.get_input<Geometry>("Initial Parameterization");
+        auto iterations = params.get_input<int>("Iterations");
+        auto use_openmp = params.get_input<bool>("Use OpenMP");
 
-    // Avoid processing the node when there is no input
-    if (!reference_input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Need Reference Mesh.");
+        // Avoid processing the node when there is no input
+        if (!reference_input.get_component<MeshComponent>()) {
+            params.set_error("hw6_arap: Need Reference Mesh.");
+            return false;
+        }
+        if (!initial_input.get_component<MeshComponent>()) {
+            params.set_error("hw6_arap: Need Initial Parameterization.");
+            return false;
+        }
+
+        /* ----------------------------- Preprocess -------------------------------
+        ** Create a halfedge structure (using OpenMesh) for the input mesh. The
+        ** half-edge data structure is a widely used data structure in geometric
+        ** processing, offering convenient operations for traversing and modifying
+        ** mesh elements.
+        */
+        auto reference_halfedge_mesh = operand_to_openmesh(&reference_input);
+        auto initial_halfedge_mesh = operand_to_openmesh(&initial_input);
+
+        /* ------------- [HW6_TODO] ARAP Parameterization Implementation -----------
+        ** Implement ARAP mesh parameterization to minimize local distortion.
+        **
+        ** Steps:
+        ** 1. Initial Setup: Use a HW4 parameterization result as initial setup.
+        **
+        ** 2. Local Phase: For each triangle, compute local orthogonal approximation
+        **    (Lt) by computing SVD of Jacobian(Jt) with fixed u.
+        **
+        ** 3. Global Phase: With Lt fixed, update parameter coordinates(u) by
+        *solving
+        **    a pre-factored global sparse linear system.
+        **
+        ** 4. Iteration: Repeat Steps 2 and 3 to refine parameterization.
+        **
+        ** Note:
+        **  - Fixed points' selection is crucial for ARAP and ASAP.
+        **  - Encapsulate algorithms into classes for modularity.
+        */
+
+        float local_phase_time = 0.0f;
+        float total_time = 0.0f;
+        float speedup = 1.0f;
+        std::shared_ptr<Geometry> output;
+        // Keep the node usable even when this binary was built without OpenMP.
+        const bool run_openmp_benchmark = use_openmp && is_openmp_available();
+
+        if (run_openmp_benchmark) {
+            // Run a serial baseline first so Speedup = T_serial / T_parallel.
+            ARAPParameterizer serial_parameterizer(
+                *reference_halfedge_mesh, *initial_halfedge_mesh, iterations, false);
+            serial_parameterizer.initialize();
+            serial_parameterizer.iterate();
+
+            ARAPParameterizer parallel_parameterizer(
+                *reference_halfedge_mesh, *initial_halfedge_mesh, iterations, true);
+            parallel_parameterizer.initialize();
+            parallel_parameterizer.iterate();
+
+            output = parallel_parameterizer.build_planar_output_geometry();
+            local_phase_time =
+                static_cast<float>(parallel_parameterizer.local_phase_time_seconds());
+            total_time =
+                static_cast<float>(parallel_parameterizer.total_time_seconds());
+            speedup = parallel_parameterizer.total_time_seconds() > kArapEps
+                          ? static_cast<float>(
+                                serial_parameterizer.total_time_seconds() /
+                                parallel_parameterizer.total_time_seconds())
+                          : 0.0f;
+        }
+        else {
+            ARAPParameterizer parameterizer(
+                *reference_halfedge_mesh, *initial_halfedge_mesh, iterations, false);
+            parameterizer.initialize();
+            parameterizer.iterate();
+
+            output = parameterizer.build_planar_output_geometry();
+            local_phase_time =
+                static_cast<float>(parameterizer.local_phase_time_seconds());
+            total_time = static_cast<float>(parameterizer.total_time_seconds());
+        }
+
+        // Set the output of the node
+        params.set_output("Output", std::move(*output));
+        params.set_output("Local Phase Time", local_phase_time);
+        params.set_output("Total Time", total_time);
+        params.set_output("Speedup", speedup);
+        return true;
     }
-    if (!initial_input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Need Initial Parameterization.");
+    catch (const std::exception& e) {
+        params.set_error(e.what());
+        return false;
     }
-
-    /* ----------------------------- Preprocess -------------------------------
-    ** Create a halfedge structure (using OpenMesh) for the input mesh. The
-    ** half-edge data structure is a widely used data structure in geometric
-    ** processing, offering convenient operations for traversing and modifying
-    ** mesh elements.
-    */
-    auto reference_halfedge_mesh = operand_to_openmesh(&reference_input);
-    auto initial_halfedge_mesh = operand_to_openmesh(&initial_input);
-
-    /* ------------- [HW6_TODO] ARAP Parameterization Implementation -----------
-    ** Implement ARAP mesh parameterization to minimize local distortion.
-    **
-    ** Steps:
-    ** 1. Initial Setup: Use a HW4 parameterization result as initial setup.
-    **
-    ** 2. Local Phase: For each triangle, compute local orthogonal approximation
-    **    (Lt) by computing SVD of Jacobian(Jt) with fixed u.
-    **
-    ** 3. Global Phase: With Lt fixed, update parameter coordinates(u) by
-    *solving
-    **    a pre-factored global sparse linear system.
-    **
-    ** 4. Iteration: Repeat Steps 2 and 3 to refine parameterization.
-    **
-    ** Note:
-    **  - Fixed points' selection is crucial for ARAP and ASAP.
-    **  - Encapsulate algorithms into classes for modularity.
-    */
-
-    ARAPParameterizer parameterizer(
-        *reference_halfedge_mesh, *initial_halfedge_mesh, iterations);
-    parameterizer.initialize();
-    parameterizer.iterate();
-
-    auto output = parameterizer.build_planar_output_geometry();
-
-    // Set the output of the node
-    params.set_output("Output", std::move(*output));
-    return true;
 }
 
 NODE_DECLARATION_UI(hw6_arap);

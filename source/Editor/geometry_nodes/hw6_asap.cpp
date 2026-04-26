@@ -751,26 +751,34 @@ NODE_DECLARATION_FUNCTION(hw6_asap)
 
 NODE_EXECUTION_FUNCTION(hw6_asap)
 {
-    auto reference_input = params.get_input<Geometry>("Reference Mesh");
-    auto initial_input = params.get_input<Geometry>("Initial Parameterization");
+    try {
+        auto reference_input = params.get_input<Geometry>("Reference Mesh");
+        auto initial_input = params.get_input<Geometry>("Initial Parameterization");
 
-    if (!reference_input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Need Reference Mesh.");
+        if (!reference_input.get_component<MeshComponent>()) {
+            params.set_error("hw6_asap: Need Reference Mesh.");
+            return false;
+        }
+        if (!initial_input.get_component<MeshComponent>()) {
+            params.set_error("hw6_asap: Need Initial Parameterization.");
+            return false;
+        }
+
+        auto reference_halfedge_mesh = operand_to_openmesh(&reference_input);
+        auto initial_halfedge_mesh = operand_to_openmesh(&initial_input);
+
+        ASAPParameterizer parameterizer(*reference_halfedge_mesh, *initial_halfedge_mesh);
+        parameterizer.initialize();
+        parameterizer.solve();
+
+        auto output = parameterizer.build_planar_output_geometry();
+        params.set_output("Output", std::move(*output));
+        return true;
     }
-    if (!initial_input.get_component<MeshComponent>()) {
-        throw std::runtime_error("Need Initial Parameterization.");
+    catch (const std::exception& e) {
+        params.set_error(e.what());
+        return false;
     }
-
-    auto reference_halfedge_mesh = operand_to_openmesh(&reference_input);
-    auto initial_halfedge_mesh = operand_to_openmesh(&initial_input);
-
-    ASAPParameterizer parameterizer(*reference_halfedge_mesh, *initial_halfedge_mesh);
-    parameterizer.initialize();
-    parameterizer.solve();
-
-    auto output = parameterizer.build_planar_output_geometry();
-    params.set_output("Output", std::move(*output));
-    return true;
 }
 
 NODE_DECLARATION_UI(hw6_asap);
