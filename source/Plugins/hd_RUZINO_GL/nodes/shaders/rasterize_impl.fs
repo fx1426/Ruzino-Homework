@@ -29,10 +29,8 @@ void main() {
     diffuseColor = texture2D(diffuseColorSampler, vTexcoord).xyz;
     metallicRoughness = texture2D(metallicRoughnessSampler, vTexcoord).zy;
 
-    vec3 normalmap_value = texture2D(normalMapSampler, vTexcoord).xyz;
-    normal = normalize(vertexNormal);
-
     // HW6_TODO: Apply normal map here. Use normal textures to modify vertex normals.
+    normal = normalize(vertexNormal);
 
     // Calculate tangent and bitangent
     vec3 edge1 = dFdx(vertexPosition);
@@ -49,4 +47,12 @@ void main() {
     }
     tangent = normalize(tangent - dot(tangent, normal) * normal);
     vec3 bitangent = normalize(cross(tangent,normal));
+
+    mat3 TBN = mat3(tangent, bitangent, normal);
+    vec3 normalmap_value = texture2D(normalMapSampler, vTexcoord).xyz;
+    
+    vec3 tangentNormal = normalmap_value * 2.0 - 1.0; 
+    tangentNormal = normalize(tangentNormal);  
+    
+    normal = normalize(TBN * tangentNormal); // 世界空间法线
 }

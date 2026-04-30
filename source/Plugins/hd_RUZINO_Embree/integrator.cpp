@@ -1,5 +1,6 @@
 #include "integrator.h"
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
 #include <random>
@@ -89,9 +90,10 @@ Color Integrator::SampleLights(
     float select_light_pdf = 1.0f / float(N);
 
     auto light_id = size_t(std::floor(uniform_float() * N));
+    light_id = std::min(light_id, N - 1);
     auto light = (*render_param->lights)[light_id];
 
-    float sample_light_pdf;
+    float sample_light_pdf = 0.0f;
     auto color = light->Sample(
         pos, dir, sampled_light_pos, sample_light_pdf, uniform_float);
     pdf = sample_light_pdf * select_light_pdf;
@@ -253,14 +255,20 @@ Color Integrator::EstimateDirectLight(
     GfVec3f sampled_light_pos;
     auto sample_light_luminance = SampleLights(
         si.position, wi, sampled_light_pos, sample_light_pdf, uniform_float);
+
+    if (sample_light_pdf <= 0.0f) {
+        return GfVec3f(0);
+    } // 光源采样无效直接返回，防止除0
+
     auto brdfVal = si.Eval(wi);
     GfVec3f contribution_by_sample_lights{ 0 };
+    float cosSurface = GfDot(si.shadingNormal, wi);
 
-    if (this->VisibilityTest(
+    if (cosSurface > 0.0f && this->VisibilityTest(
             si.position + 0.0001f * si.geometricNormal, sampled_light_pos)) {
         contribution_by_sample_lights =
             GfCompMult(sample_light_luminance, brdfVal) *
-            abs(GfDot(si.shadingNormal, wi)) / sample_light_pdf;
+            cosSurface / sample_light_pdf;
     }
 
     // HW7_TODO: Sample BRDF (optional)

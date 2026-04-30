@@ -7,5 +7,6 @@ layout(location = 0) out float shadow_map0;
 
 void main() {
     vec4 clipPos = light_projection * light_view * (vec4(vertexPosition, 1.0));
-    shadow_map0 = (clipPos.z / clipPos.w);
+    float depth = clipPos.z / clipPos.w;
+    shadow_map0 = depth * 0.5 + 0.5; // [-1, 1] to [0, 1]
 }

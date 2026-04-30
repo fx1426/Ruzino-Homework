@@ -138,6 +138,10 @@ class Hd_RUZINO_Rect_Light : public Hd_RUZINO_Light {
     GfVec3f corner1;
     GfVec3f corner2;
     GfVec3f corner3;
+    GfVec3f edgeU, edgeV, normal;
+    GfVec3f irradiance;
+    GfVec3f radiance;
+    float area;
     float width;
     float height;
     GfVec3f power;

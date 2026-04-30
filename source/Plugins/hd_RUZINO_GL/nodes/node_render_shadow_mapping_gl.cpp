@@ -12,7 +12,7 @@
 NODE_DEF_OPEN_SCOPE
 NODE_DECLARATION_FUNCTION(shadow_mapping)
 {
-    b.add_input<int>("resolution").default_val(1024).min(256).max(4096);
+    b.add_input<int>("resolution").default_val(2048).min(256).max(4096);
     b.add_input<std::string>("Shader").default_val("shaders/shadow_mapping.fs");
 
     b.add_output<GLTextureHandle>("Shadow Maps");
@@ -23,10 +23,11 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
     auto resolution = params.get_input<int>("resolution");
 
     GLTextureDesc texture_desc;
-    texture_desc.array_size = lights.size();
+    texture_desc.array_size =
+        lights.empty() ? 1 : static_cast<unsigned int>(lights.size());
     // texture_desc.array_size = 1;
     texture_desc.size = GfVec2i(resolution);
-    texture_desc.format = HdFormatUNorm8Vec4;
+    texture_desc.format = HdFormatFloat32;
     auto shadow_map_texture = resource_allocator.create(texture_desc);
 
     auto shaderPath = params.get_input<std::string>("Shader");
@@ -111,7 +112,7 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
                 depth_texture_for_opengl->texture_id,
                 0);
 
-            glClearColor(0.f, 0.f, 0.f, 1.0f);
+            glClearColor(1.f, 1.f, 1.f, 1.0f);
             glClear(
                 GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT |
                 GL_STENCIL_BUFFER_BIT);
@@ -139,12 +140,12 @@ NODE_EXECUTION_FUNCTION(shadow_mapping)
         resource_allocator.destroy(depth_texture);
     }
 
+    auto shader_error = shader_handle->shader.get_error();
+
     resource_allocator.destroy(shader_handle);
     glDeleteFramebuffers(1, &framebuffer);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    auto shader_error = shader_handle->shader.get_error();
 
     params.set_output("Shadow Maps", shadow_map_texture);
     if (!shader_error.empty()) {

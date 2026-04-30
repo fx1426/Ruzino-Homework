@@ -1,5 +1,7 @@
 #include "light.h"
 
+#include <algorithm>
+#include <cmath>
 #include <spdlog/spdlog.h>
 
 #include "pxr/base/gf/plane.h"
@@ -115,6 +117,10 @@ Color Hd_RUZINO_Sphere_Light::Sample(
     const std::function<float()>& uniform_float)
 {
     auto distanceVec = position - pos;
+    if (radius <= 0.0f || distanceVec.GetLengthSq() <= 1e-12f) {
+        sample_light_pdf = 0.0f;
+        return Color{ 0 };
+    }
 
     auto basis = constructONB(-distanceVec.GetNormalized());
 
@@ -136,12 +142,16 @@ Color Hd_RUZINO_Sphere_Light::Sample(
 
     // and the pdf (with the measure of solid angle):
     float cosVal = GfDot(-dir, worldSampledDir.GetNormalized());
+    if (cosVal <= 1e-6f) {
+        sample_light_pdf = 0.0f;
+        return Color{ 0 };
+    }
 
     sample_light_pdf =
         sample_pos_pdf / radius / radius / cosVal * distance * distance;
 
     // Finally we calculate the radiance
-    if (cosVal < 0) {
+    if (sample_light_pdf <= 0.0f) {
         return Color{ 0 };
     }
     return irradiance / M_PI;
@@ -340,14 +350,79 @@ Color Hd_RUZINO_Rect_Light::Sample(
     GfVec3f& sampled_light_pos,
     float& sample_light_pdf,
     const std::function<float()>& uniform_float)
-{
-    return {};
+{   // 均匀采样
+    float u = uniform_float();
+    float v = uniform_float();
+    sampled_light_pos = corner0 + u * edgeU + v * edgeV;
+
+    GfVec3f toLight = sampled_light_pos - pos;
+    float dist2 = toLight.GetLengthSq();
+    if (area <= 0.0f || dist2 <= 1e-12f) {
+        sample_light_pdf = 0.0f;
+        return Color(0.0f);
+    }
+
+    float dist = std::sqrt(dist2);
+    dir = toLight / dist;
+
+    float cosLight = GfDot(normal, -dir);
+    if (cosLight <= 0.0f) {
+        sample_light_pdf = 0.0f;
+        return Color(0.0f);
+    }
+
+    float pdfArea = 1.0f / area;
+    sample_light_pdf = pdfArea * dist2 / cosLight;
+
+    return radiance;
 }
 
 // HW7_TODO: implement the intersect function for rectangle light, you can refer to the sphere light, but you need to consider the fact that rectangle light is not a point light source.
 Color Hd_RUZINO_Rect_Light::Intersect(const GfRay& ray, float& depth)
 {
-    return {};
+    float denom = GfDot(ray.GetDirection(), normal);
+    if (std::abs(denom) < 1e-6f) {
+        depth = std::numeric_limits<float>::infinity();
+        return Color(0.0f);
+    }
+
+    // 射线面向光源才有交点
+    if (GfDot(normal, -GfVec3f(ray.GetDirection()).GetNormalized()) <= 0.0f) {
+        depth = std::numeric_limits<float>::infinity();
+        return Color(0.0f);
+    }
+
+    float t = GfDot(corner0 - GfVec3f(ray.GetStartPoint()), normal) / denom;
+    if (t < 0.0f) {
+        depth = std::numeric_limits<float>::infinity();
+        return Color(0.0f);
+    }
+
+    GfVec3f q = GfVec3f(ray.GetPoint(t)); // 交点
+    GfVec3f local = q - corner0;
+
+    float uu = GfDot(edgeU, edgeU);
+    float vv = GfDot(edgeV, edgeV);
+    float uv = GfDot(edgeU, edgeV);
+    float det = uu * vv - uv * uv;
+
+    if (std::abs(det) < 1e-6f) {
+        depth = std::numeric_limits<float>::infinity();
+        return Color(0.0f);
+    }
+
+    float lu = GfDot(local, edgeU);
+    float lv = GfDot(local, edgeV);
+    float a = (lu * vv - lv * uv) / det;
+    float b = (lv * uu - lu * uv) / det;
+
+    if (a >= 0.0f && a <= 1.0f && b >= 0.0f && b <= 1.0f) {
+        depth = t;
+        return radiance;
+    }
+
+    depth = std::numeric_limits<float>::infinity();
+    return Color(0.0f);
 }
 
 void Hd_RUZINO_Rect_Light::Sync(
@@ -376,11 +451,23 @@ void Hd_RUZINO_Rect_Light::Sync(
 
     auto diffuse = sceneDelegate->GetLightParamValue(id, HdLightTokens->diffuse)
                        .Get<float>();
+    auto intensity =
+        sceneDelegate->GetLightParamValue(id, HdLightTokens->intensity)
+            .GetWithDefault<float>();
     power = sceneDelegate->GetLightParamValue(id, HdLightTokens->color)
-                .Get<GfVec3f>() *
-            diffuse;
+                .Get<GfVec3f>() * diffuse * intensity;
+                // refer to sphere light
 
-    // HW7_TODO: calculate irradiance
+    edgeU = corner2 - corner0;
+    edgeV = corner1 - corner0;
+
+    normal = GfCross(edgeV, edgeU).GetNormalized();
+
+    area = GfCross(edgeV, edgeU).GetLength();
+
+    irradiance = area > 0.0f ? power / area : GfVec3f(0.0f);
+
+    radiance = irradiance / M_PI;
 }
 
 RUZINO_NAMESPACE_CLOSE_SCOPE
